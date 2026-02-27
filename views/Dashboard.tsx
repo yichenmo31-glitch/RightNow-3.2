@@ -1,24 +1,25 @@
 import React from 'react';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { View } from '../types';
 import Hero3D from '../components/Hero3D';
+import type { AuthUser } from '../api';
 
-const data = [
-    { name: 'Mon', val: 40 },
-    { name: 'Tue', val: 35 },
-    { name: 'Wed', val: 50 },
-    { name: 'Thu', val: 45 },
-    { name: 'Fri', val: 60 },
-    { name: 'Sat', val: 55 },
-    { name: 'Sun', val: 65 },
+const MOTIVATION_QUOTES = [
+    "除了汗水，没有任何东西能穿透现实与理想的壁垒。",
+    "昨天的犹豫，是今天唯一的遗憾。",
+    "你离目标（Z），只差今天这 45 分钟。",
+    "痛苦是暂时的，但成就感会随你一生。",
+    "不要为了舒适而妥协你的潜力。",
+    "每一次力竭，都是在重塑更强大的自己。",
+    "镜子不说谎，进度条也是。"
 ];
 
 interface Props {
     onNavigate?: (view: View) => void;
     isProfileComplete?: boolean;
+    authUser?: AuthUser | null;
 }
 
-const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true }) => {
+const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true, authUser }) => {
     // Incomplete State View
     if (!isProfileComplete) {
         return (
@@ -30,7 +31,7 @@ const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true }) =>
                     {/* Big RightNow Logo */}
                     <div>
                         <h1 className="text-6xl font-black font-serif italic text-white mb-2">Right<span className="text-primary">Now</span></h1>
-                        <p className="text-sm text-gray-400 tracking-[0.5em] uppercase">Believe is Seeing</p>
+                        <p className="text-sm text-gray-400 tracking-[0.5em] uppercase">Believing is Seeing</p>
                     </div>
 
                     <div className="w-16 h-1 bg-white/10 mx-auto rounded-full"></div>
@@ -52,52 +53,64 @@ const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true }) =>
         );
     }
 
+    // Get a deterministic quote based on the current day of the year
+    const today = new Date();
+    const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
+    const dailyQuote = MOTIVATION_QUOTES[dayOfYear % MOTIVATION_QUOTES.length];
+
     return (
         <div className="min-h-screen pb-24 relative overflow-hidden bg-bg-dark">
             {/* Header */}
             <div className="absolute top-0 w-full p-6 z-20 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
                 <div>
                     <h1 className="text-2xl font-black font-serif italic text-white">Right<span className="text-primary">Now</span></h1>
-                    <p className="text-[10px] text-gray-400 tracking-widest uppercase">Believe is Seeing</p>
+                    <p className="text-[10px] text-gray-400 tracking-widest uppercase">Believing is Seeing</p>
                 </div>
                 <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden">
-                    <img src="https://picsum.photos/id/64/100/100" alt="Profile" className="w-full h-full object-cover" />
+                    {authUser?.avatar ? (
+                        <img src={authUser.avatar} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                            <span className="text-primary text-sm font-bold">{authUser?.name?.charAt(0) || '?'}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* 3D Model Area (Simulated) */}
-            <div className="relative h-[65vh] w-full">
-                {/* Background Glows */}
+            {/* Center Visual Area */}
+            <div className="relative h-[70vh] w-full flex flex-col items-center justify-center">
+
+                {/* --- 
+                  COMMENTED OUT 2D IMAGE LOGIC
+                  We reverted to the 3D model below, but keep this logic in case 
+                  a static 2D poster is preferred later.
+                --- */}
+                {/* 
+                <div className="relative w-full h-[60vh] flex justify-center items-end pb-12">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-[#B8FF00]/10 rounded-full blur-[100px] pointer-events-none"></div>
+                    <img
+                        src="/Z.png"
+                        alt="Ideal State"
+                        className="h-full object-contain relative z-10"
+                        style={{ maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)' }}
+                    />
+                </div>
+                */}
+
+                {/* 3D Model Area */}
                 <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-primary/10 rounded-full blur-[80px]"></div>
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-purple-900/20 rounded-full blur-[100px]"></div>
-
-                {/* The Model Image from Prompt */}
-                {/* <img 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfj_7DoosOac9dnm_zORPTfQMDPj8t8iW8vkTOuANge-IBOriPpDTDhKYRX__pq_yxgRkzcZNYgM4RHH0ghBd2EeY1iAxLWxiCbn3wgFHDS8-COlD39BO7Y41A3FpdxlBvHYxJIchJN6Pj0sw4lkc1XDolO9DNHSr-hcjiwqyjclN5CsytaNeAgSGNNeXMHoqOMsB1qZSYuyu-y_csEeHDmei3kRMuVudP8C9SZme0AT2KfVHA_7WGKhhq2gOnkCvwG1J1DsyXhZaX" 
-              alt="3D Model" 
-              className="w-full h-full object-cover object-top mask-image-gradient"
-              style={{ maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)' }}
-            /> */}
                 <div className="w-full h-full absolute inset-0 z-10" style={{ maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)' }}>
                     <Hero3D />
                 </div>
-
-                {/* Floating Stats */}
-                <div className="absolute top-1/3 left-6 glass px-3 py-2 rounded-xl flex items-center gap-2 animate-float" style={{ animationDelay: '0s' }}>
-                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                    <span className="text-xs font-bold">体脂 18%</span>
-                </div>
-                <div className="absolute top-1/4 right-6 glass px-3 py-2 rounded-xl flex items-center gap-2 animate-float" style={{ animationDelay: '2s' }}>
-                    <span className="text-xs font-bold text-gray-300">目标 Z</span>
-                </div>
             </div>
 
-            {/* Main Stats Panel */}
-            <div className="px-6 -mt-12 relative z-10 space-y-4">
+            {/* Main Stats Panel / Bottom Action */}
+            <div className="absolute bottom-[100px] left-6 right-6 z-20">
                 {/* Current Phase Card */}
                 <div
                     onClick={() => onNavigate?.(View.EvolutionProgress)}
-                    className="glass p-5 rounded-3xl border-l-4 border-l-primary relative overflow-hidden cursor-pointer active:scale-95 transition-all group"
+                    className="glass p-5 rounded-3xl border-l-4 border-l-primary relative overflow-hidden cursor-pointer active:scale-95 transition-all group shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
                 >
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-xs text-gray-400 font-serif">进化进度</span>
@@ -107,39 +120,6 @@ const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true }) =>
                     </div>
                     <div>
                         <span className="text-lg font-bold text-white leading-tight">查看AI预测<br />不同阶段的自己</span>
-                    </div>
-                </div>
-
-                {/* Quick Actions Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="glass p-4 rounded-3xl">
-                        <div className="flex justify-between items-start mb-6">
-                            <span className="text-xs text-gray-400">今日消耗</span>
-                            <span className="material-icons-round text-orange-500 text-sm">local_fire_department</span>
-                        </div>
-                        <div className="flex items-end gap-1">
-                            <span className="text-2xl font-bold font-serif">450</span>
-                            <span className="text-[10px] text-gray-500 mb-1">kcal</span>
-                        </div>
-                    </div>
-                    <div className="glass p-4 rounded-3xl relative overflow-hidden">
-                        <div className="absolute inset-0 opacity-20 pointer-events-none">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={data}>
-                                    <Area type="monotone" dataKey="val" stroke="#B8FF00" fill="#B8FF00" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="relative z-10">
-                            <div className="flex justify-between items-start mb-6">
-                                <span className="text-xs text-gray-400">体重变化</span>
-                                <span className="material-icons-round text-primary text-sm">show_chart</span>
-                            </div>
-                            <div className="flex items-end gap-1">
-                                <span className="text-2xl font-bold font-serif">64.2</span>
-                                <span className="text-[10px] text-gray-500 mb-1">kg</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

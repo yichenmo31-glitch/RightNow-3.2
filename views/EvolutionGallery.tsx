@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 interface Props {
     onBack: () => void;
+    customPhotos?: string[];
 }
 
 // Generate stages a-z but skip 'u' which is missing
@@ -10,7 +11,8 @@ const CHAR_CODES = Array.from({ length: 26 }, (_, i) => 97 + i)
 
 const IMAGES = CHAR_CODES.map(code => `/real_pro/${String.fromCharCode(code)}.png`);
 
-const EvolutionGallery: React.FC<Props> = ({ onBack }) => {
+const EvolutionGallery: React.FC<Props> = ({ onBack, customPhotos = [] }) => {
+    const allImages = [...IMAGES, ...customPhotos].filter(Boolean);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -20,7 +22,7 @@ const EvolutionGallery: React.FC<Props> = ({ onBack }) => {
     // Preload images for smoother scrubbing
     useEffect(() => {
         const preloadImages = async () => {
-            const promises = IMAGES.map((src) => {
+            const promises = allImages.map((src) => {
                 return new Promise((resolve) => {
                     const img = new Image();
                     img.src = src;
@@ -53,7 +55,7 @@ const EvolutionGallery: React.FC<Props> = ({ onBack }) => {
         if (Math.abs(diff) > 50) {
             if (diff > 0) {
                 // Swipe Left -> Next
-                setCurrentIndex(prev => Math.min(IMAGES.length - 1, prev + 1));
+                setCurrentIndex(prev => Math.min(allImages.length - 1, prev + 1));
             } else {
                 // Swipe Right -> Prev
                 setCurrentIndex(prev => Math.max(0, prev - 1));
@@ -62,8 +64,8 @@ const EvolutionGallery: React.FC<Props> = ({ onBack }) => {
         touchStartX.current = null;
     };
 
-    const currentImage = IMAGES[currentIndex];
-    const progressPercent = (currentIndex / (IMAGES.length - 1)) * 100;
+    const currentImage = allImages[currentIndex];
+    const progressPercent = (currentIndex / Math.max(1, allImages.length - 1)) * 100;
 
     return (
         <div className="h-screen bg-black flex flex-col relative overflow-hidden font-sans">
@@ -88,7 +90,7 @@ const EvolutionGallery: React.FC<Props> = ({ onBack }) => {
                     <span className="text-white font-bold text-lg font-mono">
                         {(currentIndex + 1).toString().padStart(2, '0')}
                         <span className="text-gray-600 mx-1">/</span>
-                        {IMAGES.length}
+                        {allImages.length}
                     </span>
                 </div>
 
@@ -115,7 +117,7 @@ const EvolutionGallery: React.FC<Props> = ({ onBack }) => {
                     className="absolute inset-y-0 right-0 w-1/3 z-30 transform active:bg-white/5 transition-colors"
                     onClick={(e) => {
                         e.stopPropagation();
-                        setCurrentIndex(prev => Math.min(IMAGES.length - 1, prev + 1));
+                        setCurrentIndex(prev => Math.min(allImages.length - 1, prev + 1));
                     }}
                 />
 
@@ -139,9 +141,9 @@ const EvolutionGallery: React.FC<Props> = ({ onBack }) => {
                     <div className="absolute bottom-0 inset-x-0 h-1/3 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none flex flex-col justify-end p-6">
                         <div className="flex justify-between items-end">
                             <div>
-                                <p className="text-[#B8FF00] font-bold text-xs mb-1 uppercase tracking-wider">Phase {String.fromCharCode(65 + currentIndex)}</p>
+                                <p className="text-[#B8FF00] font-bold text-xs mb-1 uppercase tracking-wider">Phase {currentIndex >= IMAGES.length ? `CUSTOM-${currentIndex - IMAGES.length + 1}` : String.fromCharCode(65 + currentIndex)}</p>
                                 <p className="text-white text-2xl font-serif font-bold italic">
-                                    {currentIndex === 0 ? 'Start Point' : currentIndex === IMAGES.length - 1 ? 'Final Goal' : 'In Progress'}
+                                    {currentIndex === 0 ? 'Start Point' : currentIndex === allImages.length - 1 ? 'Final Goal' : 'In Progress'}
                                 </p>
                             </div>
                             <div className="text-right">
@@ -169,7 +171,7 @@ const EvolutionGallery: React.FC<Props> = ({ onBack }) => {
                     <input
                         type="range"
                         min={0}
-                        max={IMAGES.length - 1}
+                        max={allImages.length - 1}
                         step={1}
                         value={currentIndex}
                         onChange={handleChange}

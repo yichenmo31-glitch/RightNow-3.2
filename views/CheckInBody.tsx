@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { weightApi, userApi } from '../api';
 
 interface Props {
   onBack: () => void;
@@ -8,6 +9,8 @@ interface Props {
 const CheckInBody: React.FC<Props> = ({ onBack, onSave }) => {
   const [height, setHeight] = useState(175);
   const [weight, setWeight] = useState(70.5);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans animate-fade-in relative z-50">
@@ -126,11 +129,34 @@ const CheckInBody: React.FC<Props> = ({ onBack, onSave }) => {
 
        {/* Footer */}
        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black to-transparent z-20">
-            <button 
-              onClick={onSave}
-              className="w-full bg-primary hover:bg-primary-dark text-black font-bold text-lg py-4 rounded-full shadow-[0_0_25px_rgba(184,255,0,0.3)] active:scale-[0.98] transition-all"
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-2 text-red-400 text-sm text-center mb-3">
+                {error}
+              </div>
+            )}
+            <button
+              onClick={async () => {
+                setSaving(true);
+                setError('');
+                try {
+                  await Promise.all([
+                    userApi.updateProfile({ height, weight }),
+                    weightApi.create({
+                      date: new Date().toISOString().split('T')[0],
+                      weight,
+                    }),
+                  ]);
+                  onSave();
+                } catch (e: any) {
+                  setError(e?.response?.data?.message || '保存失败，请重试');
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              className="w-full bg-primary hover:bg-primary-dark disabled:bg-white/10 disabled:text-gray-500 text-black font-bold text-lg py-4 rounded-full shadow-[0_0_25px_rgba(184,255,0,0.3)] active:scale-[0.98] transition-all"
            >
-              保存档案
+              {saving ? '保存中...' : '保存档案'}
            </button>
        </div>
     </div>

@@ -1,4 +1,6 @@
 export enum View {
+  Login = 'LOGIN',
+  Register = 'REGISTER',
   Splash = 'SPLASH',
   Onboarding = 'ONBOARDING',
   Dashboard = 'DASHBOARD',
@@ -14,7 +16,9 @@ export enum View {
   CheckInBody = 'CHECK_IN_BODY',
   CheckInSuccess = 'CHECK_IN_SUCCESS',
   CheckInShare = 'CHECK_IN_SHARE',
-  EvolutionGallery = 'EVOLUTION_GALLERY'
+  EvolutionGallery = 'EVOLUTION_GALLERY',
+  ActionCenter = 'ACTION_CENTER',
+  WeightRecord = 'WEIGHT_RECORD'
 }
 
 export interface UserState {

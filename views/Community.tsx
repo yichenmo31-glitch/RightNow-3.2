@@ -1,130 +1,424 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { postsApi, friendshipsApi } from '../api';
+import type { PostItem, Comment, Friendship } from '../api';
 
 const Community: React.FC = () => {
-  return (
-    <div className="min-h-screen bg-bg-dark text-white pb-24">
-      <header className="sticky top-0 z-30 bg-bg-dark/80 backdrop-blur-xl border-b border-white/5 px-6 pt-4 pb-4">
-         <div className="flex justify-between items-center">
-            <div>
-               <h1 className="text-2xl font-black font-serif tracking-tight flex items-center gap-2">
-                   社区 <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
-               </h1>
-               <p className="text-[10px] text-gray-400 font-medium tracking-widest uppercase mt-1">Transform Together</p>
-            </div>
-            <div className="flex gap-4 items-center">
-                <span className="material-icons-round text-gray-400">search</span>
-                <img src="https://picsum.photos/id/64/100/100" className="w-8 h-8 rounded-full border border-white/20" alt="Avatar"/>
-            </div>
-         </div>
-      </header>
+    const [activeTab, setActiveTab] = useState<'forum' | 'friends'>('forum');
 
-      <div className="p-6 space-y-8">
-         {/* Trending Section */}
-         <section>
-             <div className="flex justify-between items-end mb-4">
-                 <h2 className="text-lg font-bold">Trending Transformations</h2>
-                 <span className="text-xs text-primary cursor-pointer">View All</span>
-             </div>
-             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-6 px-6">
-                 {/* Card 1 */}
-                 <div className="shrink-0 w-[240px] h-[320px] rounded-3xl overflow-hidden relative group">
-                     <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCk5RNPjbKtVUDzv2jW7vXxTPfnOdyNGuTKSdIiqS0LOrwEDRe4wKlCEzxUuiElCnk7yTG_svHTysWKMOu2QGKARlQ-4QUihAtWp-PV2ZpIxrQnLI4UmwLPx7t0W0e-6wSKpJLdbnNqhZ01lCguLgkWnm23R640nfVFjFfi-WVtJ6OUh1uI9jide9DmIOFZafgfyh2eDrPynDULFIIGL0Xef7g4Zl4go34ItT2Lfqs4OhYpuIil23JiTC5avFYTf6s2k21gsIltp1VN" 
-                          className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" alt="Transformation"/>
-                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/90"></div>
-                     <div className="absolute top-3 left-3 bg-black/40 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 flex items-center gap-1">
-                         <span className="material-icons-round text-primary text-[10px]">local_fire_department</span>
-                         <span className="text-[9px] font-bold uppercase">Hot</span>
-                     </div>
-                     <div className="absolute bottom-4 left-4 right-4">
-                         <div className="flex items-center gap-2 mb-2">
-                             <img src="https://picsum.photos/id/1027/50/50" className="w-6 h-6 rounded-full border border-white/20" alt="User"/>
-                             <span className="text-xs font-bold">Sarah J.</span>
-                         </div>
-                         <div className="flex gap-2">
-                             <span className="bg-primary/20 border border-primary/20 px-2 py-0.5 rounded text-[9px] text-primary font-bold">-5.2kg</span>
-                             <span className="bg-white/10 border border-white/10 px-2 py-0.5 rounded text-[9px] text-white">-4% Fat</span>
-                         </div>
-                     </div>
-                 </div>
-
-                  {/* Card 2 */}
-                 <div className="shrink-0 w-[240px] h-[320px] rounded-3xl overflow-hidden relative group">
-                     <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCi4ikoe-MVDFjvj4SIFCSH4kplAY2_0M_C45mhjz57gZtEJ6owjqi28Uk8z7KIG4aSqVFs-Cr6qH74HRA5EUiPlneY3OnXpUAH3xRHy36nqaaZoKcwihv1mZwrw-92RaAp01jLegZkLs1xXMRfh_hW2hExMyQn0m8jwMZCz7Feg7kAQNU5CF3me2THLwg5ZTHVXMsE-Wwc3evDTXKvyiMwCumWSI502eSO3SrpyFRth2Bxu3oHAI65nPVW-nIlw_XQjQJG_lWv4EuY" 
-                          className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" alt="Transformation"/>
-                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/90"></div>
-                     <div className="absolute bottom-4 left-4 right-4">
-                         <div className="flex items-center gap-2 mb-2">
-                             <img src="https://picsum.photos/id/1011/50/50" className="w-6 h-6 rounded-full border border-white/20" alt="User"/>
-                             <span className="text-xs font-bold">Mike T.</span>
-                         </div>
-                         <div className="flex gap-2">
-                             <span className="bg-purple-500/20 border border-purple-500/20 px-2 py-0.5 rounded text-[9px] text-purple-300 font-bold">+3kg Lean</span>
-                         </div>
-                     </div>
-                 </div>
-             </div>
-         </section>
-
-         {/* Feed Section */}
-         <section>
-            <h3 className="text-base font-bold mb-4">Latest Posts</h3>
-            
-            {/* Post 1 */}
-            <article className="glass p-0 rounded-3xl overflow-hidden mb-6">
-                <div className="p-4 flex items-center justify-between bg-white/5">
-                    <div className="flex items-center gap-3">
-                        <div className="relative">
-                           <img src="https://picsum.photos/id/338/50/50" className="w-10 h-10 rounded-full border border-white/10" alt="Avatar"/>
-                           <span className="absolute -bottom-1 -right-1 bg-primary text-black text-[8px] font-bold px-1 rounded-sm">PRO</span>
-                        </div>
-                        <div>
-                            <h4 className="text-sm font-bold">Jessica Wong</h4>
-                            <p className="text-[10px] text-gray-400">2h ago · Yoga Flexibility</p>
-                        </div>
+    return (
+        <div className="min-h-screen bg-[#050505] text-white pb-24 font-sans">
+            <header className="sticky top-0 z-30 bg-[#050505]/90 backdrop-blur-xl border-b border-white/5 pt-12 pb-4">
+                <div className="px-6 flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+                        社区 <span className="w-1.5 h-1.5 bg-[#B8FF00] rounded-full shadow-[0_0_8px_#B8FF00]"></span>
+                    </h1>
+                    <div className="flex gap-4 items-center">
+                        <img src="https://picsum.photos/id/64/100/100" className="w-8 h-8 rounded-full border border-white/20" alt="Avatar" />
                     </div>
-                    <button className="text-gray-400"><span className="material-icons-round">more_vert</span></button>
                 </div>
-                
-                {/* Comparison Slider Implementation (Simplified Visual) */}
-                <div className="relative h-[250px] w-full bg-black group">
-                     {/* Image Left (Before) */}
-                     <div className="absolute inset-0 w-1/2 overflow-hidden border-r-2 border-white">
-                         <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCk5RNPjbKtVUDzv2jW7vXxTPfnOdyNGuTKSdIiqS0LOrwEDRe4wKlCEzxUuiElCnk7yTG_svHTysWKMOu2QGKARlQ-4QUihAtWp-PV2ZpIxrQnLI4UmwLPx7t0W0e-6wSKpJLdbnNqhZ01lCguLgkWnm23R640nfVFjFfi-WVtJ6OUh1uI9jide9DmIOFZafgfyh2eDrPynDULFIIGL0Xef7g4Zl4go34ItT2Lfqs4OhYpuIil23JiTC5avFYTf6s2k21gsIltp1VN" className="absolute inset-0 w-[200%] max-w-none h-full object-cover" alt="Before"/>
-                         <span className="absolute top-2 left-2 bg-black/60 px-2 py-0.5 rounded text-[9px] font-bold">WEEK 1</span>
-                     </div>
-                     {/* Image Right (After) */}
-                     <div className="absolute inset-0 w-1/2 left-1/2 overflow-hidden">
-                         <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCi4ikoe-MVDFjvj4SIFCSH4kplAY2_0M_C45mhjz57gZtEJ6owjqi28Uk8z7KIG4aSqVFs-Cr6qH74HRA5EUiPlneY3OnXpUAH3xRHy36nqaaZoKcwihv1mZwrw-92RaAp01jLegZkLs1xXMRfh_hW2hExMyQn0m8jwMZCz7Feg7kAQNU5CF3me2THLwg5ZTHVXMsE-Wwc3evDTXKvyiMwCumWSI502eSO3SrpyFRth2Bxu3oHAI65nPVW-nIlw_XQjQJG_lWv4EuY" className="absolute inset-0 w-[200%] max-w-none h-full object-cover -ml-[100%]" alt="After"/>
-                         <span className="absolute top-2 right-2 bg-primary text-black px-2 py-0.5 rounded text-[9px] font-bold">WEEK 12</span>
-                     </div>
-                     {/* Slider Handle */}
-                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                         <div className="w-6 h-6 bg-primary rounded-full border-2 border-white shadow-lg flex items-center justify-center">
-                             <span className="material-icons-round text-black text-[10px]">code</span>
-                         </div>
-                     </div>
+                {/* Tabs */}
+                <div className="px-6 flex gap-6 border-b border-white/10">
+                    <button
+                        onClick={() => setActiveTab('forum')}
+                        className={`pb-3 text-sm font-bold transition-all relative ${activeTab === 'forum' ? 'text-[#B8FF00]' : 'text-gray-500'}`}
+                    >
+                        广场
+                        {activeTab === 'forum' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#B8FF00] shadow-[0_0_8px_#B8FF00]"></div>}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('friends')}
+                        className={`pb-3 text-sm font-bold transition-all relative ${activeTab === 'friends' ? 'text-[#B8FF00]' : 'text-gray-500'}`}
+                    >
+                        搭子
+                        {activeTab === 'friends' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#B8FF00] shadow-[0_0_8px_#B8FF00]"></div>}
+                    </button>
                 </div>
+            </header>
 
-                <div className="p-4">
-                    <p className="text-xs text-gray-300 leading-relaxed mb-3">
-                        Finally achieved the splits after 3 months of consistent practice! <span className="text-primary">#RightNow</span>
+            {/* Main Content */}
+            <div className="p-0">
+                {activeTab === 'forum' ? <ForumTab /> : <FriendsTab />}
+            </div>
+        </div>
+    );
+};
+
+const ForumTab: React.FC = () => {
+    const [posts, setPosts] = useState<PostItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [showCompose, setShowCompose] = useState(false);
+    const [newPostContent, setNewPostContent] = useState('');
+    const [expandedComments, setExpandedComments] = useState<string | null>(null);
+    const [comments, setComments] = useState<Record<string, Comment[]>>({});
+    const [commentInput, setCommentInput] = useState('');
+
+    const loadPosts = async (p: number) => {
+        try {
+            setLoading(true);
+            const res = await postsApi.list(p, 10);
+            if (p === 1) {
+                setPosts(res.data);
+            } else {
+                setPosts(prev => [...prev, ...res.data]);
+            }
+            setHasMore(res.data.length === res.limit);
+        } catch (err) {
+            console.error('Failed to load posts:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { loadPosts(1); }, []);
+
+    const handleLike = async (postId: string) => {
+        try {
+            await postsApi.toggleLike(postId);
+            setPosts(prev => prev.map(p =>
+                p.id === postId ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p
+            ));
+        } catch (err) {
+            console.error('Like failed:', err);
+        }
+    };
+
+    const handleCreatePost = async () => {
+        if (!newPostContent.trim()) return;
+        try {
+            const post = await postsApi.create({ content: newPostContent });
+            setPosts(prev => [post, ...prev]);
+            setNewPostContent('');
+            setShowCompose(false);
+        } catch (err) {
+            console.error('Create post failed:', err);
+        }
+    };
+
+    const handleToggleComments = async (postId: string) => {
+        if (expandedComments === postId) {
+            setExpandedComments(null);
+            return;
+        }
+        setExpandedComments(postId);
+        if (!comments[postId]) {
+            try {
+                const data = await postsApi.getComments(postId);
+                setComments(prev => ({ ...prev, [postId]: data }));
+            } catch (err) {
+                console.error('Load comments failed:', err);
+            }
+        }
+    };
+
+    const handleAddComment = async (postId: string) => {
+        if (!commentInput.trim()) return;
+        try {
+            const comment = await postsApi.addComment(postId, commentInput);
+            setComments(prev => ({ ...prev, [postId]: [...(prev[postId] || []), comment] }));
+            setPosts(prev => prev.map(p => p.id === postId ? { ...p, commentCount: p.commentCount + 1 } : p));
+            setCommentInput('');
+        } catch (err) {
+            console.error('Add comment failed:', err);
+        }
+    };
+
+    const formatTime = (dateStr: string) => {
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 60) return `${mins}分钟前`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}小时前`;
+        return `${Math.floor(hours / 24)}天前`;
+    };
+    return (
+        <div className="animate-fade-in pb-20">
+            {/* AI Banner */}
+            <div className="m-4 p-4 rounded-2xl bg-gradient-to-r from-[#B8FF00]/10 to-transparent border border-[#B8FF00]/20 flex items-start gap-3 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#B8FF00]/5 blur-2xl"></div>
+                <div className="w-8 h-8 rounded-full bg-[#B8FF00]/20 flex items-center justify-center shrink-0">
+                    <span className="material-icons-round text-[#B8FF00] text-sm">smart_toy</span>
+                </div>
+                <div>
+                    <h3 className="text-sm font-bold text-[#B8FF00] mb-1 flex items-center gap-1">
+                        AI 社交托管 <span className="px-1.5 py-0.5 bg-[#B8FF00] text-black text-[8px] rounded uppercase font-black">Beta</span>
+                    </h3>
+                    <p className="text-[11px] text-[#B8FF00]/70 leading-relaxed">
+                        未来规划：你只需专注训练记录，AI 将自动分析数据，为你生成高赞动态、智能匹配运动搭子并代理社交互动。
                     </p>
-                    <div className="flex items-center gap-6 pt-2 border-t border-white/5">
-                        <button className="flex items-center gap-1.5 text-gray-400 hover:text-primary">
-                            <span className="material-icons-round text-sm">favorite_border</span>
-                            <span className="text-[10px] font-bold">842</span>
-                        </button>
-                        <button className="flex items-center gap-1.5 text-gray-400 hover:text-white">
-                            <span className="material-icons-round text-sm">chat_bubble_outline</span>
-                            <span className="text-[10px] font-bold">45</span>
+                </div>
+            </div>
+
+            {/* Compose Modal */}
+            {showCompose && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-end">
+                    <div className="w-full bg-[#111] rounded-t-3xl p-6 animate-fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-base font-bold">发布动态</h3>
+                            <button onClick={() => setShowCompose(false)} className="text-gray-400">
+                                <span className="material-icons-round">close</span>
+                            </button>
+                        </div>
+                        <textarea
+                            value={newPostContent}
+                            onChange={e => setNewPostContent(e.target.value)}
+                            placeholder="分享你的训练心得..."
+                            className="w-full bg-[#1A1A1A] rounded-2xl p-4 text-sm text-white placeholder-gray-500 outline-none border border-white/5 focus:border-[#B8FF00]/50 min-h-[120px] resize-none"
+                        />
+                        <button
+                            onClick={handleCreatePost}
+                            disabled={!newPostContent.trim()}
+                            className={`w-full mt-4 py-3 rounded-xl font-bold text-sm transition-all ${newPostContent.trim() ? 'bg-[#B8FF00] text-black' : 'bg-white/10 text-gray-500'}`}
+                        >
+                            发布
                         </button>
                     </div>
                 </div>
-            </article>
-         </section>
-      </div>
-    </div>
-  );
+            )}
+
+            {/* Posts */}
+            <div className="space-y-2 relative z-10">
+                {loading && posts.length === 0 ? (
+                    <div className="flex justify-center py-12">
+                        <div className="w-6 h-6 border-2 border-[#B8FF00] border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                ) : posts.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500 text-sm">暂无动态，快来发布第一条吧</div>
+                ) : posts.map(post => (
+                    <article key={post.id} className="bg-[#111] p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                                {post.author.avatar ? (
+                                    <img src={post.author.avatar} className="w-10 h-10 rounded-full border border-white/10" alt="Avatar" />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full border border-white/10 bg-[#B8FF00]/20 flex items-center justify-center">
+                                        <span className="text-[#B8FF00] text-sm font-bold">{post.author.name.charAt(0)}</span>
+                                    </div>
+                                )}
+                                <div>
+                                    <h4 className="text-sm font-bold text-white">{post.author.name}</h4>
+                                    <p className="text-[10px] text-gray-500">{formatTime(post.createdAt)}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <p className="text-sm text-gray-300 leading-relaxed mb-3">{post.content}</p>
+                        {post.images && post.images.length > 0 && (
+                            <div className={`grid ${post.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 mb-4`}>
+                                {post.images.map((img, idx) => (
+                                    <div key={idx} className="aspect-square bg-white/5 rounded-xl overflow-hidden relative group">
+                                        <img src={img} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={`Post img ${idx + 1}`} />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between text-gray-400 border-t border-white/5 pt-3">
+                            <button onClick={() => handleLike(post.id)} className={`flex items-center gap-1.5 transition-colors ${post.liked ? 'text-[#B8FF00]' : 'hover:text-[#B8FF00]'}`}>
+                                <span className="material-icons-round text-[18px]">{post.liked ? 'favorite' : 'favorite_border'}</span>
+                                <span className="text-xs font-bold">{post.likes}</span>
+                            </button>
+                            <button onClick={() => handleToggleComments(post.id)} className="flex items-center gap-1.5 hover:text-white transition-colors">
+                                <span className="material-icons-round text-[18px]">chat_bubble_outline</span>
+                                <span className="text-xs font-bold">{post.commentCount}</span>
+                            </button>
+                            <button className="flex items-center gap-1.5 hover:text-white transition-colors">
+                                <span className="material-icons-round text-[18px]">share</span>
+                            </button>
+                        </div>
+                        {/* Comments Section */}
+                        {expandedComments === post.id && (
+                            <div className="mt-3 pt-3 border-t border-white/5 space-y-3">
+                                {(comments[post.id] || []).map(c => (
+                                    <div key={c.id} className="flex gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                                            <span className="text-[10px] text-gray-400">{c.author.name.charAt(0)}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-xs font-bold text-gray-300">{c.author.name}</span>
+                                            <p className="text-xs text-gray-400">{c.content}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                <div className="flex gap-2">
+                                    <input
+                                        value={commentInput}
+                                        onChange={e => setCommentInput(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleAddComment(post.id)}
+                                        placeholder="写评论..."
+                                        className="flex-1 bg-[#1A1A1A] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none border border-white/5"
+                                    />
+                                    <button onClick={() => handleAddComment(post.id)} className="text-[#B8FF00] text-xs font-bold">发送</button>
+                                </div>
+                            </div>
+                        )}
+                    </article>
+                ))}
+                {hasMore && posts.length > 0 && (
+                    <button onClick={() => { setPage(p => p + 1); loadPosts(page + 1); }} className="w-full py-3 text-center text-xs text-gray-500 hover:text-white transition-colors">
+                        加载更多
+                    </button>
+                )}
+            </div>
+
+            {/* Floating Post Button */}
+            <button onClick={() => setShowCompose(true)} className="fixed bottom-24 right-6 w-14 h-14 bg-[#B8FF00] rounded-full shadow-[0_10px_20px_rgba(184,255,0,0.3)] flex items-center justify-center active:scale-95 transition-transform z-40">
+                <span className="material-icons-round text-black text-3xl">edit</span>
+            </button>
+        </div>
+    );
+};
+
+const FriendsTab: React.FC = () => {
+    const [friends, setFriends] = useState<Friendship[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [addId, setAddId] = useState('');
+
+    useEffect(() => {
+        const loadFriends = async () => {
+            try {
+                const data = await friendshipsApi.list();
+                setFriends(data);
+            } catch (err) {
+                console.error('Failed to load friends:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadFriends();
+    }, []);
+
+    const handleAdd = async () => {
+        if (!addId.trim()) return;
+        try {
+            const f = await friendshipsApi.request(addId.trim());
+            setFriends(prev => [...prev, f]);
+            setAddId('');
+        } catch (err) {
+            console.error('Friend request failed:', err);
+        }
+    };
+
+    const handleAccept = async (id: string) => {
+        try {
+            const updated = await friendshipsApi.accept(id);
+            setFriends(prev => prev.map(f => f.id === id ? updated : f));
+        } catch (err) {
+            console.error('Accept failed:', err);
+        }
+    };
+
+    const handleRemove = async (id: string) => {
+        try {
+            await friendshipsApi.remove(id);
+            setFriends(prev => prev.filter(f => f.id !== id));
+        } catch (err) {
+            console.error('Remove failed:', err);
+        }
+    };
+
+    const accepted = friends.filter(f => f.status === 'accepted');
+    const pending = friends.filter(f => f.status === 'pending');
+    return (
+        <div className="animate-fade-in p-6">
+            {/* Search/Add */}
+            <div className="relative mb-8">
+                <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden focus-within:border-[#B8FF00]/50 transition-colors pl-4 shadow-sm">
+                    <span className="material-icons-round text-gray-500">person_add</span>
+                    <input
+                        type="text"
+                        value={addId}
+                        onChange={e => setAddId(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleAdd()}
+                        placeholder="输入用户 ID 添加搭子"
+                        className="flex-1 bg-transparent border-none py-3 px-3 text-sm text-white focus:outline-none placeholder-gray-600"
+                    />
+                    <button onClick={handleAdd} className="bg-[#B8FF00] hover:bg-[#a3e000] text-black text-sm font-bold px-6 h-full py-3 transition-colors active:bg-[#8ebb00]">添加</button>
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center py-12">
+                    <div className="w-6 h-6 border-2 border-[#B8FF00] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+            ) : (
+                <>
+                    {/* Pending Requests */}
+                    {pending.length > 0 && (
+                        <div className="mb-6">
+                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">待确认 ({pending.length})</h3>
+                            <div className="space-y-4">
+                                {pending.map(f => (
+                                    <div key={f.id} className="flex items-center justify-between bg-[#111]/80 p-4 rounded-2xl border border-[#B8FF00]/20">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-full border border-white/10 bg-[#B8FF00]/20 flex items-center justify-center">
+                                                <span className="text-[#B8FF00] font-bold">{f.user.name.charAt(0)}</span>
+                                            </div>
+                                            <h4 className="text-sm font-bold text-white">{f.user.name}</h4>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleAccept(f.id)} className="px-3 py-1.5 bg-[#B8FF00] text-black text-xs font-bold rounded-full">接受</button>
+                                            <button onClick={() => handleRemove(f.id)} className="px-3 py-1.5 bg-white/10 text-gray-400 text-xs font-bold rounded-full">拒绝</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Friend List */}
+                    <div>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">我的运动搭子 ({accepted.length})</h3>
+                        {accepted.length === 0 ? (
+                            <p className="text-center text-gray-500 text-sm py-8">还没有搭子，快去添加吧</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {accepted.map(f => (
+                                    <div key={f.id} className="flex items-center justify-between bg-[#111]/80 hover:bg-[#161616] p-4 rounded-2xl border border-white/5 transition-colors cursor-pointer">
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative">
+                                                {f.user.avatar ? (
+                                                    <img src={f.user.avatar} className="w-12 h-12 rounded-full border border-white/10" alt="Friend" />
+                                                ) : (
+                                                    <div className="w-12 h-12 rounded-full border border-white/10 bg-white/10 flex items-center justify-center">
+                                                        <span className="text-white font-bold">{f.user.name.charAt(0)}</span>
+                                                    </div>
+                                                )}
+                                                <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#B8FF00] border-2 border-[#111] rounded-full"></div>
+                                            </div>
+                                            <h4 className="text-sm font-bold text-white">{f.user.name}</h4>
+                                        </div>
+                                        <button onClick={() => handleRemove(f.id)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 transition-colors">
+                                            <span className="material-icons-round text-[18px]">person_remove</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+
+            {/* AI Recommendation Box */}
+            <div className="mt-8 border border-[#B8FF00]/20 rounded-3xl p-5 relative overflow-hidden group transition-colors">
+                <div className="absolute inset-0 bg-gradient-to-tr from-[#B8FF00]/5 to-transparent pointer-events-none"></div>
+                <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-bold text-[#B8FF00] flex items-center gap-2">
+                            <span className="material-icons-round text-[18px]">smart_toy</span>
+                            AI 搭子匹配
+                        </h4>
+                        <span className="text-[10px] bg-[#B8FF00]/20 text-[#B8FF00] px-2 py-0.5 rounded font-bold">高匹配度</span>
+                    </div>
+                    <p className="text-xs text-gray-400 leading-relaxed mb-4">
+                        发现与你目标相似的用户。是否让 AI 帮您发起搭子邀请并代理打招呼？
+                    </p>
+                    <button className="w-full bg-[#B8FF00]/10 hover:bg-[#B8FF00]/20 text-[#B8FF00] text-sm font-bold py-3 rounded-xl transition-colors border border-[#B8FF00]/20">
+                        查看智能推荐
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default Community;

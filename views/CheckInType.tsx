@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View } from '../types';
+import { checkinsApi } from '../api';
 
 interface Props {
   onClose: () => void;
@@ -9,6 +10,8 @@ interface Props {
 const CheckInType: React.FC<Props> = ({ onClose, onNext }) => {
   const [selectedType, setSelectedType] = useState('strength');
   const [duration, setDuration] = useState(45);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const types = [
     { id: 'strength', icon: 'fitness_center', label: '力量训练', desc: '增肌塑形，力量提升' },
@@ -100,12 +103,32 @@ const CheckInType: React.FC<Props> = ({ onClose, onNext }) => {
                </div>
            </div>
 
-           <button 
-              onClick={onNext}
-              className="w-full bg-primary hover:bg-primary-dark text-black font-bold text-lg py-4 rounded-full shadow-[0_0_25px_rgba(184,255,0,0.3)] active:scale-[0.98] transition-all"
+           <button
+              onClick={async () => {
+                setSaving(true);
+                setError('');
+                try {
+                  await checkinsApi.create({
+                    type: selectedType,
+                    note: `${duration}分钟`,
+                  });
+                  onNext();
+                } catch (e: any) {
+                  setError(e?.response?.data?.message || '打卡失败，请重试');
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              className="w-full bg-primary hover:bg-primary-dark disabled:bg-white/10 disabled:text-gray-500 text-black font-bold text-lg py-4 rounded-full shadow-[0_0_25px_rgba(184,255,0,0.3)] active:scale-[0.98] transition-all"
            >
-              保存
+              {saving ? '保存中...' : '保存'}
            </button>
+           {error && (
+             <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-2 text-red-400 text-sm text-center">
+               {error}
+             </div>
+           )}
        </div>
     </div>
   );

@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { checkinsApi } from '../api';
+import type { CheckInRecord } from '../api';
 
 interface Props {
   onClose: () => void;
 }
 
+const TYPE_LABELS: Record<string, string> = {
+  strength: '力量训练',
+  cardio: '有氧训练',
+  cycling: '骑行',
+  swim: '游泳',
+  yoga: '瑜伽',
+};
+
 const CheckInShare: React.FC<Props> = ({ onClose }) => {
+  const [checkin, setCheckin] = useState<CheckInRecord | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+
+  useEffect(() => {
+    checkinsApi.latest().then(setCheckin).catch(() => {});
+    checkinsApi.list().then(list => setTotalCount(list.length)).catch(() => {});
+  }, []);
   return (
     <div className="min-h-screen bg-[#020202] text-white flex flex-col items-center justify-center p-6 relative z-50 animate-fade-in">
         {/* Main Poster Card */}
@@ -22,12 +39,12 @@ const CheckInShare: React.FC<Props> = ({ onClose }) => {
                  {/* Overlay Text */}
                  <div className="absolute top-8 left-0 right-0 text-center">
                      <h3 className="text-xs font-bold tracking-[0.1em] text-white/90 uppercase mb-1">Fitness Achievement</h3>
-                     <p className="text-[8px] text-white/60 tracking-widest uppercase">Natural Fitness Work</p>
+                     <p className="text-[8px] text-white/60 tracking-widest uppercase">{checkin ? TYPE_LABELS[checkin.type] || checkin.type : 'Natural Fitness Work'}</p>
                  </div>
 
                  <div className="absolute bottom-8 left-8">
                      <p className="text-[10px] text-white/60 font-serif tracking-widest mb-1">WORKOUT DAY</p>
-                     <p className="text-5xl font-serif text-white/90">DAY 42</p>
+                     <p className="text-5xl font-serif text-white/90">DAY {totalCount || '--'}</p>
                  </div>
              </div>
 

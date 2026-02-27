@@ -1,22 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View } from '../types';
+import { checkinsApi } from '../api';
+import type { CheckInRecord } from '../api';
 
 interface Props {
   onNavigate: (view: View) => void;
   onClose: () => void;
 }
 
+const TYPE_LABELS: Record<string, { icon: string; label: string }> = {
+  strength: { icon: 'fitness_center', label: '力量训练' },
+  cardio: { icon: 'directions_run', label: '有氧训练' },
+  cycling: { icon: 'directions_bike', label: '骑行' },
+  swim: { icon: 'pool', label: '游泳' },
+  yoga: { icon: 'self_improvement', label: '瑜伽' },
+};
+
 const CheckInSuccess: React.FC<Props> = ({ onNavigate, onClose }) => {
+  const [latestCheckin, setLatestCheckin] = useState<CheckInRecord | null>(null);
+
+  useEffect(() => {
+    checkinsApi.latest()
+      .then(setLatestCheckin)
+      .catch(() => {});
+  }, []);
+
+  const typeInfo = TYPE_LABELS[latestCheckin?.type || 'strength'] || TYPE_LABELS.strength;
+
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center pt-12 pb-6 px-6 relative z-50 animate-fade-in font-sans">
       {/* Close Button */}
-      <button 
+      <button
         onClick={onClose}
         className="absolute top-6 left-6 text-gray-400 hover:text-white"
       >
         <span className="material-icons-round">close</span>
       </button>
-      
+
       <h1 className="text-lg font-serif font-normal text-gray-200 mt-2">打卡成就</h1>
 
       {/* Main Success Card */}
@@ -43,11 +63,11 @@ const CheckInSuccess: React.FC<Props> = ({ onNavigate, onClose }) => {
               <div className="col-span-2 bg-[#1a1a1a]/50 border border-primary/20 p-4 rounded-2xl flex items-center justify-between">
                    <div className="flex items-center gap-4">
                        <div className="w-12 h-12 rounded-xl bg-[#111] flex items-center justify-center">
-                           <span className="material-icons-round text-primary text-xl">fitness_center</span>
+                           <span className="material-icons-round text-primary text-xl">{typeInfo.icon}</span>
                        </div>
                        <div>
                            <div className="text-sm font-bold text-gray-200">运动类型与时长</div>
-                           <div className="text-[10px] text-primary">力量训练 · 45 分钟</div>
+                           <div className="text-[10px] text-primary">{typeInfo.label}{latestCheckin?.note ? ` · ${latestCheckin.note}` : ''}</div>
                        </div>
                    </div>
                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">

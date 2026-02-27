@@ -1,47 +1,89 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { View } from '../types';
+import { evolutionApi } from '../api';
+import type { EvolutionRecord as EvolutionRecordType } from '../api/evolution';
 
 interface Props {
     onBack: () => void;
     onNavigate?: (view: View) => void;
+    customPhotos?: string[];
+    onUploadPhoto?: (photo: string) => void;
 }
 
-// Mock Data for the Stacked Album
-const EVOLUTION_HISTORY = [
-    {
-        id: 1,
-        date: '2023.10.24',
-        status: 'CURRENT',
-        img: '/real_pro/z.png', // Latest
-        weight: '64.5 kg'
-    },
-    {
-        id: 2,
-        date: '2023.09.15',
-        status: 'RECORD',
-        img: '/real_pro/m.png', // Middle
-        weight: '65.2 kg'
-    },
-    {
-        id: 3,
-        date: '2023.08.01',
-        status: 'START',
-        img: '/real_pro/a.png', // Start
-        weight: '66.9 kg'
-    }
-];
-
-const EvolutionRecord: React.FC<Props> = ({ onBack, onNavigate }) => {
-    // Mock data for weight chart
-    const weightTrend = [
-        { val: 66.9 }, { val: 66.5 }, { val: 66.0 }, { val: 65.8 }, { val: 65.2 }, { val: 64.8 }, { val: 64.5 }
-    ];
-
+const EvolutionRecord: React.FC<Props> = ({ onBack, onNavigate, customPhotos = [], onUploadPhoto }) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [records, setRecords] = useState<EvolutionRecordType[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
 
+    useEffect(() => {
+        loadRecords();
+    }, []);
+
+    const loadRecords = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const list = await evolutionApi.list();
+            setRecords(list);
+        } catch (e: any) {
+            setError(e?.response?.data?.message || '加载进化记录失败');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                await evolutionApi.create(formData);
+                await loadRecords();
+            } catch (err: any) {
+                setError(err?.response?.data?.message || '上传失败');
+            }
+            // Also notify parent for local preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (onUploadPhoto) {
+                    onUploadPhoto(reader.result as string);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    // Build history from API records + custom photos
+    const combinedHistory = [
+        ...customPhotos.map((photo, i) => ({
+            id: `custom_${i}`,
+            date: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
+            status: i === 0 ? 'CURRENT' : 'UPDATED',
+            img: photo,
+            weight: '--'
+        })),
+        ...records.map((r, i) => ({
+            id: r.id,
+            date: r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0].replace(/-/g, '.') : '--',
+            status: r.status || (i === 0 && customPhotos.length === 0 ? 'CURRENT' : 'RECORD'),
+            img: r.imageUrl,
+            weight: r.weight ? `${r.weight} kg` : '--'
+        })),
+    ];
+
+    // Build weight trend from records that have weight data
+    const weightTrend = records
+        .filter(r => r.weight != null)
+        .map(r => ({ val: r.weight! }))
+        .reverse();
+
+    const latestWeight = records.find(r => r.weight != null)?.weight;
+
     const handleNextCard = () => {
-        setActiveIndex((prev) => (prev + 1) % EVOLUTION_HISTORY.length);
+        setActiveIndex((prev) => (prev + 1) % combinedHistory.length);
     };
 
     return (
@@ -52,25 +94,48 @@ const EvolutionRecord: React.FC<Props> = ({ onBack, onNavigate }) => {
                     <span className="material-icons-round text-white">arrow_back_ios_new</span>
                 </button>
                 <h1 className="text-lg font-serif font-bold tracking-widest">进化记录</h1>
-                <button className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all">
-                    <span className="material-icons-round text-white">share</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handlePhotoSelect}
+                        accept="image/*"
+                        className="hidden"
+                    />
+                    <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all">
+                        <span className="material-icons-round text-[#B8FF00]">add_a_photo</span>
+                    </button>
+                    <button className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all">
+                        <span className="material-icons-round text-white">share</span>
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 pt-2 pb-32 space-y-6">
+                {loading && (
+                    <div className="text-center py-12 text-gray-500">加载中...</div>
+                )}
+                {error && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-5 py-3 text-red-400 text-sm">
+                        {error}
+                    </div>
+                )}
+                {!loading && combinedHistory.length === 0 && !error && (
+                    <div className="text-center py-12 text-gray-500">
+                        <span className="material-icons-round text-4xl mb-2 block opacity-30">photo_library</span>
+                        暂无进化记录，点击右上角添加
+                    </div>
+                )}
                 {/* Weight Card */}
                 <div className="bg-[#151515] rounded-[32px] p-6 border border-white/5 relative overflow-hidden">
                     <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] text-gray-400 tracking-widest uppercase">Current Weight</span>
-                        <div className="flex items-center gap-1 bg-[#2AD56F]/20 px-3 py-1 rounded-full border border-[#2AD56F]/20">
-                            <span className="material-icons-round text-[#2AD56F] text-[10px]">arrow_downward</span>
-                            <span className="text-[10px] font-bold text-[#2AD56F]">比30天前少 2.4 kg</span>
-                        </div>
                     </div>
                     <div className="flex items-baseline gap-1 mb-6">
-                        <span className="text-5xl font-serif font-medium text-white">64.5</span>
+                        <span className="text-5xl font-serif font-medium text-white">{latestWeight ?? '--'}</span>
                         <span className="text-sm text-gray-500">kg</span>
                     </div>
+                    {weightTrend.length > 1 && (
                     <div className="h-16 w-full opacity-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={weightTrend}>
@@ -84,17 +149,17 @@ const EvolutionRecord: React.FC<Props> = ({ onBack, onNavigate }) => {
                                 />
                             </LineChart>
                         </ResponsiveContainer>
-                        {/* Decorative gradient under line simulated via css if needed, simplified here */}
                         <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#2AD56F]/10 to-transparent pointer-events-none"></div>
                     </div>
+                    )}
                 </div>
 
                 {/* STACKED CARD ALBUM AREA */}
                 <div className="relative py-4 h-[500px] flex justify-center items-center perspective-1000">
-                    {EVOLUTION_HISTORY.map((item, index) => {
+                    {combinedHistory.map((item, index) => {
                         // Calculate visual position based on index relative to active index
                         // We want to show: Active(0) -> Next(1) [Behind] -> Next(2) [Behind Further]
-                        const offset = (index - activeIndex + EVOLUTION_HISTORY.length) % EVOLUTION_HISTORY.length;
+                        const offset = (index - activeIndex + combinedHistory.length) % combinedHistory.length;
 
                         // Only show top 3 cards for performance and visual clarity
                         if (offset > 2) return null;
@@ -145,7 +210,7 @@ const EvolutionRecord: React.FC<Props> = ({ onBack, onNavigate }) => {
 
                     {/* Stack Hint */}
                     <div className="absolute top-0 right-4 bg-black/60 backdrop-blur px-3 py-1 rounded-full pointer-events-none z-40">
-                        <span className="text-[10px] font-bold text-gray-400">{activeIndex + 1} / {EVOLUTION_HISTORY.length}</span>
+                        <span className="text-[10px] font-bold text-gray-400">{activeIndex + 1} / {combinedHistory.length}</span>
                     </div>
                 </div>
 
@@ -205,7 +270,7 @@ const EvolutionRecord: React.FC<Props> = ({ onBack, onNavigate }) => {
 
             {/* Footer Button */}
             <div className="fixed bottom-6 left-6 right-6 z-50">
-                <button className="w-full bg-[#2AD56F] hover:bg-[#25b860] active:scale-[0.98] transition-all text-black font-bold text-lg py-4 rounded-full flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(42,213,111,0.4)]">
+                <button className="w-full bg-[#B8FF00] hover:bg-[#a6e600] active:scale-[0.98] transition-all text-black font-bold text-lg py-4 rounded-full flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(184,255,0,0.4)]">
                     <span>查看深度报告</span>
                     <span className="material-icons-round">arrow_forward</span>
                 </button>

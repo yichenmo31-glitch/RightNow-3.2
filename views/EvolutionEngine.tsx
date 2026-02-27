@@ -42,34 +42,43 @@ const EvolutionEngine: React.FC<Props> = ({ userImage, userFaceImage, bodyStyle,
     if (userFaceImage) {
       initialMsgs.push({
         id: 1.5,
-        text: "已接收正脸照，将在生成过程中强化面部特征保留。",
+        text: "已接收自定义理想体型参考图，将在生成过程中向其特质靠拢。",
         sender: 'ai',
         image: userFaceImage
       });
     }
 
     if (initialMsgs.length > 0) {
-      setMessages(prev => [...prev, ...initialMsgs]);
+      setMessages(prev => {
+        // Prevent duplicate messages in React 18 strict mode
+        const newMsgs = initialMsgs.filter(m => !prev.some(p => p.id === m.id));
+        return [...prev, ...newMsgs];
+      });
     }
 
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: 2,
-        text: "基于您的目标 [塑型]，我已生成初步 3D 模型。体脂率设定为 18%。",
-        sender: 'ai',
-        tags: ['✨ 腿部线条', '💪 腰腹更紧致', '🍑 提升臀线']
-      }]);
+    const timer = setTimeout(() => {
+      setMessages(prev => {
+        if (prev.some(p => p.id === 2)) return prev;
+        return [...prev, {
+          id: 2,
+          text: "基于您的目标 [塑型]，我已生成初步 3D 模型。体脂率设定为 18%。",
+          sender: 'ai',
+          tags: ['✨ 腿部线条', '💪 腰腹更紧致', '🍑 提升臀线']
+        }];
+      });
     }, 1000);
+
+    return () => clearTimeout(timer);
   }, [userFaceImage]);
 
 
   // API Key from environment
-  const API_KEY = process.env.GEMINI_API_KEY;
+  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
   // Helper to call Gemini API
   const callGeminiAPI = async (userText: string, imageBase64?: string | null) => {
     if (!API_KEY || API_KEY === 'PLACEHOLDER_API_KEY') {
-      return "请先在 .env.local 中配置有效的 GEMINI_API_KEY。";
+      return "请先在 .env.local 中配置有效的 VITE_GEMINI_API_KEY。";
     }
 
     try {
@@ -283,6 +292,20 @@ const EvolutionEngine: React.FC<Props> = ({ userImage, userFaceImage, bodyStyle,
                         ))}
                       </div>
                     )}
+
+                    {/* Quick Adjustment Options appended to the latest AI analysis message */}
+                    {msg.id === 2 && (
+                      <div className="flex flex-wrap gap-2 mt-3 ml-8 animate-fade-in">
+                        <button onClick={() => handleSend("再瘦一点")} className="whitespace-nowrap bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-white hover:bg-white/10 active:bg-white/20 transition-colors flex items-center gap-1">
+                          <span className="material-icons-round text-yellow-500 text-[12px]">bolt</span>
+                          再瘦一点
+                        </button>
+                        <button onClick={() => handleSend("增加肌肉线条")} className="whitespace-nowrap bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-white hover:bg-white/10 active:bg-white/20 transition-colors flex items-center gap-1">
+                          <span className="material-icons-round text-orange-500 text-[12px]">fitness_center</span>
+                          增加肌肉线条
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Suggestion Action Button */}
@@ -328,22 +351,13 @@ const EvolutionEngine: React.FC<Props> = ({ userImage, userFaceImage, bodyStyle,
             </div>
           )}
 
-          {/* Quick Actions Panel */}
+          {/* Bottom Action Area (Face Upload & Confirm) */}
           {isChatOpen && (
-            <div className="shrink-0">
-              <p className="text-[10px] text-gray-500 mb-2 pl-1">调整指令建议：</p>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-2">
-                <button onClick={() => handleSend("再瘦一点")} className="whitespace-nowrap bg-white/5 border border-white/10 px-4 py-2 rounded-full text-[11px] text-white hover:bg-white/10 active:bg-white/20 transition-colors flex items-center gap-1">
-                  <span className="material-icons-round text-yellow-500 text-xs">bolt</span>
-                  再瘦一点
-                </button>
-                <button onClick={() => handleSend("增加肌肉线条")} className="whitespace-nowrap bg-white/5 border border-white/10 px-4 py-2 rounded-full text-[11px] text-white hover:bg-white/10 active:bg-white/20 transition-colors flex items-center gap-1">
-                  <span className="material-icons-round text-orange-500 text-xs">fitness_center</span>
-                  增加肌肉线条
-                </button>
-                <button onClick={() => faceInputRef.current?.click()} className="whitespace-nowrap bg-white/5 border border-primary/30 px-4 py-2 rounded-full text-[11px] text-primary hover:bg-primary/10 flex items-center gap-1 active:bg-primary/20 transition-colors">
-                  <span className="material-icons-round text-xs">face</span>
-                  换张脸
+            <div className="shrink-0 mt-2">
+              <div className="flex justify-center mb-4">
+                <button onClick={() => faceInputRef.current?.click()} className="whitespace-nowrap bg-[#B8FF00]/10 border border-[#B8FF00]/30 px-5 py-2.5 rounded-full text-xs font-bold text-[#B8FF00] hover:bg-[#B8FF00]/20 flex items-center gap-1.5 active:bg-[#B8FF00]/30 transition-colors shadow-[0_0_15px_rgba(184,255,0,0.1)]">
+                  <span className="material-icons-round text-sm">face</span>
+                  更换面部照片
                 </button>
               </div>
 

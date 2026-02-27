@@ -1,19 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { chatApi } from '../api';
+import type { ChatMessage } from '../api';
 
 interface Props {
   onBack: () => void;
 }
 
+interface DisplayMessage {
+  id: string;
+  text: string;
+  sender: 'user' | 'ai';
+  time: string;
+}
+
 const AIChat: React.FC<Props> = ({ onBack }) => {
-  const [messages, setMessages] = useState<any[]>([
-    { 
-      id: 1, 
-      text: "你好！我是你的 AI 运动专家。根据你目前的训练进度（C阶段），建议今天关注核心稳定性。有什么具体问题想问我吗？", 
-      sender: 'ai',
-      time: '刚刚'
-    }
-  ]);
+  const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -24,39 +28,68 @@ const AIChat: React.FC<Props> = ({ onBack }) => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  const formatTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
-    const userMsg = { 
-      id: Date.now(), 
-      text: inputValue, 
-      sender: 'user', 
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    };
-    
-    setMessages(prev => [...prev, userMsg]);
-    setInputValue("");
-
-    // Simulate AI thinking and response
-    setTimeout(() => {
-      let responseText = "这是一个很好的问题。综合你的体能数据，我建议你可以尝试增加组间休息时间，或者降低重量专注于动作的标准性。";
-      
-      if (inputValue.includes("吃") || inputValue.includes("饮食")) {
-        responseText = "关于饮食，考虑到你今天的热量缺口，晚餐建议摄入高蛋白低脂食物，例如鸡胸肉或白鱼，搭配西兰花。";
-      } else if (inputValue.includes("痛") || inputValue.includes("伤")) {
-        responseText = "如果感到疼痛，请立即停止训练并休息。建议对该部位进行冰敷，如果持续疼痛请咨询专业医生。";
-      } else if (inputValue.includes("计划") || inputValue.includes("练")) {
-        responseText = "我们可以调整一下计划。明天可以安排一组 HIIT 燃脂训练，配合 30 分钟的力量训练，重点攻克腹部线条。";
+  // Load chat history on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const res = await chatApi.history(1, 50);
+        const mapped: DisplayMessage[] = res.data.map(m => ({
+          id: m.id,
+          text: m.content,
+          sender: m.role === 'user' ? 'user' : 'ai',
+          time: formatTime(m.createdAt),
+        }));
+        setMessages(mapped);
+      } catch (err) {
+        console.error('Failed to load chat history:', err);
+      } finally {
+        setLoading(false);
       }
+    };
+    loadHistory();
+  }, []);
 
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: responseText,
+  const handleSend = async () => {
+    if (!inputValue.trim() || sending) return;
+
+    const userMsg: DisplayMessage = {
+      id: `user-${Date.now()}`,
+      text: inputValue,
+      sender: 'user',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setMessages(prev => [...prev, userMsg]);
+    const content = inputValue;
+    setInputValue("");
+    setSending(true);
+
+    try {
+      const aiResponse = await chatApi.send(content);
+      const aiMsg: DisplayMessage = {
+        id: aiResponse.id,
+        text: aiResponse.content,
         sender: 'ai',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        time: formatTime(aiResponse.createdAt),
       };
       setMessages(prev => [...prev, aiMsg]);
-    }, 1500);
+    } catch (err) {
+      console.error('Chat send failed:', err);
+      const errorMsg: DisplayMessage = {
+        id: `err-${Date.now()}`,
+        text: '抱歉，发送失败，请稍后重试。',
+        sender: 'ai',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -85,12 +118,19 @@ const AIChat: React.FC<Props> = ({ onBack }) => {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#050505]">
-        {messages.map((msg) => (
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="w-6 h-6 border-2 border-[#B8FF00] border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="text-center py-12 text-gray-500 text-sm">开始和 AI 运动专家对话吧</div>
+        ) : (
+          messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
             <div className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} max-w-[85%]`}>
                <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-lg ${
-                 msg.sender === 'user' 
-                 ? 'bg-primary text-black rounded-tr-none' 
+                 msg.sender === 'user'
+                 ? 'bg-primary text-black rounded-tr-none'
                  : 'bg-[#1A1A1A] text-gray-200 rounded-tl-none border border-white/5'
                }`}>
                  {msg.text}
@@ -98,7 +138,18 @@ const AIChat: React.FC<Props> = ({ onBack }) => {
                <span className="text-[10px] text-gray-600 mt-1 px-1">{msg.time}</span>
             </div>
           </div>
-        ))}
+        )))}
+        {sending && (
+          <div className="flex justify-start animate-fade-in">
+            <div className="p-4 rounded-2xl rounded-tl-none bg-[#1A1A1A] border border-white/5">
+              <div className="flex gap-1.5">
+                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -118,12 +169,12 @@ const AIChat: React.FC<Props> = ({ onBack }) => {
                 className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none min-h-[40px]"
               />
            </div>
-           <button 
+           <button
              onClick={handleSend}
-             disabled={!inputValue.trim()}
+             disabled={!inputValue.trim() || sending}
              className={`p-3 rounded-full flex items-center justify-center transition-all ${
-               inputValue.trim() 
-               ? 'bg-primary text-black hover:bg-primary-dark shadow-[0_0_15px_rgba(184,255,0,0.3)] transform active:scale-95' 
+               inputValue.trim() && !sending
+               ? 'bg-primary text-black hover:bg-primary-dark shadow-[0_0_15px_rgba(184,255,0,0.3)] transform active:scale-95'
                : 'bg-[#1A1A1A] text-gray-600'
              }`}
            >

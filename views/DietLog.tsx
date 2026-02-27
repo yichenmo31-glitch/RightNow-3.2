@@ -1,99 +1,327 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { dietApi } from '../api';
+import type { DietRecord, DietSummary } from '../api/diet';
 
 const DietLog: React.FC = () => {
-  return (
-    <div className="min-h-screen bg-bg-dark text-white pb-24 px-6 pt-12">
-      <header className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-black font-serif tracking-tight">近期饮食</h1>
-        <div className="flex flex-col items-center">
-             <span className="text-4xl font-serif italic text-white font-bold">27</span>
-             <span className="text-xs text-gray-500 uppercase">1月 2024</span>
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+    const [isTextModalOpen, setIsTextModalOpen] = useState(false);
+    const [foodName, setFoodName] = useState('');
+    const [foodDesc, setFoodDesc] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const [records, setRecords] = useState<DietRecord[]>([]);
+    const [summary, setSummary] = useState<DietSummary | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+
+    const today = new Date().toISOString().split('T')[0];
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const loadData = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const [list, sum] = await Promise.all([
+                dietApi.list(today),
+                dietApi.summary(today),
+            ]);
+            setRecords(list);
+            setSummary(sum);
+        } catch (e: any) {
+            setError(e?.response?.data?.message || '加载失败');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            console.log('Selected photo:', file.name);
+            setIsBottomSheetOpen(false);
+        }
+    };
+
+    const handleTextSubmit = async () => {
+        if (!foodName.trim()) return;
+        setSaving(true);
+        try {
+            const newRecord = await dietApi.create({
+                name: foodName,
+                calories: 0,
+                date: today,
+                mealType: foodDesc || undefined,
+            });
+            setRecords(prev => [newRecord, ...prev]);
+            setIsTextModalOpen(false);
+            setFoodName('');
+            setFoodDesc('');
+            // Refresh summary
+            const sum = await dietApi.summary(today);
+            setSummary(sum);
+        } catch (e: any) {
+            setError(e?.response?.data?.message || '保存失败');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        try {
+            await dietApi.remove(id);
+            setRecords(prev => prev.filter(r => r.id !== id));
+            const sum = await dietApi.summary(today);
+            setSummary(sum);
+        } catch (e: any) {
+            setError(e?.response?.data?.message || '删除失败');
+        }
+    };
+
+    // Mock recent photos from device gallery
+    const mockGalleryImages = [
+        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop",
+        "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop",
+        "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=400&h=400&fit=crop",
+        "https://images.unsplash.com/photo-1484723091791-cdd515f0b2d1?w=400&h=400&fit=crop",
+        "https://images.unsplash.com/photo-1493770348161-369560ae357d?w=400&h=400&fit=crop",
+        "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=400&h=400&fit=crop",
+    ];
+
+    return (
+        <div className="min-h-screen bg-bg-dark text-white pb-24 px-6 pt-12">
+            <header className="flex items-center justify-between mb-8">
+                <h1 className="text-3xl font-black font-serif tracking-tight">近期饮食</h1>
+                <div className="flex flex-col items-center">
+                    <span className="text-4xl font-serif italic text-white font-bold">{summary?.totalCalories ?? '--'}</span>
+                    <span className="text-xs text-gray-500 uppercase">千卡 今日</span>
+                </div>
+            </header>
+
+            {/* Calendar Strip (Simplified) */}
+            <div className="flex justify-between mb-8 text-center text-gray-500">
+                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                    <div key={i} className={`flex flex-col gap-2 ${i === 5 ? 'text-primary' : ''}`}>
+                        <span className="text-[10px] font-bold opacity-50">{d}</span>
+                        <span className={`text-sm ${i === 5 ? 'w-8 h-8 rounded-full bg-primary/20 border border-primary text-white flex items-center justify-center shadow-[0_0_10px_rgba(184,255,0,0.3)]' : ''}`}>
+                            {22 + i}
+                        </span>
+                    </div>
+                ))}
+            </div>
+
+            <div className="space-y-6">
+                {loading && (
+                    <div className="text-center py-12 text-gray-500">加载中...</div>
+                )}
+                {error && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-5 py-3 text-red-400 text-sm">
+                        {error}
+                    </div>
+                )}
+                {!loading && records.length === 0 && !error && (
+                    <div className="text-center py-12 text-gray-500">
+                        <span className="material-icons-round text-4xl mb-2 block opacity-30">restaurant</span>
+                        今日暂无饮食记录
+                    </div>
+                )}
+                {records.map((record) => (
+                    <div key={record.id} className="glass rounded-[32px] p-4 border-white/5 relative overflow-hidden group">
+                        <div className="flex justify-between items-start px-2">
+                            <div className="flex-1">
+                                <h3 className="text-xl font-bold font-serif">{record.name}</h3>
+                                <div className="flex items-center gap-2 mt-1 opacity-50">
+                                    <span className="text-lg">🍽️</span>
+                                    <span className="text-xs font-mono">{record.mealType || '未分类'}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-[#F5F5F0]/10 backdrop-blur-md rounded-xl p-3 text-white">
+                                    <div className="flex justify-between items-baseline mb-1">
+                                        <span className="font-serif font-bold text-xs mr-2">热量</span>
+                                        <span className="font-black text-lg">{record.calories}</span>
+                                    </div>
+                                    <div className="space-y-0.5 text-[10px] opacity-70">
+                                        {record.fat != null && <div className="flex justify-between gap-3"><span>脂肪</span><b>{record.fat}g</b></div>}
+                                        {record.protein != null && <div className="flex justify-between gap-3"><span>蛋白质</span><b>{record.protein}g</b></div>}
+                                        {record.carbs != null && <div className="flex justify-between gap-3"><span>碳水</span><b>{record.carbs}g</b></div>}
+                                    </div>
+                                </div>
+                                <button onClick={() => handleDelete(record.id)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-500/20 transition-colors">
+                                    <span className="material-icons-round text-gray-500 text-sm">delete</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Floating Add Menu */}
+            <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center">
+                <div className={`flex flex-col gap-3 mb-4 transition-all duration-300 origin-bottom ${isMenuOpen && !isBottomSheetOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-50 translate-y-10 pointer-events-none'}`}>
+                    <div className="flex flex-col items-center gap-2">
+                        <div
+                            className="flex items-center gap-3 bg-[#1a1a1a] border border-white/10 p-2 pr-4 pl-2 rounded-full shadow-2xl cursor-pointer hover:bg-white/5 transition-colors"
+                            onClick={() => {
+                                setIsMenuOpen(false);
+                                setIsTextModalOpen(true);
+                            }}
+                        >
+                            <button className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center pointer-events-none text-white">
+                                <span className="material-icons-round text-sm notranslate">edit_note</span>
+                            </button>
+                            <span className="text-sm font-bold tracking-widest text-gray-300 pointer-events-none">文字记录</span>
+                        </div>
+
+                        <div
+                            className="flex items-center gap-3 bg-[#1a1a1a] border border-[#B8FF00]/30 p-2 pr-4 pl-2 rounded-full shadow-2xl cursor-pointer hover:bg-[#B8FF00]/10 transition-colors"
+                            onClick={() => {
+                                setIsMenuOpen(false);
+                                setIsBottomSheetOpen(true);
+                            }}
+                        >
+                            <button className="w-10 h-10 rounded-full bg-[#B8FF00]/10 flex items-center justify-center pointer-events-none text-[#B8FF00]">
+                                <span className="material-icons-round text-sm notranslate">camera_alt</span>
+                            </button>
+                            <span className="text-sm font-bold tracking-widest text-[#B8FF00] pointer-events-none">拍照记录</span>
+                        </div>
+                    </div>
+                </div>
+
+                {!isBottomSheetOpen && (
+                    <button
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        className={`w-16 h-16 bg-primary rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(184,255,0,0.4)] transition-all duration-300 ${isMenuOpen ? 'rotate-45 scale-95 bg-white shadow-white/20' : 'hover:scale-110'}`}
+                    >
+                        <span className="material-icons-round text-3xl notranslate">add</span>
+                    </button>
+                )}
+            </div>
+
+            {/* Bottom Sheet Menu */}
+            <div
+                className={`fixed inset-x-0 bottom-0 z-50 bg-[#1c1c1e] rounded-t-[24px] transition-transform duration-300 ease-out transform ${isBottomSheetOpen ? 'translate-y-0' : 'translate-y-full'
+                    }`}
+            >
+                {/* Drag Handle */}
+                <div className="w-full flex justify-center pt-3 pb-4" onClick={() => setIsBottomSheetOpen(false)}>
+                    <div className="w-12 h-1.5 bg-gray-600 rounded-full cursor-pointer hover:bg-gray-500 transition-colors"></div>
+                </div>
+
+                {/* Top Actions (Camera - mimicking TG) */}
+                <div className="flex justify-start gap-6 items-center px-6 mb-4">
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 transition-opacity"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                            <span className="material-icons-round text-[#B8FF00] notranslate">camera_alt</span>
+                        </div>
+                        <span className="text-[10px] text-gray-400">拍照</span>
+                    </button>
+                </div>
+
+                {/* Recent Photos Grid */}
+                <div className="px-2 pb-8 max-h-[40vh] overflow-y-auto">
+                    <div className="flex justify-between items-center px-2 mb-2">
+                        <span className="text-white font-bold text-sm">最近的照片</span>
+                        <span className="text-[#B8FF00] text-xs font-bold">图库</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                        {/* Live Camera Preview Mock */}
+                        <div
+                            className="aspect-square bg-gray-800 rounded relative overflow-hidden flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <span className="material-icons-round text-white/50 text-4xl">photo_camera</span>
+                        </div>
+
+                        {/* Gallery Images */}
+                        {mockGalleryImages.map((src, idx) => (
+                            <div key={idx} className="aspect-square bg-gray-800 rounded relative overflow-hidden cursor-pointer group">
+                                <img src={src} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={`Recent ${idx}`} />
+                                <div className="absolute top-1 right-1 w-5 h-5 rounded-full border border-white/80 bg-black/20 flex items-center justify-center text-transparent hover:text-white transition-colors">
+                                    <div className="w-4 h-4 rounded-full border border-current"></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Hidden Input for Photo Upload */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handlePhotoSelect}
+                accept="image/*"
+                className="hidden"
+            />
+
+            {/* Text Record Modal */}
+            {isTextModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsTextModalOpen(false)} />
+                    <div className="bg-[#1c1c1e] w-full max-w-sm rounded-[32px] p-6 relative z-10 shadow-2xl border border-white/10">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-serif font-bold text-white">文字记录</h3>
+                            <button onClick={() => setIsTextModalOpen(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10">
+                                <span className="material-icons-round text-gray-400 text-sm">close</span>
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 mb-8">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 mb-2 tracking-widest uppercase">食物名称</label>
+                                <input
+                                    type="text"
+                                    value={foodName}
+                                    onChange={(e) => setFoodName(e.target.value)}
+                                    placeholder="例如：全麦吐司配煎蛋"
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#B8FF00]/50 transition-colors"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 mb-2 tracking-widest uppercase">详情描述 <span className="text-gray-600 lowercase tracking-normal">(选填)</span></label>
+                                <textarea
+                                    value={foodDesc}
+                                    onChange={(e) => setFoodDesc(e.target.value)}
+                                    placeholder="描述大小、克数、烹饪方式以获取更准确的热量预估..."
+                                    rows={3}
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#B8FF00]/50 transition-colors resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleTextSubmit}
+                            disabled={!foodName.trim() || saving}
+                            className="w-full bg-[#B8FF00] hover:bg-[#a6e600] disabled:bg-white/10 disabled:text-gray-500 disabled:shadow-none active:scale-[0.98] transition-all text-black font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(184,255,0,0.3)]"
+                        >
+                            <span className="material-icons-round text-sm notranslate">{saving ? 'hourglass_empty' : 'auto_awesome'}</span>
+                            <span>{saving ? '保存中...' : 'AI 分析'}</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Backdrop for closing menus */}
+            {(isMenuOpen || isBottomSheetOpen) && (
+                <div
+                    className="fixed inset-0 z-30 bg-black/20 backdrop-blur-sm transition-opacity cursor-pointer"
+                    onClick={() => {
+                        setIsMenuOpen(false);
+                        setIsBottomSheetOpen(false);
+                    }}
+                />
+            )}
         </div>
-      </header>
-
-      {/* Calendar Strip (Simplified) */}
-      <div className="flex justify-between mb-8 text-center text-gray-500">
-         {['M','T','W','T','F','S','S'].map((d, i) => (
-             <div key={i} className={`flex flex-col gap-2 ${i === 5 ? 'text-primary' : ''}`}>
-                 <span className="text-[10px] font-bold opacity-50">{d}</span>
-                 <span className={`text-sm ${i === 5 ? 'w-8 h-8 rounded-full bg-primary/20 border border-primary text-white flex items-center justify-center shadow-[0_0_10px_rgba(184,255,0,0.3)]' : ''}`}>
-                    {22 + i}
-                 </span>
-             </div>
-         ))}
-      </div>
-
-      <div className="space-y-6">
-          {/* Food Card 1 */}
-          <div className="glass rounded-[32px] p-4 border-white/5 relative overflow-hidden group">
-              <div className="aspect-[4/3] w-full rounded-[24px] overflow-hidden relative mb-4">
-                  <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSyOeCAj5bcehe36grtZoNwmoZY7ZIwTerkWGZVlf1cec4ng7PzQYm7FAVOgXxSYMOK63LvobIWIiva9xCJfwegkHwcn7PXPRGmoeg-BSHHaBs-5ARUxe6F33Ldk0sA1SjVET42opzS2p85cVEncN45Y7_ELSPuEIeEcPyo2MEO5dpNqeAIA-bGaLutuH8bZ3KeqLQYDNeCJ5ZK3-Fn17F3c68SJQGQLnFjrxDxslmJ821Y6rBm-6QQiL7SQwXfXgdjXFplRhrhog-" 
-                       alt="Sausage" className="w-full h-full object-cover"/>
-                  
-                  {/* Floating Macro Card */}
-                  <div className="absolute top-4 right-4 w-40 bg-[#F5F5F0]/95 backdrop-blur-md rounded-2xl p-3 text-black shadow-xl">
-                      <div className="flex justify-between items-baseline mb-2 border-b border-black/10 pb-1">
-                          <span className="font-serif font-bold text-sm">Calories</span>
-                          <span className="font-black text-lg">156</span>
-                      </div>
-                      <div className="space-y-1 text-[10px] opacity-80">
-                          <div className="flex justify-between"><span>脂肪</span><b>12g</b></div>
-                          <div className="flex justify-between"><span>蛋白质</span><b>5.2g</b></div>
-                          <div className="flex justify-between"><span>碳水</span><b>4g</b></div>
-                      </div>
-                  </div>
-              </div>
-              <div className="flex justify-between items-start px-2">
-                  <div>
-                      <h3 className="text-xl font-bold font-serif">肉肠</h3>
-                      <div className="flex items-center gap-2 mt-1 opacity-50">
-                          <span className="text-lg">🌭</span>
-                          <span className="text-xs font-mono">16:39</span>
-                      </div>
-                  </div>
-                  <span className="px-3 py-1 bg-white/5 rounded-full text-[10px] text-gray-400">家常菜</span>
-              </div>
-          </div>
-
-          {/* Food Card 2 */}
-           <div className="glass rounded-[32px] p-4 border-white/5 relative overflow-hidden group">
-              <div className="aspect-[4/3] w-full rounded-[24px] overflow-hidden relative mb-4">
-                  <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFOyiS98qgEO0gBNxdFLNQpnxHHaOr9fSWkJvXuM9jP3HRQubqzKhDIJ-71CmEiRZMlN6L-cPkNIPkSIkavII_0FPqMQe6JKlQyfFfnYE-XnIrlkoEjIB32x5eQdhX2Tfd7Rq0qukGTDDPDgHq3Z-MVr-lVLutq9WT2ELqTmmS5HHLR9SvFb24VnureVQ-de6E5EY8EGHyU2kn6EPAuaN-QUPtPQdiQnKk0ISQ4gslTq77cHSYkrnXi_ZUufTsCJvtzNEtUbtcH8xJ" 
-                       alt="Snack" className="w-full h-full object-cover"/>
-                   {/* Floating Macro Card */}
-                  <div className="absolute top-4 right-4 w-40 bg-[#F5F5F0]/95 backdrop-blur-md rounded-2xl p-3 text-black shadow-xl">
-                      <div className="flex justify-between items-baseline mb-2 border-b border-black/10 pb-1">
-                          <span className="font-serif font-bold text-sm">Calories</span>
-                          <span className="font-black text-lg">92</span>
-                      </div>
-                      <div className="space-y-1 text-[10px] opacity-80">
-                          <div className="flex justify-between"><span>脂肪</span><b>0.4g</b></div>
-                          <div className="flex justify-between"><span>蛋白质</span><b>1.2g</b></div>
-                          <div className="flex justify-between"><span>碳水</span><b>22g</b></div>
-                      </div>
-                  </div>
-              </div>
-              <div className="flex justify-between items-start px-2">
-                  <div>
-                      <h3 className="text-xl font-bold font-serif">红枣果脯</h3>
-                      <div className="flex items-center gap-2 mt-1 opacity-50">
-                          <span className="text-lg">🫐</span>
-                          <span className="text-xs font-mono">15:20</span>
-                      </div>
-                  </div>
-                  <span className="px-3 py-1 bg-white/5 rounded-full text-[10px] text-gray-400">小吃</span>
-              </div>
-          </div>
-      </div>
-
-      {/* Floating Add Button */}
-      <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30">
-          <button className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(184,255,0,0.4)] hover:scale-110 transition-transform">
-              <span className="material-icons-round text-3xl">add_a_photo</span>
-          </button>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default DietLog;

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 
 interface Props {
   onChatClick?: () => void;
+  hasNotification?: boolean;
 }
 
-const FloatingAdvisor: React.FC<Props> = ({ onChatClick }) => {
+const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false }) => {
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 150 });
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -13,7 +14,7 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick }) => {
   // Mock AI proactive message
   useEffect(() => {
     const timer = setTimeout(() => {
-      setMessage("检测到今日热量缺口，建议晚餐增加 50g 鸡胸肉。");
+      setMessage("为了让您的进化路线更精准，可以稍微和我说说您平时的饮食及作息习惯吗？");
       setTimeout(() => setMessage(null), 8000);
     }, 3000);
     return () => clearTimeout(timer);
@@ -50,7 +51,7 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick }) => {
   };
 
   return (
-    <div 
+    <div
       className="fixed z-[100] touch-none"
       style={{ left: position.x, top: position.y }}
       onPointerDown={handlePointerDown}
@@ -59,7 +60,7 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick }) => {
     >
       {/* Message Bubble - Clicking this also opens chat */}
       {message && (
-        <div 
+        <div
           onClick={handleClick}
           className="absolute right-16 top-0 w-48 bg-black/80 backdrop-blur-md border border-white/10 p-3 rounded-2xl rounded-tr-none text-xs text-gray-200 shadow-xl animate-fade-in cursor-pointer hover:bg-black/90"
         >
@@ -72,29 +73,34 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick }) => {
       )}
 
       {/* The Orb */}
-      <div 
+      <div
         onClick={handleClick}
         className="w-14 h-14 rounded-full relative cursor-pointer group transition-transform active:scale-95"
       >
+        {/* Unread Red Dot */}
+        {hasNotification && (
+          <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 rounded-full z-20 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse"></div>
+        )}
+
         {/* Outer Glow/Pulse */}
         <div className="absolute inset-0 bg-primary/30 rounded-full animate-ping opacity-20"></div>
         <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl"></div>
-        
+
         {/* Main Body */}
         <div className="relative w-full h-full bg-[#B8FF00] rounded-full shadow-[0_0_20px_rgba(184,255,0,0.6)] flex items-center justify-center border border-white/20 overflow-hidden">
-             
-             {/* Subtle Shine */}
-             <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/40 to-transparent pointer-events-none"></div>
 
-             {/* 3 Dots Icon - Custom built with CSS to match image */}
-             <div className="relative w-6 h-6 z-10">
-                 {/* Large Dot (Top Right) */}
-                 <div className="absolute top-0 right-0 w-3 h-3 bg-black rounded-full shadow-sm"></div>
-                 {/* Medium Dot (Left) */}
-                 <div className="absolute top-[8px] left-0 w-2.5 h-2.5 bg-black rounded-full shadow-sm"></div>
-                 {/* Small Dot (Bottom) */}
-                 <div className="absolute bottom-0 left-[8px] w-2 h-2 bg-black rounded-full shadow-sm"></div>
-             </div>
+          {/* Subtle Shine */}
+          <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/40 to-transparent pointer-events-none"></div>
+
+          {/* 3 Dots Icon - Custom built with CSS to match image */}
+          <div className="relative w-6 h-6 z-10">
+            {/* Large Dot (Top Right) */}
+            <div className="absolute top-0 right-0 w-3 h-3 bg-black rounded-full shadow-sm"></div>
+            {/* Medium Dot (Left) */}
+            <div className="absolute top-[8px] left-0 w-2.5 h-2.5 bg-black rounded-full shadow-sm"></div>
+            {/* Small Dot (Bottom) */}
+            <div className="absolute bottom-0 left-[8px] w-2 h-2 bg-black rounded-full shadow-sm"></div>
+          </div>
         </div>
       </div>
     </div>
