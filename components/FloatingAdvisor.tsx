@@ -1,24 +1,37 @@
 import React, { useState, useEffect } from 'react';
+import { View } from '../types';
 
 interface Props {
   onChatClick?: () => void;
   hasNotification?: boolean;
+  currentView?: View;
 }
 
-const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false }) => {
+const VIEW_TIPS: Partial<Record<View, string>> = {
+  [View.Dashboard]: '今天的训练计划安排好了吗？点我聊聊吧',
+  [View.Stats]: '数据有变化，想听听我的分析吗？',
+  [View.Diet]: '拍张照片，我帮你算算热量',
+  [View.Community]: '看看大家的打卡，找找灵感',
+};
+const DEFAULT_TIP = '有什么健身问题，随时问我';
+
+const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false, currentView }) => {
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 150 });
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [message, setMessage] = useState<string | null>(null);
 
-  // Mock AI proactive message
+  // Show contextual tip based on current page
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMessage("为了让您的进化路线更精准，可以稍微和我说说您平时的饮食及作息习惯吗？");
-      setTimeout(() => setMessage(null), 8000);
+    const tip = (currentView && VIEW_TIPS[currentView]) || DEFAULT_TIP;
+    setMessage(null);
+    const show = setTimeout(() => {
+      setMessage(tip);
+      const hide = setTimeout(() => setMessage(null), 8000);
+      return () => clearTimeout(hide);
     }, 3000);
-    return () => clearTimeout(timer);
-  }, []);
+    return () => clearTimeout(show);
+  }, [currentView]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(true);

@@ -1,377 +1,368 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View } from '../types';
+import { chatWithGemini, chatWithImage, GUIDED_QUESTIONS, FITNESS_COACH_PROMPT } from '../services/gemini';
+import { fitnessPlanApi } from '../api/fitness-plan';
+import { imageGenApi } from '../api/image-gen';
+import type { AuthUser } from '../api';
 
 interface Props {
   userImage?: string | null;
   userFaceImage?: string | null;
   bodyStyle?: string;
+  gender?: 'male' | 'female';
+  authUser?: AuthUser | null;
   onComplete: () => void;
+  onNavigate?: (view: View) => void;
+}
+
+interface ChatMsg {
+  id: number;
+  text: string;
+  sender: 'user' | 'ai';
+  image?: string;
+  tags?: string[];
+  isTyping?: boolean;
+  quickReplies?: string[];
 }
 
 const bodyStyleLabels: Record<string, string> = {
-  'slim_idol': '纤细女团风',
-  'supermodel': '维密超模风',
-  'power_female': '力量风',
-  'eddie_peng': '彭于晏式精干',
-  'slim_muscular': '穿衣显瘦/脱衣有肉',
-  'classic_beast': '古典健美巨兽',
+  slim: '薄肌型 · 线条分明',
+  athletic: '力量型 · 均衡发展',
+  muscular: '健美型 · 大框架',
+  comic: '漫画型 · 轻盈纤细',
+  custom: '自定义理想体型',
 };
 
-const EvolutionEngine: React.FC<Props> = ({ userImage, userFaceImage, bodyStyle, onComplete }) => {
+const EvolutionEngine: React.FC<Props> = ({
+  userImage, userFaceImage, bodyStyle, gender, authUser, onComplete, onNavigate,
+}) => {
   const [sliderVal, setSliderVal] = useState(50);
   const [isChatOpen, setIsChatOpen] = useState(true);
-  const [inputValue, setInputValue] = useState("");
-  const [isListening, setIsListening] = useState(false);
-  const [messages, setMessages] = useState<any[]>([
-    { id: 1, text: "正在分析您的骨架结构与体脂分布...", sender: 'ai' },
-  ]);
+  const [inputValue, setInputValue] = useState('');
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [guidedStep, setGuidedStep] = useState(-1); // -1 = initial analysis, 0-3 = guided questions
+  const [collectedInfo, setCollectedInfo] = useState<Record<string, string>>({});
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [imageGenStatus, setImageGenStatus] = useState<'idle' | 'generating' | 'done'>('idle');
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
 
-  // Fallback images if no user image provided (Demo mode)
-  const defaultBefore = "/ori.png";
-  const defaultAfter = "/Z.png";
+  const beforeSrc = userImage || '/ori.png';
+  const afterSrc = userFaceImage || '/Z.png';
 
-  const beforeSrc = userImage || defaultBefore;
-  // Force using Z.png for the Future view even if user uploaded an image, 
-  // because we want to show the specific AI result (Z.png), not just a filter on the user image.
-  const afterSrc = defaultAfter;
-
-  // Simulate initial analysis
+  // Auto-scroll chat
   useEffect(() => {
-    // If face image is provided, acknowledge it
-    const initialMsgs = [];
-    if (userFaceImage) {
-      initialMsgs.push({
-        id: 1.5,
-        text: "已接收自定义理想体型参考图，将在生成过程中向其特质靠拢。",
-        sender: 'ai',
-        image: userFaceImage
-      });
-    }
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-    if (initialMsgs.length > 0) {
-      setMessages(prev => {
-        // Prevent duplicate messages in React 18 strict mode
-        const newMsgs = initialMsgs.filter(m => !prev.some(p => p.id === m.id));
-        return [...prev, ...newMsgs];
-      });
-    }
+  const addMsg = useCallback((msg: Omit<ChatMsg, 'id'>) => {
+    setMessages(prev => [...prev, { ...msg, id: Date.now() + Math.random() }]);
+  }, []);
 
-    const timer = setTimeout(() => {
-      setMessages(prev => {
-        if (prev.some(p => p.id === 2)) return prev;
-        return [...prev, {
-          id: 2,
-          text: "基于您的目标 [塑型]，我已生成初步 3D 模型。体脂率设定为 18%。",
+  const addTyping = useCallback(() => {
+    const id = Date.now() + Math.random();
+    setMessages(prev => [...prev, { id, text: '...', sender: 'ai', isTyping: true }]);
+    return id;
+  }, []);
+
+  const removeTyping = useCallback((typingId: number) => {
+    setMessages(prev => prev.filter(m => m.id !== typingId));
+  }, []);
+
+  // Initial AI analysis on mount
+  useEffect(() => {
+    const styleLabel = bodyStyleLabels[bodyStyle || ''] || bodyStyle || '均衡健康';
+    const intro = `正在分析你的身体数据，目标方向：「${styleLabel}」...`;
+    addMsg({ text: intro, sender: 'ai' });
+
+    const timer = setTimeout(async () => {
+      if (userImage) {
+        const typingId = addTyping();
+        const analysis = await chatWithImage(
+          `请分析这张身体照片，用户目标是「${styleLabel}」体型。给出简短的身体评估（2-3句话），然后告诉用户你已经开始为他生成理想身材图。`,
+          userImage,
+        );
+        removeTyping(typingId);
+        addMsg({
+          text: analysis,
           sender: 'ai',
-          tags: ['✨ 腿部线条', '💪 腰腹更紧致', '🍑 提升臀线']
-        }];
-      });
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [userFaceImage]);
-
-
-  // API Key from environment
-  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-
-  // Helper to call Gemini API
-  const callGeminiAPI = async (userText: string, imageBase64?: string | null) => {
-    if (!API_KEY || API_KEY === 'PLACEHOLDER_API_KEY') {
-      return "请先在 .env.local 中配置有效的 VITE_GEMINI_API_KEY。";
-    }
-
-    try {
-      const contents = [];
-      if (imageBase64) {
-        // Extract base64 part if it has prefix
-        const base64Data = imageBase64.split(',')[1] || imageBase64;
-        const mimeType = imageBase64.split(';')[0].split(':')[1] || 'image/jpeg';
-
-        contents.push({
-          role: "user",
-          parts: [
-            { text: userText },
-            { inline_data: { mime_type: mimeType, data: base64Data } }
-          ]
+          tags: ['✨ 体态分析', '💪 目标锁定', '🎯 开始显化'],
         });
       } else {
-        contents.push({
-          role: "user",
-          parts: [{ text: userText }]
+        addMsg({
+          text: `好的，你的目标是「${styleLabel}」体型。我已经开始为你生成理想身材的预览图。在等待的过程中，我想更了解你，这样才能给你最精准的方案。`,
+          sender: 'ai',
         });
       }
 
-      // Add system instruction via system_instruction (if supported) or just prompt engineering
-      // Start of turn
+      // Start guided conversation
+      setTimeout(() => {
+        setGuidedStep(0);
+        addMsg({
+          text: GUIDED_QUESTIONS[0].question,
+          sender: 'ai',
+          quickReplies: ['完全没有运动基础', '偶尔运动', '有规律运动习惯'],
+        });
+      }, 1500);
+    }, 1200);
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: contents,
-          system_instruction: {
-            parts: [{ text: `你是 RightNow Fitness 的 AI 健身教练。你的任务通过分析用户的描述或照片，调整他们的 3D 进化模型。请用简短、专业但更有激励性的语气回答。不要解释太多技术细节，而是关注用户的感受和目标。如果是关于身体部位的调整（如腿、手、脸），请确认你正在调整。如果用户上传了照片，请基于照片给予正向反馈。${bodyStyle ? `用户选择的理想身材方向是「${bodyStyleLabels[bodyStyle] || bodyStyle}」，请在回答中围绕这个风格给出建议和反馈。` : ''}` }]
-          }
-        })
-      });
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-      const data = await response.json();
-      if (data.error) {
-        console.error("Gemini API Error:", data.error);
-        return "AI 连接遇到问题，请检查 API Key 或网络。";
-      }
-
-      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      return aiText || "收到，正在调整中...";
-    } catch (error) {
-      console.error("Network Error:", error);
-      return "网络连接失败，请稍后重试。";
-    }
-  };
-
+  // Handle sending messages
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
-    const userMsg = { id: Date.now(), text: text, sender: 'user' };
-    setMessages(prev => [...prev, userMsg]);
-    setInputValue(""); // Clear input
+    addMsg({ text, sender: 'user' });
+    setInputValue('');
 
-    // Real API Call
-    // If there's a face image freshly uploaded in context, ideally we'd send it too, 
-    // but for now, we just stick to the text chat logic or re-send the face image if it was the *last* action
-    // For simplicity, let's just send text unless we want to support multi-modal chat history.
-    // We will send the face image ONLY if this is the very first interaction after upload, or we can just send text.
-    // Let's send text only for now to keep it simple, as the image was "uploading" separate event.
-    // Or optimize: userFaceImage is available in props.
+    // If in guided conversation mode
+    if (guidedStep >= 0 && guidedStep < GUIDED_QUESTIONS.length) {
+      const field = GUIDED_QUESTIONS[guidedStep].field;
+      setCollectedInfo(prev => ({ ...prev, [field]: text }));
 
-    // Show loading indicator (simulated by delay or specific UI state, here just waiting)
-    // We can add a temporary "typing..." message
-    const tempId = Date.now() + 1;
-    setMessages(prev => [...prev, { id: tempId, text: "...", sender: 'ai', isTyping: true }]);
+      const nextStep = guidedStep + 1;
 
-    const aiResponse = await callGeminiAPI(text, null); // Pass null image for text-only turns for now
+      if (nextStep < GUIDED_QUESTIONS.length) {
+        // Ask next question
+        const typingId = addTyping();
+        const ack = await chatWithGemini(
+          `用户回答了"${GUIDED_QUESTIONS[guidedStep].question}"，他的回答是："${text}"。请简短确认收到（1句话），然后自然地过渡到下一个问题："${GUIDED_QUESTIONS[nextStep].question}"`,
+        );
+        removeTyping(typingId);
+        setGuidedStep(nextStep);
+        addMsg({
+          text: ack,
+          sender: 'ai',
+          quickReplies: getQuickReplies(nextStep),
+        });
+      } else {
+        // All questions answered, generate plan
+        setGuidedStep(-2); // -2 = plan generation mode
+        const typingId = addTyping();
+        addMsg({ text: '太好了，信息收集完毕！正在为你生成专属健身方案...', sender: 'ai' });
+        setIsGeneratingPlan(true);
 
-    setMessages(prev => {
-      const filtered = prev.filter(msg => msg.id !== tempId);
-      return [...filtered, { id: Date.now() + 2, text: aiResponse, sender: 'ai' }];
-    });
-  };
+        const allInfo = { ...collectedInfo, [field]: text };
+        try {
+          const planText = await chatWithGemini(
+            `基于以下用户信息生成健身方案摘要（3-4句话，包含饮食和训练的核心建议）：
+性别：${gender === 'male' ? '男' : '女'}
+目标体型：${bodyStyleLabels[bodyStyle || ''] || bodyStyle}
+运动基础：${allInfo.exerciseBase || '未知'}
+饮食习惯：${allInfo.dietHabit || '未知'}
+作息：${allInfo.sleepPattern || '未知'}
+职业：${allInfo.occupation || '未知'}`,
+          );
+          removeTyping(typingId);
+          addMsg({ text: planText, sender: 'ai' });
+          addMsg({
+            text: '你的专属方案已生成！点击下方按钮确认，开始你的显化之旅。',
+            sender: 'ai',
+            tags: ['🍽️ 饮食方案', '💧 喝水计划', '🏋️ 训练计划'],
+          });
 
-  const handleMicClick = () => {
-    if (isListening) return;
-    setIsListening(true);
-    // Simulate voice recognition
-    setInputValue("正在聆听...");
-    setTimeout(() => {
-      setInputValue("我想把肩膀练宽一点");
-      setIsListening(false);
-    }, 1500);
-  };
-
-  const handleFaceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setMessages(prev => [
-          ...prev,
-          { id: Date.now(), text: "已上传正脸照。", sender: 'user', image: reader.result as string },
-          { id: Date.now() + 1, text: "正在融合面部特征，保持身材进化的同时还原您的样貌...", sender: 'ai' }
-        ]);
-      };
-      reader.readAsDataURL(file);
+          // Save plan to backend
+          fitnessPlanApi.upsert({
+            exerciseBase: allInfo.exerciseBase,
+            dietHabit: allInfo.dietHabit,
+            sleepPattern: allInfo.sleepPattern,
+            occupation: allInfo.occupation,
+            aiSummary: planText,
+          }).catch(() => {});
+        } catch {
+          removeTyping(typingId);
+          addMsg({ text: '方案生成遇到问题，但不影响你开始！', sender: 'ai' });
+        }
+        setIsGeneratingPlan(false);
+      }
+    } else {
+      // Free chat mode (refinement)
+      const typingId = addTyping();
+      const reply = await chatWithGemini(text);
+      removeTyping(typingId);
+      addMsg({ text: reply, sender: 'ai' });
     }
-    e.target.value = ''; // Reset
   };
 
+  const getQuickReplies = (step: number): string[] => {
+    switch (step) {
+      case 0: return ['完全没有运动基础', '偶尔运动', '有规律运动习惯'];
+      case 1: return ['三餐规律，偏清淡', '经常外卖，不太规律', '有在控制饮食'];
+      case 2: return ['早睡早起，睡眠好', '经常熬夜', '作息不太规律'];
+      case 3: return ['办公室久坐', '需要经常走动', '体力劳动为主'];
+      default: return [];
+    }
+  };
+
+  const renderBottomActions = () => (
+    <div className="shrink-0 pb-4">
+      <button
+        onClick={onComplete}
+        disabled={isGeneratingPlan}
+        className={`w-full py-3 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          isGeneratingPlan
+            ? 'bg-white/10 text-white/30 cursor-not-allowed'
+            : 'bg-[#B8FF00] text-black shadow-[0_0_25px_rgba(184,255,0,0.3)]'
+        }`}
+      >
+        <span>{isGeneratingPlan ? '方案生成中...' : '确认，开始显化之旅'}</span>
+        <span className="material-icons-round text-lg">arrow_forward</span>
+      </button>
+    </div>
+  );
+
+  const renderComparison = () => (
+    <div className="flex-1 relative w-full overflow-hidden bg-black" style={{ minHeight: '35%' }}>
+      <div className="absolute inset-0">
+        {/* Future layer (background) */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-black">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-[#B8FF00]/20 rounded-full blur-[80px]" />
+          <img src={afterSrc} className="absolute inset-0 w-full h-full object-contain" alt="Ideal" />
+          <div className="absolute top-16 right-5 bg-black/60 px-3 py-1 rounded-full text-[10px] text-[#B8FF00] border border-[#B8FF00]/30 z-10">未来</div>
+        </div>
+
+        {/* Current layer (foreground, clipped by slider) */}
+        <div className="absolute inset-y-0 left-0 overflow-hidden border-r border-white/30" style={{ width: `${sliderVal}%`, zIndex: 10 }}>
+          <div className="absolute inset-0 w-screen h-full bg-gradient-to-br from-gray-800 to-gray-900">
+            <img src={beforeSrc} className="absolute inset-0 w-full h-full object-contain opacity-80" alt="Current" />
+          </div>
+          <div className="absolute top-16 left-5 bg-black/60 px-3 py-1 rounded-full text-[10px] text-gray-400 border border-white/10 z-10">现在</div>
+        </div>
+
+        {/* Slider handle */}
+        <div
+          className="absolute top-0 bottom-0 w-10 flex items-center justify-center -ml-5 z-20 cursor-ew-resize touch-none"
+          style={{ left: `${sliderVal}%` }}
+          onTouchMove={(e) => {
+            const val = Math.min(100, Math.max(0, (e.touches[0].clientX / window.innerWidth) * 100));
+            setSliderVal(val);
+          }}
+        >
+          <div className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/50 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+            <span className="material-icons-round text-white text-sm">code</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderInput = () => (
+    <div className="shrink-0 mb-2">
+      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-2 py-1.5">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend(inputValue)}
+          placeholder="告诉我你的想法..."
+          className="flex-1 bg-transparent text-xs text-white placeholder-gray-500 outline-none px-2"
+        />
+        <button
+          onClick={() => handleSend(inputValue)}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            inputValue.trim() ? 'bg-[#B8FF00] text-black' : 'text-gray-500 bg-white/5'
+          }`}
+        >
+          <span className="material-icons-round text-base">send</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderChatPanel = () => (
+    <div className={`bg-[#030305] border-t border-white/10 transition-all duration-300 ${isChatOpen ? 'h-[50%]' : 'h-14'}`}>
+      {/* Drag handle */}
+      <div className="flex justify-center pt-2 pb-1 cursor-pointer" onClick={() => setIsChatOpen(!isChatOpen)}>
+        <div className="w-10 h-1 bg-white/20 rounded-full" />
+      </div>
+
+      {isChatOpen && (
+        <div className="flex flex-col h-[calc(100%-20px)] px-4">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto space-y-3 mb-2 no-scrollbar">
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} max-w-[90%]`}>
+                  {msg.sender === 'ai' && (
+                    <div className="w-5 h-5 rounded-full bg-[#B8FF00]/20 flex items-center justify-center mr-1.5 mt-1 shrink-0">
+                      <span className="material-icons-round text-[9px] text-[#B8FF00]">smart_toy</span>
+                    </div>
+                  )}
+                  <div className={`p-2.5 rounded-2xl text-xs leading-relaxed ${
+                    msg.isTyping ? 'bg-white/5 text-gray-400 animate-pulse' :
+                    msg.sender === 'user' ? 'bg-[#B8FF00] text-black rounded-tr-none' :
+                    'bg-white/10 text-gray-200 rounded-tl-none'
+                  }`}>
+                    {msg.text}
+                    {msg.image && <img src={msg.image} className="mt-2 w-14 h-14 object-cover rounded-lg" alt="" />}
+                  </div>
+                </div>
+
+                {/* Tags */}
+                {msg.tags && (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5 ml-7">
+                    {msg.tags.map((tag, i) => (
+                      <span key={i} className="bg-white/5 border border-white/10 px-2.5 py-1 rounded-full text-[10px] text-gray-300">{tag}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Quick replies */}
+                {msg.quickReplies && (
+                  <div className="flex flex-wrap gap-1.5 mt-2 ml-7">
+                    {msg.quickReplies.map((reply, i) => (
+                      <button key={i} onClick={() => handleSend(reply)}
+                        className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-white hover:bg-white/10 transition-colors">
+                        {reply}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          {renderInput()}
+
+          {/* Bottom actions */}
+          {renderBottomActions()}
+        </div>
+      )}
+    </div>
+  );
+
+  // RENDER
   return (
-    <div className="h-screen bg-bg-dark flex flex-col relative overflow-hidden">
-      <input type="file" ref={faceInputRef} accept="image/*" className="hidden" onChange={handleFaceUpload} />
+    <div className="h-screen bg-[#030303] flex flex-col relative overflow-hidden">
+      <input type="file" ref={faceInputRef} accept="image/*" className="hidden" onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            addMsg({ text: '已上传参考照片', sender: 'user', image: reader.result as string });
+            addMsg({ text: '收到，正在融合特征...', sender: 'ai' });
+          };
+          reader.readAsDataURL(file);
+        }
+        e.target.value = '';
+      }} />
 
       {/* Top Bar */}
-      <div className="px-6 pt-4 pb-2 z-20 flex justify-between items-center bg-black/40 backdrop-blur-md">
-        <h1 className="text-lg font-serif font-bold text-white tracking-wide">AI 共创 · 理想态</h1>
+      <div className="px-5 pt-4 pb-2 z-20 flex justify-between items-center bg-black/60 backdrop-blur-md">
+        <h1 className="text-base font-bold text-white tracking-wide">AI 共创 · 理想态</h1>
         <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-          <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
-          <span className="text-[10px] text-gray-300">连接中</span>
+          <span className="w-2 h-2 bg-[#B8FF00] rounded-full animate-pulse" />
+          <span className="text-[10px] text-gray-300">显化中</span>
         </div>
       </div>
 
-      {/* Main Visualizer */}
-      <div className="flex-1 relative w-full overflow-hidden bg-black">
-        {/* Comparison Images */}
-        <div className="absolute inset-0 flex justify-center items-center">
+      {/* Image Comparison Area */}
+      {renderComparison()}
 
-          {/* BACKGROUND LAYER: Future (Z.png) [RIGHT SIDE LOGIC] */}
-          {/* We place Future at the bottom, full screen. */}
-          <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-900 to-black">
-            {/* Ambient Glow for Future */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-primary/20 rounded-full blur-[80px]"></div>
-
-            <img src={afterSrc}
-              className={`absolute inset-0 w-full h-full object-contain ${userImage ? 'brightness-110 contrast-125 saturate-110 sepia-[0.15]' : ''}`}
-              alt="Ideal" />
-
-            {/* Label for Future */}
-            <div className="absolute top-20 right-6 bg-black/60 px-3 py-1 rounded-full text-[10px] text-primary border border-primary/30 shadow-[0_0_10px_rgba(184,255,0,0.2)] z-10">Future</div>
-          </div>
-
-          {/* FOREGROUND LAYER: Now (ori.png) [LEFT SIDE LOGIC] */}
-          {/* This layer sits on top. Its WIDTH is controlled by the slider. */}
-          <div
-            className="absolute inset-y-0 left-0 overflow-hidden border-r border-white/30 bg-black/50" // Added darker bg to distinguish layers if transparent
-            style={{ width: `${sliderVal}%`, zIndex: 10 }}
-          >
-            {/* We need inner container to be full width relative to SCREEN, not the parent div, to keep image static */}
-            <div className="absolute inset-0 w-screen h-full bg-gradient-to-br from-gray-800 to-gray-900">
-              <img src={beforeSrc}
-                className="absolute inset-0 w-full h-full object-contain opacity-80"
-                alt="Current" />
-            </div>
-
-            {/* Label for Now */}
-            <div className="absolute top-20 left-6 bg-black/60 px-3 py-1 rounded-full text-[10px] text-gray-400 border border-white/10 z-10">Now</div>
-          </div>
-
-          {/* Handle */}
-          <div
-            className="absolute top-0 bottom-0 w-10 flex items-center justify-center -ml-5 z-20 cursor-ew-resize touch-none"
-            style={{ left: `${sliderVal}%` }}
-            onTouchMove={(e) => {
-              const touch = e.touches[0];
-              const val = Math.min(100, Math.max(0, (touch.clientX / window.innerWidth) * 100));
-              setSliderVal(val);
-            }}
-          >
-            <div className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/50 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-              <span className="material-icons-round text-white text-sm">code</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Chat Interface / Controls */}
-      <div className={`bg-[#030305] border-t border-white/10 transition-all duration-300 ${isChatOpen ? 'h-[50%]' : 'h-16'}`}>
-        <div className="flex justify-center -mt-3 mb-2 pt-2" onClick={() => setIsChatOpen(!isChatOpen)}>
-          <div className="w-12 h-1 bg-white/20 rounded-full"></div>
-        </div>
-
-        <div className="flex flex-col h-full px-5 pb-6">
-          {/* Messages Area */}
-          {isChatOpen && (
-            <div className="flex-1 overflow-y-auto space-y-4 mb-2 no-scrollbar">
-              {messages.map((msg: any) => (
-                <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} max-w-[90%]`}>
-                    <div className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      {msg.sender === 'ai' && (
-                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center mr-2 mt-1 shrink-0">
-                          <span className="material-icons-round text-[10px] text-primary">smart_toy</span>
-                        </div>
-                      )}
-                      <div className={`p-3 rounded-2xl text-xs leading-relaxed ${msg.sender === 'user'
-                        ? 'bg-primary text-black rounded-tr-none'
-                        : 'bg-white/10 text-gray-200 rounded-tl-none'
-                        }`}>
-                        {msg.text}
-                        {msg.image && (
-                          <img src={msg.image} className="mt-2 w-16 h-16 object-cover rounded-lg border border-black/10" alt="Upload" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Tags Render for AI Messages */}
-                    {msg.tags && (
-                      <div className="flex flex-wrap gap-2 mt-2 ml-8 animate-fade-in">
-                        {msg.tags.map((tag: string, i: number) => (
-                          <span key={i} className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-gray-300 flex items-center">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Quick Adjustment Options appended to the latest AI analysis message */}
-                    {msg.id === 2 && (
-                      <div className="flex flex-wrap gap-2 mt-3 ml-8 animate-fade-in">
-                        <button onClick={() => handleSend("再瘦一点")} className="whitespace-nowrap bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-white hover:bg-white/10 active:bg-white/20 transition-colors flex items-center gap-1">
-                          <span className="material-icons-round text-yellow-500 text-[12px]">bolt</span>
-                          再瘦一点
-                        </button>
-                        <button onClick={() => handleSend("增加肌肉线条")} className="whitespace-nowrap bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-white hover:bg-white/10 active:bg-white/20 transition-colors flex items-center gap-1">
-                          <span className="material-icons-round text-orange-500 text-[12px]">fitness_center</span>
-                          增加肌肉线条
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Suggestion Action Button */}
-                  {msg.type === 'suggestion' && (
-                    <button
-                      onClick={() => faceInputRef.current?.click()}
-                      className="ml-10 mt-2 bg-white/5 border border-primary/30 text-primary text-[10px] px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-primary/10 transition-colors animate-fade-in"
-                    >
-                      <span className="material-icons-round text-sm">face</span>
-                      上传正脸照修正
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Input Area (New) */}
-          {isChatOpen && (
-            <div className="shrink-0 mb-4 animate-fade-in">
-              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-2 py-1.5">
-                <button
-                  onClick={handleMicClick}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-primary text-black animate-pulse' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
-                >
-                  <span className="material-icons-round text-xl">mic</span>
-                </button>
-                <input
-                  type="text"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSend(inputValue)}
-                  placeholder="告诉我哪里想调整..."
-                  className="flex-1 bg-transparent text-xs text-white placeholder-gray-500 outline-none px-2"
-                />
-                <button
-                  onClick={() => handleSend(inputValue)}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${inputValue.trim() ? 'bg-primary text-black' : 'text-gray-500 bg-white/5'}`}
-                >
-                  <span className="material-icons-round text-lg">send</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Bottom Action Area (Face Upload & Confirm) */}
-          {isChatOpen && (
-            <div className="shrink-0 mt-2">
-              <div className="flex justify-center mb-4">
-                <button onClick={() => faceInputRef.current?.click()} className="whitespace-nowrap bg-[#B8FF00]/10 border border-[#B8FF00]/30 px-5 py-2.5 rounded-full text-xs font-bold text-[#B8FF00] hover:bg-[#B8FF00]/20 flex items-center gap-1.5 active:bg-[#B8FF00]/30 transition-colors shadow-[0_0_15px_rgba(184,255,0,0.1)]">
-                  <span className="material-icons-round text-sm">face</span>
-                  更换面部照片
-                </button>
-              </div>
-
-              <button
-                onClick={onComplete}
-                className="w-full bg-primary text-black font-bold text-lg py-3 rounded-full flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-[0_0_25px_rgba(184,255,0,0.3)] hover:bg-primary-dark"
-              >
-                确认并生成最终 3D 模型
-                <span className="material-icons-round">arrow_forward</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Chat Panel */}
+      {renderChatPanel()}
     </div>
   );
 };

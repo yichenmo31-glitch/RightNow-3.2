@@ -5,7 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:web": "vite",
+    "dev:api": "npm --prefix ./rightnow-api run start:dev",
+    "db:up": "docker compose -f ./rightnow-api/docker-compose.yml up -d",
+    "db:down": "docker compose -f ./rightnow-api/docker-compose.yml down",
+    "db:logs": "docker compose -f ./rightnow-api/docker-compose.yml logs -f postgres",
+    "db:push": "npm --prefix ./rightnow-api run prisma:push",
+    "db:seed": "npm --prefix ./rightnow-api run prisma:seed",
+    "db:init": "npm run db:push && npm run db:seed",
     "build": "vite build",
+    "build:api": "npm --prefix ./rightnow-api run build",
     "preview": "vite preview"
   },
   "dependencies": {

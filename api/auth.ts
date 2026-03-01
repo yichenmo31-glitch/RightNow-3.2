@@ -5,6 +5,10 @@ export interface AuthUser {
   email: string;
   name: string;
   avatar?: string;
+  gender?: 'male' | 'female';
+  bodyStyle?: string;
+  currentPhase?: string;
+  isProfileComplete: boolean;
 }
 
 export interface AuthResponse {

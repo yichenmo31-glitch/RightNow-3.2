@@ -39,12 +39,38 @@ const App: React.FC = () => {
 
   const [customPhotos, setCustomPhotos] = useState<string[]>([]);
 
+  const syncAuthUserState = (user: AuthUser | null) => {
+    setAuthUser(user);
+    setIsProfileComplete(user?.isProfileComplete ?? false);
+
+    if (user?.gender === 'male' || user?.gender === 'female') {
+      setGender(user.gender);
+    } else {
+      setGender('male');
+    }
+
+    setBodyStyle(user?.bodyStyle ?? '');
+  };
+
+  const getPostAuthView = (user: AuthUser) =>
+    user.isProfileComplete ? View.Dashboard : View.Onboarding;
+
+  const resetSessionState = () => {
+    setUserImage(null);
+    setUserFaceImage(null);
+    setIsProfileComplete(false);
+    setGender('male');
+    setBodyStyle('');
+    setHasUnreadAI(false);
+    setCustomPhotos([]);
+  };
+
   // Check for existing token on mount (stay on Splash either way)
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
       authApi.me()
-        .then((user) => setAuthUser(user))
+        .then((user) => syncAuthUserState(user))
         .catch(() => localStorage.removeItem(TOKEN_KEY))
         .finally(() => setAuthChecked(true));
     } else {
@@ -53,13 +79,14 @@ const App: React.FC = () => {
   }, []);
 
   const handleAuthSuccess = (user: AuthUser) => {
-    setAuthUser(user);
-    setCurrentView(View.Onboarding);
+    syncAuthUserState(user);
+    setCurrentView(getPostAuthView(user));
   };
 
   const handleLogout = () => {
     authApi.logout();
-    setAuthUser(null);
+    syncAuthUserState(null);
+    resetSessionState();
     setCurrentView(View.Login);
   };
 
@@ -72,7 +99,7 @@ const App: React.FC = () => {
   const handleSplashComplete = () => {
     // Already logged in → skip login, go to Onboarding
     if (authUser) {
-      setCurrentView(View.Onboarding);
+      setCurrentView(getPostAuthView(authUser));
     } else {
       setCurrentView(View.Login);
     }
@@ -89,6 +116,18 @@ const App: React.FC = () => {
     setIsProfileComplete(isComplete);
     setGender(userGender);
     setBodyStyle(userBodyStyle);
+    setAuthUser((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        gender: userGender,
+        bodyStyle: userBodyStyle || undefined,
+        isProfileComplete: isComplete,
+      };
+    });
 
     if (isComplete) {
       // Normal flow: Co-creation
@@ -124,10 +163,18 @@ const App: React.FC = () => {
       case View.Dashboard:
         return <Dashboard onNavigate={setCurrentView} isProfileComplete={isProfileComplete} authUser={authUser} />;
       case View.Evolution:
-        return <EvolutionEngine userImage={userImage} userFaceImage={userFaceImage} bodyStyle={bodyStyle} onComplete={() => {
-          setHasUnreadAI(true);
-          setCurrentView(View.Dashboard);
-        }} />;
+        return <EvolutionEngine
+          userImage={userImage}
+          userFaceImage={userFaceImage}
+          bodyStyle={bodyStyle}
+          gender={gender}
+          authUser={authUser}
+          onComplete={() => {
+            setHasUnreadAI(true);
+            setCurrentView(View.Dashboard);
+          }}
+          onNavigate={setCurrentView}
+        />;
       case View.Stats:
         return <DataDashboard onNavigate={setCurrentView} />;
       case View.Diet:
@@ -158,7 +205,7 @@ const App: React.FC = () => {
         return <CheckInShare onClose={() => setCurrentView(View.Dashboard)} />;
 
       default:
-        return <Dashboard />;
+        return <Dashboard authUser={authUser} isProfileComplete={isProfileComplete} />;
     }
   };
 
@@ -209,7 +256,7 @@ const App: React.FC = () => {
 
   return (
     <div className="antialiased bg-black text-white min-h-screen">
-      {!shouldHideAdvisor && <FloatingAdvisor hasNotification={hasUnreadAI} onChatClick={() => {
+      {!shouldHideAdvisor && <FloatingAdvisor currentView={currentView} hasNotification={hasUnreadAI} onChatClick={() => {
         setHasUnreadAI(false);
         setCurrentView(View.AIChat);
       }} />}

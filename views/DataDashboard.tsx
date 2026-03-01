@@ -3,6 +3,7 @@ import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { View } from '../types';
 import { weightApi, dietApi, checkinsApi } from '../api';
 import type { DietSummary } from '../api';
+import { generateDataInsights } from '../services/gemini';
 
 interface Props {
     onNavigate?: (view: View) => void;
@@ -18,6 +19,8 @@ const DataDashboard: React.FC<Props> = ({ onNavigate }) => {
     const [dietSummary, setDietSummary] = useState<DietSummary | null>(null);
     const [checkinDays, setCheckinDays] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
+    const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+    const [aiLoading, setAiLoading] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -57,6 +60,34 @@ const DataDashboard: React.FC<Props> = ({ onNavigate }) => {
         };
         fetchData();
     }, []);
+
+    // Fetch AI suggestions after data is loaded
+    useEffect(() => {
+        if (loading) return;
+        const cached = sessionStorage.getItem('ai_suggestions');
+        if (cached) {
+            try { setAiSuggestions(JSON.parse(cached)); return; } catch { /* ignore */ }
+        }
+        setAiLoading(true);
+        const latestWeight = weightChartData.length > 0 ? weightChartData[weightChartData.length - 1].val : undefined;
+        let weightTrend = '暂无数据';
+        if (weightChartData.length >= 2) {
+            const diff = weightChartData[weightChartData.length - 1].val - weightChartData[0].val;
+            weightTrend = diff > 0 ? `上升 ${diff.toFixed(1)}kg` : diff < 0 ? `下降 ${Math.abs(diff).toFixed(1)}kg` : '持平';
+        }
+        generateDataInsights({
+            totalCalories: dietSummary?.totalCalories,
+            totalProtein: dietSummary?.totalProtein,
+            totalFat: dietSummary?.totalFat,
+            totalCarbs: dietSummary?.totalCarbs,
+            latestWeight,
+            weightTrend,
+            checkinCount: checkinDays.size,
+        }).then(suggestions => {
+            setAiSuggestions(suggestions);
+            sessionStorage.setItem('ai_suggestions', JSON.stringify(suggestions));
+        }).finally(() => setAiLoading(false));
+    }, [loading, dietSummary, weightChartData, checkinDays]);
 
     return (
         <div className="min-h-screen pb-32 pt-6 px-6 bg-bg-dark text-white font-sans">
@@ -229,7 +260,7 @@ const DataDashboard: React.FC<Props> = ({ onNavigate }) => {
 
                 {/* Heatmap Grid */}
                 <div className="grid grid-cols-7 gap-2 mb-4">
-                    {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                    {['一', '二', '三', '四', '五', '六', '日'].map((d, i) => (
                         <span key={i} className="text-[10px] text-center text-gray-600">{d}</span>
                     ))}
                     {Array.from({ length: 28 }).map((_, i) => {
@@ -252,14 +283,14 @@ const DataDashboard: React.FC<Props> = ({ onNavigate }) => {
                 </div>
 
                 <div className="flex justify-end items-center gap-2 text-[10px] text-gray-500">
-                    <span>Less</span>
+                    <span>少</span>
                     <div className="flex gap-1">
                         <div className="w-3 h-3 rounded-sm bg-white/5"></div>
                         <div className="w-3 h-3 rounded-sm bg-[#4a5900] opacity-50"></div>
                         <div className="w-3 h-3 rounded-sm bg-[#4a5900]"></div>
                         <div className="w-3 h-3 rounded-sm bg-[#B8FF00]"></div>
                     </div>
-                    <span>More</span>
+                    <span>多</span>
                 </div>
             </div>
 
@@ -269,20 +300,21 @@ const DataDashboard: React.FC<Props> = ({ onNavigate }) => {
                     <span className="material-icons-round text-primary text-lg">auto_awesome</span>
                     <h2 className="text-sm font-bold font-serif">AI 下一步建议</h2>
                 </div>
-                <ul className="space-y-3">
-                    <li className="flex items-start gap-3">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
-                        <p className="text-xs text-gray-300 leading-relaxed">
-                            根据今日热量缺口，建议晚餐增加 <span className="text-white font-bold">50g 鸡胸肉</span>。
-                        </p>
-                    </li>
-                    <li className="flex items-start gap-3">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
-                        <p className="text-xs text-gray-300 leading-relaxed">
-                            体脂率下降趋缓，建议明日增加 <span className="text-white font-bold">20 分钟 HIIT 有氧</span>。
-                        </p>
-                    </li>
-                </ul>
+                {aiLoading ? (
+                    <div className="space-y-3">
+                        <div className="h-4 bg-white/5 rounded-full w-4/5 animate-pulse"></div>
+                        <div className="h-4 bg-white/5 rounded-full w-3/5 animate-pulse"></div>
+                    </div>
+                ) : (
+                    <ul className="space-y-3">
+                        {aiSuggestions.map((tip, i) => (
+                            <li key={i} className="flex items-start gap-3">
+                                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+                                <p className="text-xs text-gray-300 leading-relaxed">{tip}</p>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </div>
         </div>
     );

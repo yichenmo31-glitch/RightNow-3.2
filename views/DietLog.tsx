@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { dietApi } from '../api';
 import type { DietRecord, DietSummary } from '../api/diet';
+import { analyzeFoodText, analyzeFoodImage } from '../services/gemini';
+import type { FoodAnalysis } from '../services/gemini';
 
 const DietLog: React.FC = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -15,6 +17,7 @@ const DietLog: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [analyzing, setAnalyzing] = useState(false);
 
     const today = new Date().toISOString().split('T')[0];
 
@@ -39,35 +42,74 @@ const DietLog: React.FC = () => {
         }
     };
 
-    const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            console.log('Selected photo:', file.name);
-            setIsBottomSheetOpen(false);
+        if (!file) return;
+        setIsBottomSheetOpen(false);
+        setAnalyzing(true);
+        setSaving(true);
+        try {
+            // Read file as base64
+            const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            // AI analyze food image
+            const analysis = await analyzeFoodImage(base64);
+            setAnalyzing(false);
+
+            const newRecord = await dietApi.create({
+                name: analysis.name,
+                calories: analysis.calories,
+                protein: analysis.protein,
+                fat: analysis.fat,
+                carbs: analysis.carbs,
+                date: today,
+                mealType: analysis.mealType,
+            });
+            setRecords(prev => [newRecord, ...prev]);
+            const sum = await dietApi.summary(today);
+            setSummary(sum);
+        } catch (e: any) {
+            setError(e?.response?.data?.message || '识别失败，请重试');
+        } finally {
+            setSaving(false);
+            setAnalyzing(false);
         }
     };
 
     const handleTextSubmit = async () => {
         if (!foodName.trim()) return;
         setSaving(true);
+        setAnalyzing(true);
         try {
+            // AI analyze food nutrition
+            const analysis = await analyzeFoodText(foodName, foodDesc || undefined);
+            setAnalyzing(false);
+
             const newRecord = await dietApi.create({
-                name: foodName,
-                calories: 0,
+                name: analysis.name,
+                calories: analysis.calories,
+                protein: analysis.protein,
+                fat: analysis.fat,
+                carbs: analysis.carbs,
                 date: today,
-                mealType: foodDesc || undefined,
+                mealType: analysis.mealType,
             });
             setRecords(prev => [newRecord, ...prev]);
             setIsTextModalOpen(false);
             setFoodName('');
             setFoodDesc('');
-            // Refresh summary
             const sum = await dietApi.summary(today);
             setSummary(sum);
         } catch (e: any) {
             setError(e?.response?.data?.message || '保存失败');
         } finally {
             setSaving(false);
+            setAnalyzing(false);
         }
     };
 
@@ -104,7 +146,7 @@ const DietLog: React.FC = () => {
 
             {/* Calendar Strip (Simplified) */}
             <div className="flex justify-between mb-8 text-center text-gray-500">
-                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                {['一', '二', '三', '四', '五', '六', '日'].map((d, i) => (
                     <div key={i} className={`flex flex-col gap-2 ${i === 5 ? 'text-primary' : ''}`}>
                         <span className="text-[10px] font-bold opacity-50">{d}</span>
                         <span className={`text-sm ${i === 5 ? 'w-8 h-8 rounded-full bg-primary/20 border border-primary text-white flex items-center justify-center shadow-[0_0_10px_rgba(184,255,0,0.3)]' : ''}`}>
@@ -304,7 +346,7 @@ const DietLog: React.FC = () => {
                             className="w-full bg-[#B8FF00] hover:bg-[#a6e600] disabled:bg-white/10 disabled:text-gray-500 disabled:shadow-none active:scale-[0.98] transition-all text-black font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(184,255,0,0.3)]"
                         >
                             <span className="material-icons-round text-sm notranslate">{saving ? 'hourglass_empty' : 'auto_awesome'}</span>
-                            <span>{saving ? '保存中...' : 'AI 分析'}</span>
+                            <span>{analyzing ? 'AI 分析中...' : saving ? '保存中...' : 'AI 分析'}</span>
                         </button>
                     </div>
                 </div>
@@ -319,6 +361,16 @@ const DietLog: React.FC = () => {
                         setIsBottomSheetOpen(false);
                     }}
                 />
+            )}
+
+            {/* AI Analyzing Overlay */}
+            {analyzing && !isTextModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-[#1c1c1e] rounded-3xl p-8 flex flex-col items-center gap-4 border border-white/10 shadow-2xl">
+                        <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <p className="text-sm text-gray-300 font-bold">AI 正在识别食物...</p>
+                    </div>
+                </div>
             )}
         </div>
     );

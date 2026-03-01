@@ -77,7 +77,7 @@ const CheckInType: React.FC<Props> = ({ onClose, onNext }) => {
            <div className="flex flex-col items-center mb-8">
                <div className="flex items-baseline gap-1 mb-2">
                    <span className="text-6xl font-serif font-thin text-white">{duration}</span>
-                   <span className="text-xl text-gray-500 font-serif">min</span>
+                   <span className="text-xl text-gray-500 font-serif">分钟</span>
                </div>
                
                {/* Ruler Slider Visual */}

@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find E:\\\\rightnow-fitness \\(1\\):*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(rm:*)",
+      "Bash(npx tsc:*)",
+      "Bash(mv:*)",
+      "Bash(docker:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(node:*)",
+      "WebFetch(domain:www.reddit.com)",
+      "WebSearch",
+      "WebFetch(domain:old.reddit.com)",
+      "WebFetch(domain:claude-code.mintlify.app)",
+      "WebFetch(domain:scottspence.com)",
+      "WebFetch(domain:blog.caesar-chi.com)",
+      "Bash(claude:*)",
+      "WebFetch(domain:modelscope.cn)",
+      "Bash(npx nest:*)",
+      "Bash(netstat:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)",
+      "mcp__ide__getDiagnostics"
+    ]
+  }
+}

@@ -119,7 +119,7 @@ const CheckInBody: React.FC<Props> = ({ onBack, onSave }) => {
            <div className="mt-8 text-center space-y-2">
                 <div className="flex items-center justify-center gap-2 text-primary text-[10px] font-bold tracking-widest uppercase">
                     <span className="material-icons-round text-xs">lightbulb</span>
-                    Expert Advice
+                    专家建议
                 </div>
                 <p className="text-[10px] text-gray-500 w-3/4 mx-auto leading-relaxed">
                     定期测量身体围度比单纯关注体重数字更能反映您的健身成果和体态变化。

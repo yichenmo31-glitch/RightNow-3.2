@@ -4,10 +4,23 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    const apiTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:3000';
+    const apiRoutePattern =
+      '^/api/(auth|users|weight|diet|training|todos|checkins|evolution|posts|comments|friendships|chat|upload|image-gen|fitness-plan)(?:/|$)';
     return {
       server: {
         port: 5173,
         host: 'localhost',
+        proxy: {
+          [apiRoutePattern]: {
+            target: apiTarget,
+            changeOrigin: true,
+          },
+          '/uploads': {
+            target: apiTarget,
+            changeOrigin: true,
+          },
+        },
       },
       plugins: [react()],
       define: {

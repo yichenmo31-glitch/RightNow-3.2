@@ -38,13 +38,13 @@ const CheckInShare: React.FC<Props> = ({ onClose }) => {
                  
                  {/* Overlay Text */}
                  <div className="absolute top-8 left-0 right-0 text-center">
-                     <h3 className="text-xs font-bold tracking-[0.1em] text-white/90 uppercase mb-1">Fitness Achievement</h3>
-                     <p className="text-[8px] text-white/60 tracking-widest uppercase">{checkin ? TYPE_LABELS[checkin.type] || checkin.type : 'Natural Fitness Work'}</p>
+                     <h3 className="text-xs font-bold tracking-[0.1em] text-white/90 uppercase mb-1">健身成就</h3>
+                     <p className="text-[8px] text-white/60 tracking-widest uppercase">{checkin ? TYPE_LABELS[checkin.type] || checkin.type : '自然健身'}</p>
                  </div>
 
                  <div className="absolute bottom-8 left-8">
-                     <p className="text-[10px] text-white/60 font-serif tracking-widest mb-1">WORKOUT DAY</p>
-                     <p className="text-5xl font-serif text-white/90">DAY {totalCount || '--'}</p>
+                     <p className="text-[10px] text-white/60 font-serif tracking-widest mb-1">运动打卡</p>
+                     <p className="text-5xl font-serif text-white/90">第 {totalCount || '--'} 天</p>
                  </div>
              </div>
 

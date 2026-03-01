@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { authApi } from '../api';
+﻿import React, { useState } from 'react';
+import { authApi, getApiErrorMessage } from '../api';
 
 interface Props {
   onRegisterSuccess: (user: any) => void;
@@ -17,24 +17,28 @@ const Register: React.FC<Props> = ({ onRegisterSuccess, onGoLogin }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
     if (!name || !email || !password) {
       setError('请填写所有必填项');
       return;
     }
+
     if (password !== confirmPassword) {
       setError('两次密码输入不一致');
       return;
     }
+
     if (password.length < 6) {
-      setError('密码至少需要6个字符');
+      setError('密码至少需要 6 个字符');
       return;
     }
+
     setLoading(true);
     try {
       const res = await authApi.register(email, password, name);
       onRegisterSuccess(res.user);
-    } catch (err: any) {
-      setError(err.response?.data?.message || '注册失败，请重试');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, '注册失败，请重试'));
     } finally {
       setLoading(false);
     }
@@ -42,11 +46,9 @@ const Register: React.FC<Props> = ({ onRegisterSuccess, onGoLogin }) => {
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] flex flex-col justify-center items-center px-6 relative overflow-hidden">
-      {/* Background glow */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#B8FF00]/5 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-sm z-10">
-        {/* Logo */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-black font-serif italic text-white mb-2">
             Right<span className="text-[#B8FF00]">Now</span>
@@ -54,7 +56,6 @@ const Register: React.FC<Props> = ({ onRegisterSuccess, onGoLogin }) => {
           <p className="text-xs text-gray-500 tracking-[0.4em] uppercase">Believing is Seeing</p>
         </div>
 
-        {/* Form card */}
         <form onSubmit={handleSubmit} className="bg-[#1A1A1A] rounded-2xl p-6 space-y-4">
           <h2 className="text-white text-lg font-semibold text-center">创建账号</h2>
 
@@ -69,7 +70,7 @@ const Register: React.FC<Props> = ({ onRegisterSuccess, onGoLogin }) => {
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               placeholder="你的昵称"
               className="w-full bg-[#0D0D0D] border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#B8FF00]/50 transition-colors"
               autoComplete="name"
@@ -81,7 +82,7 @@ const Register: React.FC<Props> = ({ onRegisterSuccess, onGoLogin }) => {
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
               className="w-full bg-[#0D0D0D] border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#B8FF00]/50 transition-colors"
               autoComplete="email"
@@ -93,8 +94,8 @@ const Register: React.FC<Props> = ({ onRegisterSuccess, onGoLogin }) => {
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="至少6个字符"
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="至少 6 个字符"
               className="w-full bg-[#0D0D0D] border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#B8FF00]/50 transition-colors"
               autoComplete="new-password"
             />
@@ -105,7 +106,7 @@ const Register: React.FC<Props> = ({ onRegisterSuccess, onGoLogin }) => {
             <input
               type="password"
               value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="再次输入密码"
               className="w-full bg-[#0D0D0D] border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#B8FF00]/50 transition-colors"
               autoComplete="new-password"

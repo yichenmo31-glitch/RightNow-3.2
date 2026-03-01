@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String            @id @default(cuid())
+  email             String            @unique
+  passwordHash      String
+  name              String
+  avatar            String?
+  gender            String?
+  height            Float?
+  weight            Float?
+  age               Int?
+  bodyStyle         String?
+  currentPhase      String?
+  goalWeight        Float?
+  activityLevel     String?
+  isProfileComplete Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  weightRecords     WeightRecord[]
+  dietRecords       DietRecord[]
+  trainingRecords   TrainingRecord[]
+  todos             Todo[]
+  checkins          CheckIn[]
+  uploads           UploadAsset[]
+  evolutionRecords  EvolutionRecord[]
+  posts             Post[]
+  comments          Comment[]
+  chatMessages      ChatMessage[]
+  friendshipsSent   Friendship[]      @relation("FriendshipRequester")
+  friendshipsRecv   Friendship[]      @relation("FriendshipReceiver")
+  imageGenTasks     ImageGenTask[]
+  fitnessPlans      FitnessPlan[]
+}
+
+model WeightRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String
+  weight    Float
+  waist     Float?
+  hip       Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model DietRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  calories  Int
+  fat       Float?
+  protein   Float?
+  carbs     Float?
+  date      String
+  mealType  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model TrainingRecord {
+  id          String   @id @default(cuid())
+  userId       String
+  description  String
+  duration     Int?
+  photoUrl     String?
+  date         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model Todo {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  category  String
+  date      String
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model UploadAsset {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String
+  kind      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EvolutionRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  imageUrl  String
+  weight    Float?
+  status    String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Post {
+  id           String    @id @default(cuid())
+  userId        String
+  content       String
+  images        String[]  @default([])
+  tags          String[]  @default([])
+  likedUserIds  String[]  @default([])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  author        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments      Comment[]
+
+  @@index([userId, createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  receiverId  String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  requester   User     @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver    User     @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ImageGenTask {
+  id            String   @id @default(cuid())
+  userId        String
+  status        String   @default("pending") // pending | processing | completed | failed
+  sourceImageUrl String?
+  targetStyle   String?
+  prompt        String?
+  resultImageUrl String?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model FitnessPlan {
+  id              String   @id @default(cuid())
+  userId          String
+  exerciseBase    String?
+  dietHabit       String?
+  sleepPattern    String?
+  occupation      String?
+  mealPlan        String?  // JSON string
+  waterPlan       String?  // JSON string
+  trainingPlan    String?  // JSON string
+  aiSummary       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { chatApi } from '../api';
 import type { ChatMessage } from '../api';
+import { chatWithGemini, FITNESS_COACH_PROMPT } from '../services/gemini';
+import type { GeminiMessage } from '../services/gemini';
 
 interface Props {
   onBack: () => void;
@@ -19,6 +21,7 @@ const AIChat: React.FC<Props> = ({ onBack }) => {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const geminiHistoryRef = useRef<GeminiMessage[]>([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,7 +36,7 @@ const AIChat: React.FC<Props> = ({ onBack }) => {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Load chat history on mount
+  // Load chat history on mount & build Gemini context
   useEffect(() => {
     const loadHistory = async () => {
       try {
@@ -45,6 +48,12 @@ const AIChat: React.FC<Props> = ({ onBack }) => {
           time: formatTime(m.createdAt),
         }));
         setMessages(mapped);
+
+        // Build Gemini history from persisted messages
+        geminiHistoryRef.current = res.data.map(m => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }],
+        } as GeminiMessage));
       } catch (err) {
         console.error('Failed to load chat history:', err);
       } finally {
@@ -70,14 +79,27 @@ const AIChat: React.FC<Props> = ({ onBack }) => {
     setSending(true);
 
     try {
-      const aiResponse = await chatApi.send(content);
+      // Call Gemini directly with conversation history
+      const aiText = await chatWithGemini(content, FITNESS_COACH_PROMPT, geminiHistoryRef.current);
+
+      // Update Gemini history
+      geminiHistoryRef.current = [
+        ...geminiHistoryRef.current,
+        { role: 'user', parts: [{ text: content }] },
+        { role: 'model', parts: [{ text: aiText }] },
+      ];
+
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const aiMsg: DisplayMessage = {
-        id: aiResponse.id,
-        text: aiResponse.content,
+        id: `ai-${Date.now()}`,
+        text: aiText,
         sender: 'ai',
-        time: formatTime(aiResponse.createdAt),
+        time: now,
       };
       setMessages(prev => [...prev, aiMsg]);
+
+      // Persist to backend (fire-and-forget)
+      chatApi.send(content).catch(() => {});
     } catch (err) {
       console.error('Chat send failed:', err);
       const errorMsg: DisplayMessage = {

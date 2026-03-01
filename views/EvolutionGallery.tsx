@@ -86,7 +86,7 @@ const EvolutionGallery: React.FC<Props> = ({ onBack, customPhotos = [] }) => {
                 </button>
 
                 <div className="flex flex-col items-center">
-                    <span className="text-xs font-serif text-[#B8FF00] tracking-[0.2em] uppercase mb-1 drop-shadow-[0_0_10px_rgba(184,255,0,0.5)]">Evolution Engine</span>
+                    <span className="text-xs font-serif text-[#B8FF00] tracking-[0.2em] uppercase mb-1 drop-shadow-[0_0_10px_rgba(184,255,0,0.5)]">进化引擎</span>
                     <span className="text-white font-bold text-lg font-mono">
                         {(currentIndex + 1).toString().padStart(2, '0')}
                         <span className="text-gray-600 mx-1">/</span>
@@ -141,13 +141,13 @@ const EvolutionGallery: React.FC<Props> = ({ onBack, customPhotos = [] }) => {
                     <div className="absolute bottom-0 inset-x-0 h-1/3 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none flex flex-col justify-end p-6">
                         <div className="flex justify-between items-end">
                             <div>
-                                <p className="text-[#B8FF00] font-bold text-xs mb-1 uppercase tracking-wider">Phase {currentIndex >= IMAGES.length ? `CUSTOM-${currentIndex - IMAGES.length + 1}` : String.fromCharCode(65 + currentIndex)}</p>
+                                <p className="text-[#B8FF00] font-bold text-xs mb-1 uppercase tracking-wider">阶段 {currentIndex >= IMAGES.length ? `自定义-${currentIndex - IMAGES.length + 1}` : String.fromCharCode(65 + currentIndex)}</p>
                                 <p className="text-white text-2xl font-serif font-bold italic">
-                                    {currentIndex === 0 ? 'Start Point' : currentIndex === allImages.length - 1 ? 'Final Goal' : 'In Progress'}
+                                    {currentIndex === 0 ? '起点' : currentIndex === allImages.length - 1 ? '终极目标' : '进化中'}
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Weight</p>
+                                <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">体重</p>
                                 <p className="text-white font-mono font-bold">{(66.9 - (currentIndex * 0.1)).toFixed(1)} <span className="text-xs text-gray-500">kg</span></p>
                             </div>
                         </div>
@@ -189,8 +189,8 @@ const EvolutionGallery: React.FC<Props> = ({ onBack, customPhotos = [] }) => {
                 </div>
 
                 <div className="flex justify-between max-w-md mx-auto mt-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono pointer-events-none">
-                    <span>Alpha</span>
-                    <span>Omega</span>
+                    <span>起点</span>
+                    <span>终点</span>
                 </div>
             </div>
         </div>

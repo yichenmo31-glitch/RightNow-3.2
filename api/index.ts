@@ -1,4 +1,4 @@
-export { default as apiClient, TOKEN_KEY } from './client';
+export { default as apiClient, TOKEN_KEY, getApiErrorMessage } from './client';
 export { authApi } from './auth';
 export { weightApi } from './weight';
 export { dietApi } from './diet';
@@ -11,6 +11,8 @@ export { friendshipsApi } from './friendships';
 export { chatApi } from './chat';
 export { uploadApi } from './upload';
 export { userApi } from './user';
+export { imageGenApi } from './image-gen';
+export { fitnessPlanApi } from './fitness-plan';
 
 // Re-export types
 export type { AuthUser, AuthResponse } from './auth';
@@ -25,3 +27,5 @@ export type { Friendship } from './friendships';
 export type { ChatMessage, PaginatedChat } from './chat';
 export type { UploadResult } from './upload';
 export type { UserProfile } from './user';
+export type { ImageGenTask } from './image-gen';
+export type { FitnessPlan } from './fitness-plan';

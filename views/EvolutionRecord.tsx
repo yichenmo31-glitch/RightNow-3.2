@@ -129,7 +129,7 @@ const EvolutionRecord: React.FC<Props> = ({ onBack, onNavigate, customPhotos = [
                 {/* Weight Card */}
                 <div className="bg-[#151515] rounded-[32px] p-6 border border-white/5 relative overflow-hidden">
                     <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] text-gray-400 tracking-widest uppercase">Current Weight</span>
+                        <span className="text-[10px] text-gray-400 tracking-widest uppercase">当前体重</span>
                     </div>
                     <div className="flex items-baseline gap-1 mb-6">
                         <span className="text-5xl font-serif font-medium text-white">{latestWeight ?? '--'}</span>
@@ -256,7 +256,7 @@ const EvolutionRecord: React.FC<Props> = ({ onBack, onNavigate, customPhotos = [
                             </div>
                             <h2 className="text-base font-serif font-bold text-white">AI 智能分析</h2>
                         </div>
-                        <span className="text-[10px] text-gray-500 font-serif tracking-widest uppercase">Real-Time</span>
+                        <span className="text-[10px] text-gray-500 font-serif tracking-widest uppercase">实时分析</span>
                     </div>
 
                     <p className="text-sm text-gray-300 leading-relaxed font-serif italic relative z-10 opacity-90">
