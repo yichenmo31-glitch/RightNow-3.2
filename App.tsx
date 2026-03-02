@@ -24,18 +24,23 @@ import WeightRecord from './views/WeightRecord';
 import BottomNav from './components/BottomNav';
 import FloatingAdvisor from './components/FloatingAdvisor';
 
+const USER_IMAGE_KEY = 'rightnow_user_image';
+const USER_FACE_IMAGE_KEY = 'rightnow_user_face_image';
+const IDEAL_BODY_IMAGE_KEY = 'rightnow_ideal_body_image';
+
 const App: React.FC = () => {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [currentView, setCurrentView] = useState<View>(View.Splash);
 
   // Lifted state to persist user data across views
-  const [userImage, setUserImage] = useState<string | null>(null);
-  const [userFaceImage, setUserFaceImage] = useState<string | null>(null);
+  const [userImage, setUserImage] = useState<string | null>(() => localStorage.getItem(USER_IMAGE_KEY));
+  const [userFaceImage, setUserFaceImage] = useState<string | null>(() => localStorage.getItem(USER_FACE_IMAGE_KEY));
   const [isProfileComplete, setIsProfileComplete] = useState(false);
   const [gender, setGender] = useState<'male' | 'female'>('male');
   const [bodyStyle, setBodyStyle] = useState<string>('');
   const [hasUnreadAI, setHasUnreadAI] = useState<boolean>(false);
+  const [idealBodyImage, setIdealBodyImage] = useState<string | null>(() => localStorage.getItem(IDEAL_BODY_IMAGE_KEY));
 
   const [customPhotos, setCustomPhotos] = useState<string[]>([]);
 
@@ -62,8 +67,36 @@ const App: React.FC = () => {
     setGender('male');
     setBodyStyle('');
     setHasUnreadAI(false);
+    setIdealBodyImage(null);
     setCustomPhotos([]);
+    localStorage.removeItem(USER_IMAGE_KEY);
+    localStorage.removeItem(USER_FACE_IMAGE_KEY);
+    localStorage.removeItem(IDEAL_BODY_IMAGE_KEY);
   };
+
+  useEffect(() => {
+    if (userImage) {
+      localStorage.setItem(USER_IMAGE_KEY, userImage);
+    } else {
+      localStorage.removeItem(USER_IMAGE_KEY);
+    }
+  }, [userImage]);
+
+  useEffect(() => {
+    if (userFaceImage) {
+      localStorage.setItem(USER_FACE_IMAGE_KEY, userFaceImage);
+    } else {
+      localStorage.removeItem(USER_FACE_IMAGE_KEY);
+    }
+  }, [userFaceImage]);
+
+  useEffect(() => {
+    if (idealBodyImage) {
+      localStorage.setItem(IDEAL_BODY_IMAGE_KEY, idealBodyImage);
+    } else {
+      localStorage.removeItem(IDEAL_BODY_IMAGE_KEY);
+    }
+  }, [idealBodyImage]);
 
   // Check for existing token on mount (stay on Splash either way)
   useEffect(() => {
@@ -161,7 +194,7 @@ const App: React.FC = () => {
       case View.Onboarding:
         return <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Dashboard:
-        return <Dashboard onNavigate={setCurrentView} isProfileComplete={isProfileComplete} authUser={authUser} />;
+        return <Dashboard onNavigate={setCurrentView} isProfileComplete={isProfileComplete} authUser={authUser} onLogout={handleLogout} idealImage={idealBodyImage || userFaceImage || userImage} />;
       case View.Evolution:
         return <EvolutionEngine
           userImage={userImage}
@@ -169,7 +202,14 @@ const App: React.FC = () => {
           bodyStyle={bodyStyle}
           gender={gender}
           authUser={authUser}
-          onComplete={() => {
+          onComplete={(generatedImg?: string | null) => {
+            if (generatedImg) {
+              setIdealBodyImage(generatedImg);
+            } else if (userFaceImage) {
+              setIdealBodyImage(userFaceImage);
+            } else if (userImage) {
+              setIdealBodyImage(userImage);
+            }
             setHasUnreadAI(true);
             setCurrentView(View.Dashboard);
           }}
@@ -205,7 +245,7 @@ const App: React.FC = () => {
         return <CheckInShare onClose={() => setCurrentView(View.Dashboard)} />;
 
       default:
-        return <Dashboard authUser={authUser} isProfileComplete={isProfileComplete} />;
+        return <Dashboard authUser={authUser} isProfileComplete={isProfileComplete} idealImage={idealBodyImage || userFaceImage || userImage} />;
     }
   };
 

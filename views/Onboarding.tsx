@@ -15,18 +15,19 @@ type BodyStyleOption = {
   id: string;
   label: string;
   description: string;
+  image: string;
 };
 
 const BODY_STYLE_OPTIONS: Record<'male' | 'female', BodyStyleOption[]> = {
   male: [
-    { id: 'slim', label: '薄肌型', description: '线条分明，精瘦有型' },
-    { id: 'athletic', label: '力量型', description: '均衡发展，注重运动表现' },
-    { id: 'muscular', label: '健美型', description: '大框架，追求肌肉量' },
+    { id: 'slim', label: '薄肌型', description: '线条分明，精瘦有型', image: '/man-models/薄肌型.png' },
+    { id: 'athletic', label: '力量型', description: '均衡发展，注重运动表现', image: '/man-models/力量型.png' },
+    { id: 'muscular', label: '健美型', description: '大框架，追求肌肉量', image: '/man-models/健美型.png' },
   ],
   female: [
-    { id: 'comic', label: '漫画型', description: '轻盈纤细，线条柔和' },
-    { id: 'athletic', label: '力量型', description: '强壮均衡，运动感' },
-    { id: 'muscular', label: '健美型', description: '力量优先，肌肉轮廓' },
+    { id: 'comic', label: '漫画型', description: '轻盈纤细，线条柔和', image: '/woman-models/漫画型.png' },
+    { id: 'athletic', label: '力量型', description: '强壮均衡，运动感', image: '/woman-models/力量型.png' },
+    { id: 'muscular', label: '健美型', description: '力量优先，肌肉轮廓', image: '/woman-models/健美型.png' },
   ],
 };
 
@@ -200,7 +201,7 @@ const Onboarding: React.FC<Props> = ({ onComplete }) => {
 
   const renderBodyStyleStep = () => (
     <div className="space-y-4">
-      <div className="grid gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {BODY_STYLE_OPTIONS[gender].map((option) => {
           const selected = bodyStyle === option.id;
           return (
@@ -208,14 +209,20 @@ const Onboarding: React.FC<Props> = ({ onComplete }) => {
               key={option.id}
               type="button"
               onClick={() => setBodyStyle(option.id)}
-              className={`rounded-3xl border p-4 text-left transition-all ${
+              className={`rounded-3xl border overflow-hidden text-center transition-all ${
                 selected
-                  ? 'border-[#B8FF00] bg-[#B8FF00]/10 shadow-[0_0_25px_rgba(184,255,0,0.12)]'
+                  ? 'border-[#B8FF00] shadow-[0_0_25px_rgba(184,255,0,0.12)]'
                   : 'border-white/10 bg-white/5'
               }`}
             >
-              <div className="mb-1 text-base font-semibold text-white">{option.label}</div>
-              <div className="text-xs text-white/60">{option.description}</div>
+              <div className="relative h-[180px] bg-black/30">
+                <img src={option.image} alt={option.label} className="w-full h-full object-contain" />
+                {selected && <div className="absolute inset-0 bg-[#B8FF00]/10" />}
+              </div>
+              <div className="p-3">
+                <div className="text-sm font-semibold text-white">{option.label}</div>
+                <div className="text-[10px] text-white/50 mt-0.5">{option.description}</div>
+              </div>
             </button>
           );
         })}
@@ -268,7 +275,7 @@ const Onboarding: React.FC<Props> = ({ onComplete }) => {
 
       <div className="overflow-hidden rounded-[28px] border-2 border-dashed border-white/15 bg-white/5">
         {selectedImage ? (
-          <img src={selectedImage} alt="Body preview" className="h-[320px] w-full object-cover" />
+          <img src={selectedImage} alt="Body preview" className="h-[320px] w-full object-contain bg-black" />
         ) : (
           <div className="flex h-[320px] items-center justify-center px-6 text-center text-sm text-white/40">
             上传一张全身照，用于生成初始进化模型

@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View } from '../types';
-import Hero3D from '../components/Hero3D';
 import type { AuthUser } from '../api';
 
 const MOTIVATION_QUOTES = [
@@ -17,9 +16,12 @@ interface Props {
     onNavigate?: (view: View) => void;
     isProfileComplete?: boolean;
     authUser?: AuthUser | null;
+    onLogout?: () => void;
+    idealImage?: string | null;
 }
 
-const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true, authUser }) => {
+const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true, authUser, onLogout, idealImage }) => {
+    const [showMenu, setShowMenu] = useState(false);
     // Incomplete State View
     if (!isProfileComplete) {
         return (
@@ -60,49 +62,84 @@ const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true, auth
 
     return (
         <div className="min-h-screen pb-24 relative overflow-hidden bg-bg-dark">
+            {idealImage && (
+                <div className="absolute inset-0 z-0 pointer-events-none">
+                    <img
+                        src={idealImage}
+                        alt=""
+                        className="w-full h-full object-cover scale-110 opacity-[0.18] blur-[10px]"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/82 to-[#050505]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(184,255,0,0.08),transparent_55%)]" />
+                </div>
+            )}
+
             {/* Header */}
             <div className="absolute top-0 w-full p-6 z-20 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
                 <div>
                     <h1 className="text-2xl font-black font-serif italic text-white">Right<span className="text-primary">Now</span></h1>
                     <p className="text-[10px] text-gray-400 tracking-widest uppercase">Believing is Seeing</p>
                 </div>
-                <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden">
-                    {authUser?.avatar ? (
-                        <img src={authUser.avatar} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                        <div className="w-full h-full bg-primary/20 flex items-center justify-center">
-                            <span className="text-primary text-sm font-bold">{authUser?.name?.charAt(0) || '?'}</span>
-                        </div>
+                <div className="relative">
+                    <button onClick={() => setShowMenu(!showMenu)} className="w-10 h-10 rounded-full border border-white/20 overflow-hidden">
+                        {authUser?.avatar ? (
+                            <img src={authUser.avatar} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                                <span className="text-primary text-sm font-bold">{authUser?.name?.charAt(0) || '?'}</span>
+                            </div>
+                        )}
+                    </button>
+
+                    {showMenu && (
+                        <>
+                            <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
+                            <div className="absolute right-0 top-12 z-40 bg-[#1c1c1e] border border-white/10 rounded-2xl shadow-2xl overflow-hidden min-w-[160px]">
+                                <div className="px-4 py-3 border-b border-white/5">
+                                    <p className="text-xs font-bold text-white truncate">{authUser?.name || '用户'}</p>
+                                    <p className="text-[10px] text-gray-500 truncate">{authUser?.email || ''}</p>
+                                </div>
+                                <button
+                                    onClick={() => { setShowMenu(false); onLogout?.(); }}
+                                    className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-white/5 flex items-center gap-2 transition-colors"
+                                >
+                                    <span className="material-icons-round text-base">logout</span>
+                                    退出登录
+                                </button>
+                            </div>
+                        </>
                     )}
                 </div>
             </div>
 
             {/* Center Visual Area */}
-            <div className="relative h-[70vh] w-full flex flex-col items-center justify-center">
-
-                {/* --- 
-                  COMMENTED OUT 2D IMAGE LOGIC
-                  We reverted to the 3D model below, but keep this logic in case 
-                  a static 2D poster is preferred later.
-                --- */}
-                {/* 
-                <div className="relative w-full h-[60vh] flex justify-center items-end pb-12">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-[#B8FF00]/10 rounded-full blur-[100px] pointer-events-none"></div>
-                    <img
-                        src="/Z.png"
-                        alt="Ideal State"
-                        className="h-full object-contain relative z-10"
-                        style={{ maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)' }}
-                    />
-                </div>
-                */}
-
-                {/* 3D Model Area */}
+            <div className="relative h-[70vh] w-full flex flex-col items-center justify-center z-10">
+                {/* Background glow */}
                 <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-primary/10 rounded-full blur-[80px]"></div>
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-purple-900/20 rounded-full blur-[100px]"></div>
-                <div className="w-full h-full absolute inset-0 z-10" style={{ maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)' }}>
-                    <Hero3D />
-                </div>
+
+                {idealImage ? (
+                    /* Co-created ideal body image */
+                    <div className="w-full h-full absolute inset-0 z-10 flex items-center justify-center" style={{ maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)' }}>
+                        <img src={idealImage} alt="理想身材" className="h-full object-contain" />
+                    </div>
+                ) : (
+                    /* "显化中" placeholder when no co-created image yet */
+                    <div className="w-full h-full absolute inset-0 z-10 flex flex-col items-center justify-center gap-6">
+                        <div className="relative">
+                            <div className="w-32 h-32 rounded-full bg-[#B8FF00]/5 border border-[#B8FF00]/20 flex items-center justify-center">
+                                <div className="w-24 h-24 rounded-full bg-[#B8FF00]/10 border border-[#B8FF00]/15 flex items-center justify-center animate-pulse">
+                                    <span className="material-icons-round text-[#B8FF00]/60 text-4xl">auto_awesome</span>
+                                </div>
+                            </div>
+                            <div className="absolute inset-0 rounded-full border-2 border-[#B8FF00]/30 border-t-transparent animate-spin" style={{ animationDuration: '3s' }}></div>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-sm font-bold text-white/80 mb-1">显化中...</p>
+                            <p className="text-[10px] text-gray-500">完成 AI 共创后，你的理想身材将在此展示</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Main Stats Panel / Bottom Action */}

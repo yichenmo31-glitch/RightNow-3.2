@@ -9,6 +9,7 @@ const API_KEY = () => import.meta.env.VITE_GEMINI_API_KEY || '';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const CHAT_MODEL = 'gemini-3-flash-preview';
 const IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
+const SAFE_BG_PROMPT = '采用深炭灰色（Dark charcoal grey）无缝纯色背景。背景要求干净、沉稳且光线均匀，没有任何渐变、杂乱的光斑、阴影堆积或环境纹理。';
 
 // 健身教练 system prompt
 export const FITNESS_COACH_PROMPT = `你是 RightNow Fitness 的 AI 健身教练「显化引擎」。
@@ -172,14 +173,38 @@ export async function generateFitnessPlan(userInfo: {
 }
 
 /**
+ * 压缩图片到指定最大宽度，返回 base64 data URL
+ */
+function compressImage(base64DataUrl: string, maxWidth = 800): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => resolve(base64DataUrl);
+    img.src = base64DataUrl;
+  });
+}
+
+/**
  * Nano Banana 2 图像生成 — 基于用户照片+目标体型生成理想身材
  * 返回 base64 图片数据或 null
  */
 export async function generateIdealBody(params: {
   currentImageBase64?: string;
+  referenceImageBase64?: string;
   targetStyle: string;
   gender: string;
   refinement?: string;
+  conservative?: boolean;
 }): Promise<string | null> {
   const key = API_KEY();
   if (!key || key === 'PLACEHOLDER_API_KEY') return null;
@@ -189,23 +214,61 @@ export async function generateIdealBody(params: {
     : { comic: '纤细匀称，线条柔和', athletic: '紧致有力，运动感', muscular: '力量感，肌肉轮廓明显' };
 
   const target = styleDesc[params.targetStyle as keyof typeof styleDesc] || params.targetStyle;
+  const genderLabel = params.gender === 'male' ? '男性' : '女性';
+  const hasImage = !!params.currentImageBase64;
+  const hasReferenceImage = !!params.referenceImageBase64;
+  const safeIdentityInstruction = params.conservative
+    ? '尽量保留人物整体身份感、发型和基本外观一致，不强调面部精确复制。'
+    : '保持人物整体身份感、发型和基本外观一致。';
+  const safePhotoStyle = `人物穿着得体的健身服或运动服，画面写实、自然、非暴露。${SAFE_BG_PROMPT}`;
 
-  const prompt = params.refinement
-    ? `基于这张人物照片，按照用户要求进行调整：${params.refinement}。保持人物面部特征不变，只调整身材体型。输出一张高质量的全身照。`
-    : `基于这张人物照片，将其身材转变为「${target}」体型。保持面部特征和肤色不变，调整身体比例和肌肉线条，使其呈现理想的${params.gender === 'male' ? '男性' : '女性'}${target}身材。输出一张高质量的全身照，背景简洁。`;
+  // 根据是否有图片使用不同 prompt
+  let prompt: string;
+  if (params.refinement && hasImage && hasReferenceImage) {
+    prompt = `第一张图片是当前身材图，第二张图片是用户正脸参考图。请将第二张图片的人物面部特征自然融合到第一张图片的人物身上，保持身材和姿态尽量不变。${safeIdentityInstruction} 输出一张高质量的全身照。${safePhotoStyle}`;
+  } else if (params.refinement && hasImage) {
+    prompt = `基于这张人物照片，按照用户要求进行调整：${params.refinement}。只调整身材体型与整体观感。${safeIdentityInstruction} 输出一张高质量的全身照。${safePhotoStyle}`;
+  } else if (params.refinement) {
+    prompt = `生成一张${genderLabel}全身照，体型特征：${target}。用户额外要求：${params.refinement}。${safePhotoStyle}`;
+  } else if (hasImage) {
+    prompt = `基于这张人物照片，将其身材转变为「${target}」体型。调整身体比例和肌肉线条，使其呈现理想的${genderLabel}${target}身材。${safeIdentityInstruction} 输出一张高质量的全身照。${safePhotoStyle}`;
+  } else {
+    prompt = `生成一张理想${genderLabel}身材的全身照，体型方向：「${target}」。要求身材比例协调、肌肉线条自然，高质量写实风格。${safePhotoStyle}`;
+  }
+
+  // 120 秒超时（慢网络需要更长时间）
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
 
   try {
     const parts: any[] = [{ text: prompt }];
 
     if (params.currentImageBase64) {
-      const base64Data = params.currentImageBase64.includes(',')
-        ? params.currentImageBase64.split(',')[1]
-        : params.currentImageBase64;
-      const mimeType = params.currentImageBase64.includes(';')
-        ? params.currentImageBase64.split(';')[0].split(':')[1]
+      const compressed = await compressImage(params.currentImageBase64, 600);
+      const base64Data = compressed.includes(',')
+        ? compressed.split(',')[1]
+        : compressed;
+      const mimeType = compressed.includes(';')
+        ? compressed.split(';')[0].split(':')[1]
         : 'image/jpeg';
       parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
+      console.log('[generateIdealBody] image compressed, payload size:', Math.round(base64Data.length / 1024), 'KB');
     }
+
+    if (params.referenceImageBase64) {
+      const compressed = await compressImage(params.referenceImageBase64, 600);
+      const base64Data = compressed.includes(',')
+        ? compressed.split(',')[1]
+        : compressed;
+      const mimeType = compressed.includes(';')
+        ? compressed.split(';')[0].split(':')[1]
+        : 'image/jpeg';
+      parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
+      console.log('[generateIdealBody] reference image compressed, payload size:', Math.round(base64Data.length / 1024), 'KB');
+    }
+
+    console.log('[generateIdealBody] sending request, hasImage:', hasImage, 'style:', params.targetStyle);
+    const t0 = Date.now();
 
     const res = await fetch(
       `${GEMINI_BASE}/models/${IMAGE_MODEL}:generateContent?key=${key}`,
@@ -216,22 +279,57 @@ export async function generateIdealBody(params: {
           contents: [{ role: 'user', parts }],
           generationConfig: { responseModalities: ['image', 'text'] },
         }),
+        signal: controller.signal,
       },
     );
 
-    const data = await res.json();
-    const candidate = data.candidates?.[0]?.content?.parts;
-    if (!candidate) return null;
+    console.log('[generateIdealBody] response status:', res.status, 'took:', Math.round((Date.now() - t0) / 1000), 's');
 
-    // 找到图片 part
-    const imgPart = candidate.find((p: any) => p.inline_data?.mime_type?.startsWith('image/'));
+    const data = await res.json();
+    console.log('[generateIdealBody] json parsed, took:', Math.round((Date.now() - t0) / 1000), 's total');
+
+    if (!res.ok) {
+      console.error('[generateIdealBody] API error:', res.status, JSON.stringify(data).slice(0, 500));
+      return null;
+    }
+    const candidate = data.candidates?.[0]?.content?.parts;
+    if (!candidate) {
+      console.error('[generateIdealBody] no candidates:', JSON.stringify(data).slice(0, 500));
+      return null;
+    }
+
+    // Debug: log actual response structure to identify field naming
+    console.log('[generateIdealBody] parts keys:', candidate.map((p: any) => Object.keys(p)));
+
+    // Check both snake_case (inline_data) and camelCase (inlineData) — Gemini API may use either
+    const imgPart = candidate.find((p: any) =>
+      p.inline_data?.mime_type?.startsWith('image/') ||
+      p.inlineData?.mimeType?.startsWith('image/')
+    );
     if (imgPart) {
-      return `data:${imgPart.inline_data.mime_type};base64,${imgPart.inline_data.data}`;
+      const iData = imgPart.inline_data || imgPart.inlineData;
+      const mimeType = iData.mime_type || iData.mimeType;
+      const b64 = iData.data;
+      console.log('[generateIdealBody] success! size:', Math.round(b64.length / 1024), 'KB, total:', Math.round((Date.now() - t0) / 1000), 's');
+      return `data:${mimeType};base64,${b64}`;
+    }
+
+    const textPart = candidate.find((p: any) => p.text);
+    if (textPart) {
+      console.warn('[generateIdealBody] text only:', textPart.text.slice(0, 200));
+    } else {
+      console.warn('[generateIdealBody] no image or text found, parts:', JSON.stringify(candidate).slice(0, 500));
     }
     return null;
   } catch (err) {
-    console.error('Image generation failed:', err);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      console.error('[generateIdealBody] TIMEOUT (120s)');
+    } else {
+      console.error('[generateIdealBody] FAILED:', err);
+    }
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

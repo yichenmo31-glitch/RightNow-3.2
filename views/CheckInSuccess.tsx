@@ -88,7 +88,7 @@ const CheckInSuccess: React.FC<Props> = ({ onNavigate, onClose }) => {
 
               {/* Task 3: Photo */}
               <button 
-                 onClick={() => onNavigate(View.Onboarding)} // Reusing onboarding camera flow for now
+                 onClick={() => onNavigate(View.ActionCenter)}
                  className="bg-[#111] border border-white/5 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 h-32 hover:bg-[#161616] active:scale-95 transition-all"
               >
                   <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">

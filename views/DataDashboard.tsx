@@ -64,10 +64,6 @@ const DataDashboard: React.FC<Props> = ({ onNavigate }) => {
     // Fetch AI suggestions after data is loaded
     useEffect(() => {
         if (loading) return;
-        const cached = sessionStorage.getItem('ai_suggestions');
-        if (cached) {
-            try { setAiSuggestions(JSON.parse(cached)); return; } catch { /* ignore */ }
-        }
         setAiLoading(true);
         const latestWeight = weightChartData.length > 0 ? weightChartData[weightChartData.length - 1].val : undefined;
         let weightTrend = '暂无数据';
@@ -85,7 +81,6 @@ const DataDashboard: React.FC<Props> = ({ onNavigate }) => {
             checkinCount: checkinDays.size,
         }).then(suggestions => {
             setAiSuggestions(suggestions);
-            sessionStorage.setItem('ai_suggestions', JSON.stringify(suggestions));
         }).finally(() => setAiLoading(false));
     }, [loading, dietSummary, weightChartData, checkinDays]);
 

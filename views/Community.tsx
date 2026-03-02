@@ -52,7 +52,7 @@ const ForumTab: React.FC = () => {
     const [newPostContent, setNewPostContent] = useState('');
     const [expandedComments, setExpandedComments] = useState<string | null>(null);
     const [comments, setComments] = useState<Record<string, Comment[]>>({});
-    const [commentInput, setCommentInput] = useState('');
+    const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
 
     const loadPosts = async (p: number) => {
         try {
@@ -113,12 +113,13 @@ const ForumTab: React.FC = () => {
     };
 
     const handleAddComment = async (postId: string) => {
+        const commentInput = commentInputs[postId] || '';
         if (!commentInput.trim()) return;
         try {
             const comment = await postsApi.addComment(postId, commentInput);
             setComments(prev => ({ ...prev, [postId]: [...(prev[postId] || []), comment] }));
             setPosts(prev => prev.map(p => p.id === postId ? { ...p, commentCount: p.commentCount + 1 } : p));
-            setCommentInput('');
+            setCommentInputs(prev => ({ ...prev, [postId]: '' }));
         } catch (err) {
             console.error('Add comment failed:', err);
         }
@@ -241,8 +242,8 @@ const ForumTab: React.FC = () => {
                                 ))}
                                 <div className="flex gap-2">
                                     <input
-                                        value={commentInput}
-                                        onChange={e => setCommentInput(e.target.value)}
+                                        value={commentInputs[post.id] || ''}
+                                        onChange={e => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
                                         onKeyDown={e => e.key === 'Enter' && handleAddComment(post.id)}
                                         placeholder="写评论..."
                                         className="flex-1 bg-[#1A1A1A] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none border border-white/5"
@@ -254,8 +255,12 @@ const ForumTab: React.FC = () => {
                     </article>
                 ))}
                 {hasMore && posts.length > 0 && (
-                    <button onClick={() => { setPage(p => p + 1); loadPosts(page + 1); }} className="w-full py-3 text-center text-xs text-gray-500 hover:text-white transition-colors">
-                        加载更多
+                    <button
+                        onClick={() => { setPage(p => p + 1); loadPosts(page + 1); }}
+                        disabled={loading}
+                        className="w-full py-3 text-center text-xs text-gray-500 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        {loading ? '加载中...' : '加载更多'}
                     </button>
                 )}
             </div>

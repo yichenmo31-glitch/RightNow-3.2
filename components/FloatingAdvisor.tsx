@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View } from '../types';
 
 interface Props {
@@ -20,21 +20,38 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [message, setMessage] = useState<string | null>(null);
+  const hideTimerRef = useRef<number | null>(null);
+  const dragMovedRef = useRef(false);
 
   // Show contextual tip based on current page
   useEffect(() => {
     const tip = (currentView && VIEW_TIPS[currentView]) || DEFAULT_TIP;
     setMessage(null);
-    const show = setTimeout(() => {
+    if (hideTimerRef.current) {
+      window.clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+
+    const show = window.setTimeout(() => {
       setMessage(tip);
-      const hide = setTimeout(() => setMessage(null), 8000);
-      return () => clearTimeout(hide);
+      hideTimerRef.current = window.setTimeout(() => {
+        setMessage(null);
+        hideTimerRef.current = null;
+      }, 8000);
     }, 3000);
-    return () => clearTimeout(show);
+
+    return () => {
+      window.clearTimeout(show);
+      if (hideTimerRef.current) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+    };
   }, [currentView]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(true);
+    dragMovedRef.current = false;
     setOffset({
       x: e.clientX - position.x,
       y: e.clientY - position.y
@@ -46,6 +63,12 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
     e.preventDefault();
+    if (
+      Math.abs(e.clientX - (position.x + offset.x)) > 3 ||
+      Math.abs(e.clientY - (position.y + offset.y)) > 3
+    ) {
+      dragMovedRef.current = true;
+    }
     setPosition({
       x: e.clientX - offset.x,
       y: e.clientY - offset.y
@@ -58,9 +81,10 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false
   };
 
   const handleClick = () => {
-    if (!isDragging && onChatClick) {
+    if (!isDragging && !dragMovedRef.current && onChatClick) {
       onChatClick();
     }
+    dragMovedRef.current = false;
   };
 
   return (

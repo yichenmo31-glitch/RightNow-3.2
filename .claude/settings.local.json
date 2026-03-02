@@ -23,7 +23,12 @@
       "Bash(netstat:*)",
       "Bash(curl:*)",
       "Bash(taskkill:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(pandoc:*)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(gh auth:*)",
+      "Bash(git add:*)"
     ]
   }
 }

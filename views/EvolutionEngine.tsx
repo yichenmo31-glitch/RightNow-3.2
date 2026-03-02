@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View } from '../types';
-import { chatWithGemini, chatWithImage, GUIDED_QUESTIONS, FITNESS_COACH_PROMPT } from '../services/gemini';
-import { fitnessPlanApi } from '../api/fitness-plan';
-import { imageGenApi } from '../api/image-gen';
+import { chatWithGemini, chatWithImage, generateIdealBody, FITNESS_COACH_PROMPT } from '../services/gemini';
 import type { AuthUser } from '../api';
 
 interface Props {
@@ -11,7 +9,7 @@ interface Props {
   bodyStyle?: string;
   gender?: 'male' | 'female';
   authUser?: AuthUser | null;
-  onComplete: () => void;
+  onComplete: (generatedImage?: string | null) => void;
   onNavigate?: (view: View) => void;
 }
 
@@ -40,15 +38,14 @@ const EvolutionEngine: React.FC<Props> = ({
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [guidedStep, setGuidedStep] = useState(-1); // -1 = initial analysis, 0-3 = guided questions
-  const [collectedInfo, setCollectedInfo] = useState<Record<string, string>>({});
-  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-  const [imageGenStatus, setImageGenStatus] = useState<'idle' | 'generating' | 'done'>('idle');
+  const [isGenerating, setIsGenerating] = useState(true);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [faceImage, setFaceImage] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
 
   const beforeSrc = userImage || '/ori.png';
-  const afterSrc = userFaceImage || '/Z.png';
+  const afterSrc = generatedImage || userFaceImage || '/Z.png';
 
   // Auto-scroll chat
   useEffect(() => {
@@ -69,143 +66,174 @@ const EvolutionEngine: React.FC<Props> = ({
     setMessages(prev => prev.filter(m => m.id !== typingId));
   }, []);
 
-  // Initial AI analysis on mount
+  // Initial AI analysis on mount — focus on "PS yourself"
   useEffect(() => {
     const styleLabel = bodyStyleLabels[bodyStyle || ''] || bodyStyle || '均衡健康';
-    const intro = `正在分析你的身体数据，目标方向：「${styleLabel}」...`;
-    addMsg({ text: intro, sender: 'ai' });
+    addMsg({ text: `正在分析你的身体数据，目标方向：「${styleLabel}」...`, sender: 'ai' });
 
     const timer = setTimeout(async () => {
       if (userImage) {
         const typingId = addTyping();
         const analysis = await chatWithImage(
-          `请分析这张身体照片，用户目标是「${styleLabel}」体型。给出简短的身体评估（2-3句话），然后告诉用户你已经开始为他生成理想身材图。`,
+          `请分析这张身体照片，用户目标是「${styleLabel}」体型。给出简短的身体评估（2-3句话），然后告诉用户可以通过对话描述想要的调整，比如"手臂再粗一点"、"腰再细一些"来 PS 理想身材。`,
           userImage,
         );
         removeTyping(typingId);
         addMsg({
           text: analysis,
           sender: 'ai',
-          tags: ['✨ 体态分析', '💪 目标锁定', '🎯 开始显化'],
+          tags: ['✨ 体态分析', '🎯 开始 PS'],
         });
       } else {
         addMsg({
-          text: `好的，你的目标是「${styleLabel}」体型。我已经开始为你生成理想身材的预览图。在等待的过程中，我想更了解你，这样才能给你最精准的方案。`,
+          text: `好的，你的目标是「${styleLabel}」体型。现在你可以告诉我想怎么调整，比如"手臂再粗一点"、"腰再细一些"，我来帮你 PS 理想身材。`,
           sender: 'ai',
         });
       }
 
-      // Start guided conversation
+      // Prompt user to start PS
       setTimeout(() => {
-        setGuidedStep(0);
         addMsg({
-          text: GUIDED_QUESTIONS[0].question,
+          text: '你可以描述想要的调整，也可以上传正脸照来做脸部融合。试试看？',
           sender: 'ai',
-          quickReplies: ['完全没有运动基础', '偶尔运动', '有规律运动习惯'],
+          quickReplies: ['手臂再粗一点', '腰再细一些', '整体更有线条感'],
         });
       }, 1500);
+
+      // Auto-generate ideal body image in background (with fallback)
+      setIsGenerating(true);
+      (async () => {
+        // 第一次尝试：带用户照片
+        let img = await generateIdealBody({
+          currentImageBase64: userImage || undefined,
+          targetStyle: bodyStyle || 'athletic',
+          gender: gender || 'male',
+        });
+
+        // Fallback 1：带照片失败时，用更保守的 prompt 再试一次
+        if (!img && userImage) {
+          addMsg({ text: '正在优化生成方式...', sender: 'ai' });
+          img = await generateIdealBody({
+            currentImageBase64: userImage,
+            targetStyle: bodyStyle || 'athletic',
+            gender: gender || 'male',
+            conservative: true,
+          });
+        }
+
+        // Fallback 2：如果仍失败，用纯文字再试一次
+        if (!img && userImage) {
+          addMsg({ text: '正在用另一种方式生成...', sender: 'ai' });
+          img = await generateIdealBody({
+            targetStyle: bodyStyle || 'athletic',
+            gender: gender || 'male',
+          });
+        }
+
+        if (img) {
+          setGeneratedImage(img);
+          addMsg({ text: '理想身材预览图已生成！滑动对比看看效果，不满意可以继续调整。', sender: 'ai' });
+        } else {
+          addMsg({
+            text: '图片生成暂时遇到问题，你可以点击「重新生成」再试一次，或者先通过对话描述你想要的调整。',
+            sender: 'ai',
+            quickReplies: ['重新生成'],
+          });
+        }
+        setIsGenerating(false);
+      })();
     }, 1200);
 
     return () => clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Handle sending messages
+  // Handle sending messages — PS refinement mode
   const handleSend = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || isGenerating) return;
     addMsg({ text, sender: 'user' });
     setInputValue('');
 
-    // If in guided conversation mode
-    if (guidedStep >= 0 && guidedStep < GUIDED_QUESTIONS.length) {
-      const field = GUIDED_QUESTIONS[guidedStep].field;
-      setCollectedInfo(prev => ({ ...prev, [field]: text }));
+    const isRetry = text === '重新生成';
 
-      const nextStep = guidedStep + 1;
-
-      if (nextStep < GUIDED_QUESTIONS.length) {
-        // Ask next question
-        const typingId = addTyping();
-        const ack = await chatWithGemini(
-          `用户回答了"${GUIDED_QUESTIONS[guidedStep].question}"，他的回答是："${text}"。请简短确认收到（1句话），然后自然地过渡到下一个问题："${GUIDED_QUESTIONS[nextStep].question}"`,
-        );
-        removeTyping(typingId);
-        setGuidedStep(nextStep);
-        addMsg({
-          text: ack,
-          sender: 'ai',
-          quickReplies: getQuickReplies(nextStep),
-        });
-      } else {
-        // All questions answered, generate plan
-        setGuidedStep(-2); // -2 = plan generation mode
-        const typingId = addTyping();
-        addMsg({ text: '太好了，信息收集完毕！正在为你生成专属健身方案...', sender: 'ai' });
-        setIsGeneratingPlan(true);
-
-        const allInfo = { ...collectedInfo, [field]: text };
-        try {
-          const planText = await chatWithGemini(
-            `基于以下用户信息生成健身方案摘要（3-4句话，包含饮食和训练的核心建议）：
-性别：${gender === 'male' ? '男' : '女'}
-目标体型：${bodyStyleLabels[bodyStyle || ''] || bodyStyle}
-运动基础：${allInfo.exerciseBase || '未知'}
-饮食习惯：${allInfo.dietHabit || '未知'}
-作息：${allInfo.sleepPattern || '未知'}
-职业：${allInfo.occupation || '未知'}`,
-          );
-          removeTyping(typingId);
-          addMsg({ text: planText, sender: 'ai' });
-          addMsg({
-            text: '你的专属方案已生成！点击下方按钮确认，开始你的显化之旅。',
-            sender: 'ai',
-            tags: ['🍽️ 饮食方案', '💧 喝水计划', '🏋️ 训练计划'],
-          });
-
-          // Save plan to backend
-          fitnessPlanApi.upsert({
-            exerciseBase: allInfo.exerciseBase,
-            dietHabit: allInfo.dietHabit,
-            sleepPattern: allInfo.sleepPattern,
-            occupation: allInfo.occupation,
-            aiSummary: planText,
-          }).catch(() => {});
-        } catch {
-          removeTyping(typingId);
-          addMsg({ text: '方案生成遇到问题，但不影响你开始！', sender: 'ai' });
-        }
-        setIsGeneratingPlan(false);
-      }
-    } else {
-      // Free chat mode (refinement)
+    if (!isRetry) {
+      // Use Gemini to acknowledge
       const typingId = addTyping();
-      const reply = await chatWithGemini(text);
+      const reply = await chatWithGemini(
+        `用户想调整理想身材：「${text}」。请简短确认（1-2句话），告诉用户正在根据要求重新生成。`,
+      );
       removeTyping(typingId);
       addMsg({ text: reply, sender: 'ai' });
+    } else {
+      addMsg({ text: '好的，正在重新生成...', sender: 'ai' });
     }
-  };
 
-  const getQuickReplies = (step: number): string[] => {
-    switch (step) {
-      case 0: return ['完全没有运动基础', '偶尔运动', '有规律运动习惯'];
-      case 1: return ['三餐规律，偏清淡', '经常外卖，不太规律', '有在控制饮食'];
-      case 2: return ['早睡早起，睡眠好', '经常熬夜', '作息不太规律'];
-      case 3: return ['办公室久坐', '需要经常走动', '体力劳动为主'];
-      default: return [];
+    // Generate / regenerate image (with fallback)
+    setIsGenerating(true);
+    let img = await generateIdealBody({
+      currentImageBase64: userImage || undefined,
+      targetStyle: bodyStyle || 'athletic',
+      gender: gender || 'male',
+      refinement: isRetry ? undefined : text,
+    });
+
+    // Fallback 1：带照片失败时，用更保守的 prompt 再试
+    if (!img && userImage) {
+      addMsg({ text: '正在优化生成方式...', sender: 'ai' });
+      img = await generateIdealBody({
+        currentImageBase64: userImage,
+        targetStyle: bodyStyle || 'athletic',
+        gender: gender || 'male',
+        refinement: isRetry ? undefined : text,
+        conservative: true,
+      });
     }
+
+    // Fallback 2：带照片仍失败时用纯文字再试
+    if (!img && userImage) {
+      addMsg({ text: '正在用另一种方式生成...', sender: 'ai' });
+      img = await generateIdealBody({
+        targetStyle: bodyStyle || 'athletic',
+        gender: gender || 'male',
+        refinement: isRetry ? undefined : text,
+      });
+    }
+
+    if (img) {
+      setGeneratedImage(img);
+      addMsg({ text: '已生成！滑动对比看看效果，还可以继续调整。', sender: 'ai' });
+    } else {
+      addMsg({
+        text: '生成遇到问题，可以再试一次。',
+        sender: 'ai',
+        quickReplies: ['重新生成'],
+      });
+    }
+    setIsGenerating(false);
   };
 
   const renderBottomActions = () => (
-    <div className="shrink-0 pb-4">
+    <div className="shrink-0 pb-4 space-y-2">
+      {/* Face replacement button */}
       <button
-        onClick={onComplete}
-        disabled={isGeneratingPlan}
+        onClick={() => faceInputRef.current?.click()}
+        disabled={isGenerating}
+        className="w-full py-2.5 rounded-full text-xs font-bold flex items-center justify-center gap-2 transition-all border border-white/10 bg-white/5 text-white hover:bg-white/10 disabled:opacity-40"
+      >
+        <span className="material-icons-round text-sm text-[#B8FF00]">face_retouching_natural</span>
+        <span>{faceImage ? '重新上传正脸照' : '脸部替换 · 上传正脸照融合'}</span>
+      </button>
+
+      {/* Confirm button */}
+      <button
+        onClick={() => onComplete(generatedImage)}
+        disabled={isGenerating}
         className={`w-full py-3 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-          isGeneratingPlan
+          isGenerating
             ? 'bg-white/10 text-white/30 cursor-not-allowed'
             : 'bg-[#B8FF00] text-black shadow-[0_0_25px_rgba(184,255,0,0.3)]'
         }`}
       >
-        <span>{isGeneratingPlan ? '方案生成中...' : '确认，开始显化之旅'}</span>
+        <span>{isGenerating ? '显化中' : '满意了，开始显化之旅'}</span>
         <span className="material-icons-round text-lg">arrow_forward</span>
       </button>
     </div>
@@ -254,13 +282,14 @@ const EvolutionEngine: React.FC<Props> = ({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend(inputValue)}
-          placeholder="告诉我你的想法..."
+          placeholder="描述想要的调整，如「手臂再粗一点」..."
           className="flex-1 bg-transparent text-xs text-white placeholder-gray-500 outline-none px-2"
         />
         <button
           onClick={() => handleSend(inputValue)}
+          disabled={isGenerating || !inputValue.trim()}
           className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-            inputValue.trim() ? 'bg-[#B8FF00] text-black' : 'text-gray-500 bg-white/5'
+            isGenerating || !inputValue.trim() ? 'text-gray-500 bg-white/5' : 'bg-[#B8FF00] text-black'
           }`}
         >
           <span className="material-icons-round text-base">send</span>
@@ -312,7 +341,8 @@ const EvolutionEngine: React.FC<Props> = ({
                   <div className="flex flex-wrap gap-1.5 mt-2 ml-7">
                     {msg.quickReplies.map((reply, i) => (
                       <button key={i} onClick={() => handleSend(reply)}
-                        className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-white hover:bg-white/10 transition-colors">
+                        disabled={isGenerating}
+                        className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-white hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                         {reply}
                       </button>
                     ))}
@@ -336,16 +366,44 @@ const EvolutionEngine: React.FC<Props> = ({
   // RENDER
   return (
     <div className="h-screen bg-[#030303] flex flex-col relative overflow-hidden">
-      <input type="file" ref={faceInputRef} accept="image/*" className="hidden" onChange={(e) => {
+      <input type="file" ref={faceInputRef} accept="image/*" className="hidden" onChange={async (e) => {
         const file = e.target.files?.[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            addMsg({ text: '已上传参考照片', sender: 'user', image: reader.result as string });
-            addMsg({ text: '收到，正在融合特征...', sender: 'ai' });
-          };
-          reader.readAsDataURL(file);
-        }
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64 = reader.result as string;
+          setFaceImage(base64);
+          addMsg({ text: '已上传正脸照', sender: 'user', image: base64 });
+          addMsg({ text: '收到，正在将你的面部特征与理想身材融合...', sender: 'ai' });
+
+          setIsGenerating(true);
+          let img = await generateIdealBody({
+            currentImageBase64: generatedImage || userImage || undefined,
+            referenceImageBase64: base64,
+            targetStyle: bodyStyle || 'athletic',
+            gender: gender || 'male',
+            refinement: '将这张正脸照的面部特征融合到身材图上，保持身材不变，替换面部',
+          });
+          if (!img) {
+            addMsg({ text: '正在优化融合方式...', sender: 'ai' });
+            img = await generateIdealBody({
+              currentImageBase64: generatedImage || userImage || undefined,
+              referenceImageBase64: base64,
+              targetStyle: bodyStyle || 'athletic',
+              gender: gender || 'male',
+              refinement: '将这张正脸照的面部特征融合到身材图上，保持身材不变，替换面部',
+              conservative: true,
+            });
+          }
+          if (img) {
+            setGeneratedImage(img);
+            addMsg({ text: '脸部融合完成！滑动对比看看效果。', sender: 'ai' });
+          } else {
+            addMsg({ text: '融合遇到问题，请稍后重试。', sender: 'ai' });
+          }
+          setIsGenerating(false);
+        };
+        reader.readAsDataURL(file);
         e.target.value = '';
       }} />
 
@@ -353,8 +411,8 @@ const EvolutionEngine: React.FC<Props> = ({
       <div className="px-5 pt-4 pb-2 z-20 flex justify-between items-center bg-black/60 backdrop-blur-md">
         <h1 className="text-base font-bold text-white tracking-wide">AI 共创 · 理想态</h1>
         <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-          <span className="w-2 h-2 bg-[#B8FF00] rounded-full animate-pulse" />
-          <span className="text-[10px] text-gray-300">显化中</span>
+          <span className={`w-2 h-2 rounded-full ${isGenerating ? 'bg-[#B8FF00] animate-pulse' : 'bg-gray-500'}`} />
+          <span className="text-[10px] text-gray-300">{isGenerating ? '显化中' : '已就绪'}</span>
         </div>
       </div>
 

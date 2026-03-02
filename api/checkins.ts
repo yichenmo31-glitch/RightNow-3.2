@@ -21,8 +21,8 @@ export const checkinsApi = {
     return data;
   },
 
-  async latest(): Promise<CheckInRecord> {
-    const { data } = await client.get<CheckInRecord>('/checkins/latest');
+  async latest(): Promise<CheckInRecord | null> {
+    const { data } = await client.get<CheckInRecord | null>('/checkins/latest');
     return data;
   },
 };

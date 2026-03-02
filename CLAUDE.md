@@ -76,3 +76,18 @@ npm run preview   # 预览生产构建
 - 图标：Google Material Icons（Outlined & Round）
 - UI 语言：中文
 - 移动端优先，支持安全区域适配
+
+## Shared Agent Memory Contract
+
+- `CLAUDE_PROJECT_MEMORY.md` is the canonical repository memory for Claude Code, Codex, and other coding agents.
+- Before non-trivial work, read `CLAUDE_PROJECT_MEMORY.md` to recover current architecture, recent decisions, and collaboration preferences.
+- After meaningful code or planning changes, update `CLAUDE_PROJECT_MEMORY.md` with concise, dated notes.
+- Store durable project knowledge there instead of splitting memory across multiple agent-specific files.
+- `.claude/commands/*.md` can be reused as workflow prompts, but project state should still be written back to `CLAUDE_PROJECT_MEMORY.md`.
+
+## Shared Skills
+
+- Prefer repository-local shared skills under `shared-skills/` so Claude Code and Codex can follow the same workflow.
+- `shared-skills/project-orchestrator/SKILL.md`: for planning, phased execution, and report-driven collaboration.
+- `shared-skills/fankui/SKILL.md`: for issue-feedback-driven debugging and minimal-change fixes.
+- `.claude/commands/*.md` remain the detailed reference prompts behind those shared skills.
