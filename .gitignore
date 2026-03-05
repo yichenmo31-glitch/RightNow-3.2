@@ -26,3 +26,22 @@ dist-ssr
 # Temp/unpacked feedback files
 问题反馈/extracted.txt
 问题反馈/unpacked/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Database
+chroma_db/
+*.sqlite3
+
+# Uploads
+uploads/
+!uploads/.gitkeep
