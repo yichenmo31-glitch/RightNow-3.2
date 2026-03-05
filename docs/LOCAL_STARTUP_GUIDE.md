@@ -15,14 +15,14 @@ cd /e/RightNow-Fitness
 
 ## 手动启动
 
-### 1. 启动后端（端口 3100）
+### 1. 启动后端（端口 5000）
 
 ```bash
 cd /e/RightNow-Fitness/backend
 npm run start:dev
 ```
 
-### 2. 启动前端（端口 3000）
+### 2. 启动前端（端口 5173）
 
 ```bash
 cd /e/RightNow-Fitness/frontend
@@ -33,17 +33,17 @@ npm run dev
 
 ```bash
 cd /e/RightNow-Fitness/rag-service
-python -m app.main
+python main.py
 ```
 
 ---
 
 ## 访问地址
 
-- **前端**: http://localhost:3000
-- **后端 API**: http://localhost:3100
+- **前端**: http://localhost:5173
+- **后端 API**: http://localhost:5000
 - **RAG 服务**: http://localhost:8000
-- **后端 Swagger 文档**: http://localhost:3100/api
+- **后端 Swagger 文档**: http://localhost:5000/api
 
 ---
 

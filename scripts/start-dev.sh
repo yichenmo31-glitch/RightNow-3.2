@@ -23,7 +23,7 @@ check_dependencies() {
 
 # 启动后端
 start_backend() {
-    echo "🔧 启动后端服务 (端口 3100)..."
+    echo "🔧 启动后端服务 (端口 5000)..."
     cd backend
     npm run start:dev &
     BACKEND_PID=$!
@@ -33,7 +33,7 @@ start_backend() {
 
 # 启动前端
 start_frontend() {
-    echo "🎨 启动前端服务 (端口 3000)..."
+    echo "🎨 启动前端服务 (端口 5173)..."
     cd frontend
     npm run dev &
     FRONTEND_PID=$!
@@ -45,7 +45,7 @@ start_frontend() {
 start_rag() {
     echo "🤖 启动 RAG 服务 (端口 8000)..."
     cd rag-service
-    python -m app.main &
+    python main.py &
     RAG_PID=$!
     cd ..
     echo "✅ RAG 服务启动 PID: $RAG_PID"
@@ -66,8 +66,8 @@ main() {
 
     echo ""
     echo "✨ 所有服务已启动！"
-    echo "📱 前端: http://localhost:3000"
-    echo "🔧 后端: http://localhost:3100"
+    echo "📱 前端: http://localhost:5173"
+    echo "🔧 后端: http://localhost:5000"
     echo "🤖 RAG: http://localhost:8000"
     echo ""
     echo "按 Ctrl+C 停止所有服务"

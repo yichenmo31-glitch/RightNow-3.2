@@ -9,7 +9,7 @@
   "scripts": {
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run start:dev",
-    "dev:rag": "cd rag-service && python -m app.main",
+    "dev:rag": "cd rag-service && python main.py",
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install"
   }
 }
