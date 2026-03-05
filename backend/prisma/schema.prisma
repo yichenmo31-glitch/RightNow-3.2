@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String            @id @default(uuid())
+  email              String            @unique
+  password           String
+  name               String
+  avatar             String?
+  gender             String?
+  height             Float?
+  weight             Float?
+  age                Int?
+  bodyStyle          String?
+  currentPhase       String?
+  goalWeight         Float?
+  activityLevel      String?
+  isProfileComplete  Boolean           @default(false)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  weightRecords      WeightRecord[]
+  evolutionPhotos    EvolutionPhoto[]
+  foodEntries        FoodEntry[]
+  todoItems          TodoItem[]
+  trainingLogs       TrainingLog[]
+  checkIns           CheckIn[]
+  posts              Post[]
+  postLikes          PostLike[]
+  comments           Comment[]
+  chatMessages       ChatMessage[]
+  sentRequests       Friendship[]      @relation("SentRequests")
+  receivedRequests   Friendship[]      @relation("ReceivedRequests")
+}
+
+model WeightRecord {
+  id        String   @id @default(uuid())
+  date      DateTime
+  weight    Float
+  waist     Float?
+  hip       Float?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EvolutionPhoto {
+  id        String   @id @default(uuid())
+  photoUrl  String
+  weight    Float?
+  status    String?
+  note      String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FoodEntry {
+  id        String   @id @default(uuid())
+  name      String
+  calories  Float
+  fat       Float?
+  protein   Float?
+  carbs     Float?
+  date      DateTime
+  mealType  String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TodoItem {
+  id        String   @id @default(uuid())
+  title     String
+  category  String
+  completed Boolean  @default(false)
+  date      DateTime
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TrainingLog {
+  id          String   @id @default(uuid())
+  description String
+  duration    Int?
+  photoUrl    String?
+  date        DateTime
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CheckIn {
+  id        String   @id @default(uuid())
+  type      String
+  note      String?
+  date      DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Post {
+  id        String     @id @default(uuid())
+  content   String
+  images    String[]
+  tags      String[]
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes     PostLike[]
+  comments  Comment[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  userId    String
+  postId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  content   String
+  sender    String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Friendship {
+  id         String   @id @default(uuid())
+  status     String   @default("pending")
+  senderId   String
+  receiverId String
+  sender     User     @relation("SentRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([senderId, receiverId])
+}
