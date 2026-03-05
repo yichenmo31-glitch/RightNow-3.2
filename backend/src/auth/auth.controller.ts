@@ -1,34 +1,26 @@
-import { Controller, Post, Get, Body } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
-import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { Public } from '../common/decorators/public.decorator';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { AuthService } from './auth.service';
+import { LoginDto, RegisterDto } from './dto/auth.dto';
 
-@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
-  @Public()
   @Post('register')
-  @ApiOperation({ summary: '注册新用户' })
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  register(@Body() body: RegisterDto) {
+    return this.authService.register(body.email, body.password, body.name);
   }
 
-  @Public()
   @Post('login')
-  @ApiOperation({ summary: '用户登录，返回 access_token' })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() body: LoginDto) {
+    return this.authService.login(body.email, body.password);
   }
 
-  @ApiBearerAuth()
   @Get('me')
-  @ApiOperation({ summary: '获取当前登录用户信息' })
-  getMe(@CurrentUser('id') userId: string) {
-    return this.authService.getMe(userId);
+  @UseGuards(JwtAuthGuard)
+  me(@CurrentUser() user: { sub: string }) {
+    return this.authService.me(user.sub);
   }
 }
