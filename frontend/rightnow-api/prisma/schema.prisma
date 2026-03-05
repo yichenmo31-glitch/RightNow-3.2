@@ -1,0 +1,384 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String            @id @default(cuid())
+  email             String            @unique
+  passwordHash      String
+  name              String
+  avatar            String?
+  gender            String?
+  height            Float?
+  weight            Float?
+  age               Int?
+  bodyStyle         String?
+  currentPhase      String?
+  goalWeight        Float?
+  activityLevel     String?
+  isProfileComplete Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  weightRecords     WeightRecord[]
+  dietRecords       DietRecord[]
+  trainingRecords   TrainingRecord[]
+  todos             Todo[]
+  checkins          CheckIn[]
+  uploads           UploadAsset[]
+  evolutionRecords  EvolutionRecord[]
+  posts             Post[]
+  comments          Comment[]
+  chatMessages      ChatMessage[]
+  friendshipsSent   Friendship[]      @relation("FriendshipRequester")
+  friendshipsRecv   Friendship[]      @relation("FriendshipReceiver")
+  imageGenTasks     ImageGenTask[]
+  fitnessPlans      FitnessPlan[]
+  aiCoachAssessment AiCoachAssessment?
+  aiCoachCalibration AiCoachCalibration?
+  aiCoachIntake     AiCoachIntake?
+  aiCoachProgress   AiCoachProgress?
+  aiCoachProfile    AiCoachProfile?
+  aiCoachProfileSnapshots AiCoachProfileSnapshot[]
+  feedbackCards     AiFeedbackCard[]
+}
+
+model WeightRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String
+  weight    Float
+  waist     Float?
+  hip       Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model DietRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  calories  Int
+  fat       Float?
+  protein   Float?
+  carbs     Float?
+  date      String
+  mealType  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model TrainingRecord {
+  id              String              @id @default(cuid())
+  userId          String
+  description     String
+  duration        Int?
+  photoUrl        String?
+  date            String
+  todayFeeling    String?
+  rawInput        Json?
+  structuredData  Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  setDetails      TrainingSetDetail[]
+  feedbackCards   AiFeedbackCard[]
+
+  @@index([userId, date])
+}
+
+model Todo {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String
+  category        String
+  date            String
+  completed       Boolean   @default(false)
+  completedSource String?
+  completedAt     DateTime?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([userId, category, date])
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model UploadAsset {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String
+  kind      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EvolutionRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  imageUrl  String
+  weight    Float?
+  status    String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Post {
+  id             String    @id @default(cuid())
+  userId         String
+  content        String
+  images         String[]  @default([])
+  tags           String[]  @default([])
+  likedUserIds   String[]  @default([])
+  sourceType     String?
+  sourceRecordId String?
+  structuredData Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  author         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments       Comment[]
+
+  @@index([userId, createdAt])
+  @@index([sourceType, sourceRecordId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  receiverId  String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  requester   User     @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver    User     @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ImageGenTask {
+  id            String   @id @default(cuid())
+  userId        String
+  status        String   @default("pending") // pending | processing | completed | failed
+  sourceImageUrl String?
+  targetStyle   String?
+  prompt        String?
+  resultImageUrl String?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model FitnessPlan {
+  id              String   @id @default(cuid())
+  userId          String
+  exerciseBase    String?
+  dietHabit       String?
+  sleepPattern    String?
+  occupation      String?
+  mealPlan        String?  // JSON string
+  waterPlan       String?  // JSON string
+  trainingPlan    String?  // JSON string
+  aiSummary       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AiCoachAssessment {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  bodyFatEstimate Float?
+  targetBodyFatEstimate Float?
+  bmi             Float
+  bmr             Int
+  tdee            Int
+  goalDirection   String
+  targetWeeks     Int
+  stage           String
+  notes           String?
+  isVisualAssessment Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiCoachCalibration {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  bodyFatEstimate Float?
+  targetBodyFatEstimate Float?
+  bmi             Float?
+  bmr             Int?
+  tdee            Int?
+  goalDirection   String?
+  targetWeeks     Int?
+  stage           String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiCoachIntake {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  trainingExperience     String
+  injuryHistory          String
+  trainingEnvironment    String?
+  equipmentList          String[] @default([])
+  trainingDaysPerWeek    Int
+  sessionDurationMinutes Int
+  timePreference         String?
+  timePreferenceOther    String?
+  dietPreference         String?
+  dietRestrictions       String?
+  extraAnswers           Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiCoachProgress {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  dayIndex         Int      @default(1)
+  streakDays       Int      @default(0)
+  completedTasks   Int      @default(0)
+  totalTasks       Int      @default(0)
+  activePlan       Json?
+  weekSummary      Json?
+  weekSummaryReady Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiCoachProfile {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  profileVersion       Int      @default(1)
+  assessmentSnapshot   Json
+  intakeSnapshot       Json?
+  fitnessPlan          Json
+  hydrationPlan        Json
+  mealPlan             Json
+  recommendationSummary String?
+  refreshReason        String?
+  lastRefreshedAt      DateTime @default(now())
+  nextRefreshAt        DateTime
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiCoachProfileSnapshot {
+  id                   String   @id @default(cuid())
+  userId               String
+  profileVersion       Int
+  assessmentSnapshot   Json
+  intakeSnapshot       Json?
+  fitnessPlan          Json
+  hydrationPlan        Json
+  mealPlan             Json
+  recommendationSummary String?
+  refreshReason        String?
+  createdAt            DateTime @default(now())
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model TrainingSetDetail {
+  id                String         @id @default(cuid())
+  trainingRecordId  String
+  exerciseName      String
+  setNumber         Int
+  reps              Int?
+  weight            Float?
+  duration          Int?
+  restTime          Int?
+  notes             String?
+  createdAt         DateTime       @default(now())
+  trainingRecord    TrainingRecord @relation(fields: [trainingRecordId], references: [id], onDelete: Cascade)
+
+  @@index([trainingRecordId])
+  @@index([exerciseName])
+}
+
+model AiFeedbackCard {
+  id                String          @id @default(cuid())
+  userId            String
+  trainingRecordId  String?
+  cardType          String
+  title             String
+  content           String
+  highlights        Json?
+  encouragement     String?
+  suggestions       String?
+  sharedToPostId    String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingRecord    TrainingRecord? @relation(fields: [trainingRecordId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([trainingRecordId])
+}

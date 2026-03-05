@@ -1,0 +1,37 @@
+- [x] Remove "Choose your fitness goal" (Step 1) from the Onboarding flow.
+- [x] Adjust the remaining steps (2 to 4 instead of 1 to 5).
+- [x] Move "Ideal Shape" (Step 4) to be Step 2.
+- [x] Move "Upload Body Image" (Step 2) to be Step 3.
+- [x] Remove "Upload Face Image" (Step 3).
+- [x] Adjust `onComplete` in Onboarding and App to handle removed face image logic.
+- [x] Link "Custom Ideal Shape" selection in step 2 to open gallery upload and store custom photo.
+- [x] Convert body data displays (height, weight, age) into manual numeric inputs that sync with the sliders.
+- [x] Add highly-visible red dot notification to AI Chat Orb that triggers after onboarding sequence completes.
+- [x] Change the brand tagline "Believe is Seeing" to "Believing is Seeing" across the views.
+- [x] Redesign EvolutionProgress view into a Gamified 7-stage skill-tree (Cyberpunk style, Neon Green routes, Glitch/Lock effects).
+- [x] Fix "URI malformed" error in Vite by encoding special characters in progress image paths.
+- [x] Add toggle state to hide the "AI Prediction" banner on click.
+- [x] Resolve Recharts dimension warnings in Dashboard views by ensuring container sizing.
+- [x] Add `ActionCenter` view to represent Daily TODO and Training Log.
+- [x] Implement UI for "今日TODO" (Diet, Water, Training Plan) and "记录训练" (Text log, Duration, Photo).
+- [x] Connect the ActionCenter view to the central flag icon in `BottomNav.tsx` instead of `CheckInType`.
+- [x] Redesign `Community.tsx` to include "Forum" and "Friends" tabs.
+- [x] Implement Forum feed with user interaction buttons (like, comment).
+- [x] Add visual hints for the upcoming "AI Auto-Manage" feature.
+- [x] Remove "Current Phase" badge from `DataDashboard.tsx`.
+- [x] Remove scanner animation effect from the "Current State" in `EvolutionProgress.tsx`.
+- [x] Replace the star icon with a centered crown for the "Final State" in `EvolutionProgress.tsx`.
+- [x] Update footer button color in `EvolutionRecord.tsx` to match the global primary neon green.
+- [x] Revert inline weight editing and replace it with a dedicated `WeightRecord.tsx` view for logging weight and optional waist measurements.
+- [x] Sync DataDashboard's weight area chart dynamically with the weight logged in `WeightRecord.tsx`.
+- [x] Add voice input support to the training log text area in the `ActionCenter.tsx` view.
+- [x] Sync ActionCenter visual check-in photos to EvolutionRecord and EvolutionGallery.
+- [x] Add an entry point (upload button) directly in `EvolutionRecord.tsx` to allow users to record their body shape photos.
+- [x] Redesign floating add button in `DietLog.tsx` into a Telegram-style bottom sheet for photo/text records.
+- [x] Create project repository and push to private GitHub repository "Ajun-Rgihtnow".
+
+
+### Notes
+- **Dashboard (3D vs 2D)**: The user preferred the clean 3D aesthetic. `Dashboard.tsx` uses only the active 3D `<Hero3D />` model.
+  - The experimental 2D ideal-state image logic (`/Z.png`) and motivational quotes logic have been retained in the code but commented out or hidden from the UI.
+  - You can find the commented 2D block in `views/Dashboard.tsx` around lines 86-98.
