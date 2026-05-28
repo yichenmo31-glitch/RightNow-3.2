@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+WORKDIR /app
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    fastapi==0.109.0 \
+    uvicorn==0.27.0 \
+    chromadb==0.4.22 \
+    sentence-transformers==2.3.1 \
+    langchain-text-splitters==0.0.1 \
+    pdfplumber==0.10.3 \
+    python-multipart==0.0.6
+COPY rag-service/ ./
+ENV HF_ENDPOINT=https://hf-mirror.com
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+ENV RAG_CORS_ORIGINS="*"
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
