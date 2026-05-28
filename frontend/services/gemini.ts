@@ -15,11 +15,17 @@ const GEMINI_IMAGE_MODEL_DOC_URL = 'https://ai.google.dev/gemini-api/docs/models
 
 const INTERACTIVE_MODEL = 'gemini-3-flash-preview';
 const CHAT_MODEL_CANDIDATES = [INTERACTIVE_MODEL];
-const DEFAULT_IMAGE_GEN_MODEL = 'gemini-3.1-flash-lite-preview';
-const FALLBACK_IMAGE_GEN_MODEL = 'gemini-3.1-flash-image-preview';
-const IMAGE_GENERATION_MODEL_CANDIDATES = [DEFAULT_IMAGE_GEN_MODEL, FALLBACK_IMAGE_GEN_MODEL];
 const ALLOWED_CHAT_MODELS = new Set(CHAT_MODEL_CANDIDATES);
-const ALLOWED_IMAGE_MODELS = new Set(IMAGE_GENERATION_MODEL_CANDIDATES);
+
+// Codex (OpenAI-compatible) image generation
+const CODEX_BASE = 'https://code.newcli.com/codex/v1';
+const CODEX_IMAGE_MODEL = 'gpt-image-2';
+const CODEX_API_KEY = () => import.meta.env.VITE_CODEX_API_KEY || '';
+
+// DeepSeek AI chat
+const DEEPSEEK_BASE = 'https://api.deepseek.com/v1';
+const DEEPSEEK_CHAT_MODEL = 'deepseek-v4-flash';
+const DEEPSEEK_API_KEY = () => import.meta.env.VITE_DEEPSEEK_API_KEY || '';
 
 type GeminiInputModality = 'text' | 'image' | 'video' | 'audio' | 'pdf';
 const ALLOWED_INPUT_MODALITIES = new Set<GeminiInputModality>(['text', 'image', 'video', 'audio']);
@@ -184,15 +190,6 @@ function getGeminiApiKey(): string {
     throw new GeminiPolicyError('MISSING_API_KEY', MISSING_API_KEY_MESSAGE);
   }
   return key;
-}
-
-function ensureAllowedImageModel(model: string) {
-  if (!ALLOWED_IMAGE_MODELS.has(model)) {
-    throw new GeminiPolicyError(
-      'MODEL_NOT_ALLOWED',
-      `Image model "${model}" is not in the project allowlist. Ref: ${GEMINI_IMAGE_MODEL_DOC_URL}`,
-    );
-  }
 }
 
 function ensureAllowedChatModels(modelCandidates: string[]) {
@@ -459,11 +456,150 @@ function extractFirstTextCandidate(data: any): string | null {
   return data?.candidates?.[0]?.content?.parts?.find((part: any) => typeof part?.text === 'string')?.text || null;
 }
 
+function convertGeminiPayloadToDeepSeek(payload: Record<string, unknown>): {
+  messages: Array<{ role: string; content: any }>;
+} {
+  const messages: Array<{ role: string; content: any }> = [];
+
+  const systemText = (payload as any)?.system_instruction?.parts
+    ?.map((p: any) => p.text)
+    .filter(Boolean)
+    .join('\n');
+  if (systemText) {
+    messages.push({ role: 'system', content: systemText });
+  }
+
+  const contents = (payload as any)?.contents || [];
+  for (const item of contents) {
+    const role = item.role === 'model' ? 'assistant' : 'user';
+    const parts = item.parts || [];
+
+    const textParts: string[] = [];
+    const imageParts: Array<{ type: string; image_url: { url: string } }> = [];
+
+    for (const part of parts) {
+      if (part.text) {
+        textParts.push(part.text);
+      }
+      if (part.inline_data) {
+        const mimeType = part.inline_data.mime_type || 'image/jpeg';
+        const b64 = part.inline_data.data || '';
+        imageParts.push({
+          type: 'image_url',
+          image_url: { url: `data:${mimeType};base64,${b64}` },
+        });
+      }
+      if (part.file_data) {
+        imageParts.push({
+          type: 'image_url',
+          image_url: { url: part.file_data.file_uri },
+        });
+      }
+    }
+
+    if (imageParts.length > 0) {
+      const content: any[] = [];
+      if (textParts.length > 0) {
+        content.push({ type: 'text', text: textParts.join('\n') });
+      }
+      content.push(...imageParts);
+      messages.push({ role, content: content.length === 1 ? content[0].image_url || content[0].text || content[0] : content });
+    } else {
+      messages.push({ role, content: textParts.join('\n') || '请继续。' });
+    }
+  }
+
+  return { messages };
+}
+
+async function requestDeepSeekChat(
+  payload: Record<string, unknown>,
+): Promise<any> {
+  const key = DEEPSEEK_API_KEY();
+  if (!key) {
+    throw new Error('DEEPSEEK_API_KEY is not configured');
+  }
+
+  const { messages } = convertGeminiPayloadToDeepSeek(payload);
+  let lastErrorMessage = 'DeepSeek request failed';
+
+  for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt += 1) {
+    let res: Response;
+    try {
+      res = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: DEEPSEEK_CHAT_MODEL,
+          messages,
+          max_tokens: 4096,
+        }),
+      });
+    } catch (error) {
+      lastErrorMessage = error instanceof Error ? error.message : 'Network request failed';
+      if (attempt < MAX_RETRIES_PER_MODEL) {
+        await sleep(300 * attempt);
+        continue;
+      }
+      break;
+    }
+
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    if (res.ok) {
+      // Convert DeepSeek response to Gemini-compatible format
+      const msg = data?.choices?.[0]?.message;
+      const content = msg?.content;
+      const reasoning = msg?.reasoning_content;
+      const textContent = typeof content === 'string' && content.trim()
+        ? content
+        : (typeof reasoning === 'string' ? reasoning : '');
+      return {
+        candidates: [{
+          content: {
+            parts: [{ text: textContent || '收到，我再想一下。' }],
+          },
+        }],
+      };
+    }
+
+    lastErrorMessage = data?.error?.message || `HTTP ${res.status}`;
+    if (res.status === 404) {
+      break;
+    }
+
+    if (RETRYABLE_STATUS_CODES.has(res.status)) {
+      if (attempt < MAX_RETRIES_PER_MODEL) {
+        await sleep(300 * attempt);
+        continue;
+      }
+      break;
+    }
+
+    throw new Error(lastErrorMessage);
+  }
+
+  throw new Error(lastErrorMessage);
+}
+
 async function requestGeminiContentWithFallback(
   key: string,
   payload: Record<string, unknown>,
   options: RequestGeminiOptions = {},
 ) {
+  // Route to DeepSeek if configured
+  if (DEEPSEEK_API_KEY()) {
+    return requestDeepSeekChat(payload);
+  }
+
   const modelCandidates = options.modelCandidates || CHAT_MODEL_CANDIDATES;
   ensureAllowedChatModels(modelCandidates);
   if (options.modalities?.length) {
@@ -809,11 +945,8 @@ export async function generateIdealBody(params: {
   refinement?: string;
   conservative?: boolean;
 }): Promise<string | null> {
-  let key = '';
-  try {
-    key = getGeminiApiKey();
-    IMAGE_GENERATION_MODEL_CANDIDATES.forEach((model) => ensureAllowedImageModel(model));
-  } catch {
+  const key = CODEX_API_KEY();
+  if (!key) {
     return null;
   }
 
@@ -891,57 +1024,73 @@ export async function generateIdealBody(params: {
   const timeout = setTimeout(() => controller.abort(), 120_000);
 
   try {
-    const parts: any[] = [{ text: prompt }];
+    const hasImage = !!params.currentImageBase64;
 
-    if (params.currentImageBase64) {
-      const compressed = await compressImage(params.currentImageBase64, 600);
+    if (hasImage) {
+      // Use /images/edits for image-to-image transformation
+      const compressed = await compressImage(params.currentImageBase64!, 1024);
       const base64Data = compressed.includes(',') ? compressed.split(',')[1] : compressed;
       const mimeType = compressed.includes(';') ? compressed.split(';')[0].split(':')[1] : 'image/jpeg';
-      parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
-    }
+      const byteChars = atob(base64Data);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i += 1) {
+        byteNums[i] = byteChars.charCodeAt(i);
+      }
+      const byteArr = new Uint8Array(byteNums);
+      const blob = new Blob([byteArr], { type: mimeType });
 
-    if (params.referenceImageBase64) {
-      const compressed = await compressImage(params.referenceImageBase64, 600);
-      const base64Data = compressed.includes(',') ? compressed.split(',')[1] : compressed;
-      const mimeType = compressed.includes(';') ? compressed.split(';')[0].split(':')[1] : 'image/jpeg';
-      parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
-    }
+      const formData = new FormData();
+      formData.append('image', blob, 'body.png');
+      formData.append('prompt', prompt);
+      formData.append('model', CODEX_IMAGE_MODEL);
+      formData.append('n', '1');
+      formData.append('size', '1024x1024');
+      formData.append('response_format', 'b64_json');
 
-    for (const model of IMAGE_GENERATION_MODEL_CANDIDATES) {
-      const res = await fetch(`${GEMINI_BASE}/models/${model}:generateContent?key=${key}`, {
+      const res = await fetch(`${CODEX_BASE}/images/edits`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts }],
-          generationConfig: { responseModalities: ['image', 'text'] },
-        }),
+        headers: { 'Authorization': `Bearer ${key}` },
+        body: formData,
         signal: controller.signal,
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        continue;
+        return null;
       }
 
-      const candidate = data?.candidates?.[0]?.content?.parts;
-      if (!Array.isArray(candidate)) {
-        continue;
+      const data = await res.json();
+      const b64 = data?.data?.[0]?.b64_json;
+      if (b64) {
+        return `data:image/png;base64,${b64}`;
       }
+      return null;
+    }
 
-      const imagePart = candidate.find((p: any) =>
-        p?.inline_data?.mime_type?.startsWith('image/')
-        || p?.inlineData?.mimeType?.startsWith('image/'));
+    // Use /images/generations for text-to-image
+    const res = await fetch(`${CODEX_BASE}/images/generations`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: CODEX_IMAGE_MODEL,
+        prompt,
+        n: 1,
+        size: '1024x1024',
+        response_format: 'b64_json',
+      }),
+      signal: controller.signal,
+    });
 
-      if (!imagePart) {
-        continue;
-      }
+    if (!res.ok) {
+      return null;
+    }
 
-      const inlineData = imagePart.inline_data || imagePart.inlineData;
-      const mimeType = inlineData.mime_type || inlineData.mimeType;
-      const b64 = inlineData.data;
-      if (typeof mimeType === 'string' && typeof b64 === 'string' && b64) {
-        return `data:${mimeType};base64,${b64}`;
-      }
+    const data = await res.json();
+    const b64 = data?.data?.[0]?.b64_json;
+    if (b64) {
+      return `data:image/png;base64,${b64}`;
     }
 
     return null;

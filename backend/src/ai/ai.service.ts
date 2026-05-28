@@ -220,6 +220,13 @@ export class AiService {
     generationConfig: GeminiGenerationConfig,
     systemPrompt?: string,
   ): Promise<string> {
+    const deepseekBaseUrl = this.configService.get<string>('DEEPSEEK_BASE_URL', '');
+    const deepseekApiKey = this.configService.get<string>('DEEPSEEK_API_KEY', '');
+
+    if (deepseekBaseUrl && deepseekApiKey) {
+      return this.requestDeepSeek(prompt, generationConfig, systemPrompt, deepseekBaseUrl, deepseekApiKey);
+    }
+
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey?.trim()) {
       throw new InternalServerErrorException('GEMINI_API_KEY is not configured');
@@ -248,6 +255,56 @@ export class AiService {
     const text = data.candidates?.[0]?.content?.parts?.find((part) => typeof part.text === 'string')?.text;
     if (!text) {
       throw new Error('Gemini returned empty response text');
+    }
+
+    return text;
+  }
+
+  private async requestDeepSeek(
+    prompt: string,
+    generationConfig: GeminiGenerationConfig,
+    systemPrompt: string | undefined,
+    baseUrl: string,
+    apiKey: string,
+  ): Promise<string> {
+    const messages: Array<{ role: string; content: string }> = [];
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({ role: 'user', content: prompt });
+
+    // DeepSeek reasoning model needs extra tokens for internal reasoning
+    const maxTokens = Math.max(generationConfig.maxOutputTokens || 1024, 2048);
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.configService.get<string>('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
+        messages,
+        temperature: generationConfig.temperature,
+        max_tokens: maxTokens,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const remoteMessage = data?.error?.message || `HTTP ${response.status}`;
+      throw new Error(`DeepSeek request failed: ${remoteMessage}`);
+    }
+
+    const msg = data?.choices?.[0]?.message;
+    const content = msg?.content;
+    const reasoning = msg?.reasoning_content;
+    const text = (typeof content === 'string' && content.trim())
+      ? content
+      : (typeof reasoning === 'string' ? reasoning : '');
+    if (!text) {
+      throw new Error('DeepSeek returned empty response');
     }
 
     return text;

@@ -59,7 +59,7 @@
 - ~~RAG 服务 chromadb 依赖解析极慢~~ → 已解决: CPU 版 torch + 分步安装依赖 + numpy<2.0
 - 前端缺失 `react-is` 依赖，已在 VPS 上手动补充并在 package.json 中修复
 - CentOS 8 EOL，后续建议迁移到 Debian/Ubuntu
-- RAG 知识库尚未导入数据，搜索返回空
+- RAG 知识库已导入 117 个 chunks（来自 frontend/knowledge/ 下 5 个 md 文件）
 
 ### RAG 部署踩坑记录
 - **chromadb 依赖地狱**: chromadb==0.4.22 依赖约束太宽，pip 下载大量历史版本。解决: 分步安装 + `--no-deps` + 手动装直接依赖
@@ -88,4 +88,24 @@
 
 ---
 
-*最后更新: 2026-05-28 01:30 UTC (Claude Code)*
+## 2026-05-28: AI API 切换 — DeepSeek 对话 + Codex 生图
+
+### 变更内容
+- **AI 对话/私教**: 从 Gemini 切换到 DeepSeek (`deepseek-v4-flash`)，API: `https://api.deepseek.com/v1`
+- **生图 (体型进化)**: 从 Gemini Image 切换到 Codex (`gpt-image-2`)，API: `https://code.newcli.com/codex/v1`
+- 前端 `services/gemini.ts` 重构: 新增 `requestDeepSeekChat`、`generateIdealBody` 改用 Codex `/images/generations` 和 `/images/edits`
+- 后端 `ai.service.ts` 新增 `requestDeepSeek` 方法，优先使用 DeepSeek，fallback 到 Gemini
+
+### 影响范围
+- `frontend/services/gemini.ts` — 核心 AI 调用逻辑
+- `frontend/vite.config.ts` — 新增 VITE_CODEX_API_KEY / VITE_DEEPSEEK_API_KEY
+- `backend/src/ai/ai.service.ts` — 新增 DeepSeek provider
+- `backend/.env` — 新增 DEEPSEEK_BASE_URL / DEEPSEEK_API_KEY / DEEPSEEK_MODEL
+
+### 经验记录
+- **DeepSeek reasoning model 需要大 max_tokens**: `deepseek-v4-flash` 是推理模型，`reasoning_content` 会消耗大量 token，`content` 可能为空。设置 `max_tokens >= 2048`
+- **Codex 生图必须用 images 端点**: `gpt-image-2` 不支持 `/chat/completions`，需用 `/images/generations`（文生图）和 `/images/edits`（图生图）
+- **API Key 不再提交到仓库**: 所有第三方 key 仅在 VPS 构建时注入
+
+---
+*最后更新: 2026-05-28 09:50 UTC (Claude Code)*
