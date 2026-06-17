@@ -48,12 +48,20 @@ services:
     environment:
       RAG_CORS_ORIGINS: "*"
       RAG_CHROMA_PERSIST_DIR: /app/chroma_db
+      RAG_BLOGGER_CHROMA_DIR: /app/chroma_blogger
       RAG_CLEANED_DATA_PATH: /data/cleaned-data
+      RAG_BLOGGER_DATA_PATH: /data/blogger-data
       RAG_EMBEDDING_MODEL: BAAI/bge-small-zh-v1.5
+      RAG_USE_BLOGGER: "true"
+      RAG_USE_WEB_SEARCH: "true"
+      RAG_WEB_SEARCH_ENGINE: duckduckgo
+      RAG_SIMILARITY_THRESHOLD: "0.35"
       HF_ENDPOINT: https://hf-mirror.com
     volumes:
       - chroma_data:/app/chroma_db
+      - chroma_blogger_data:/app/chroma_blogger
       - ./cleaned-data:/data/cleaned-data:ro
+      - ./blogger-data:/data/blogger-data:ro
 
   frontend:
     build:
@@ -70,3 +78,4 @@ volumes:
   pgdata:
   uploads:
   chroma_data:
+  chroma_blogger_data:

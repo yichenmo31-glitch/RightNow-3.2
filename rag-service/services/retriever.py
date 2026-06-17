@@ -14,11 +14,39 @@ def build_embeddings() -> HuggingFaceEmbeddings:
     )
 
 
-def build_vectorstore(embeddings: HuggingFaceEmbeddings) -> Chroma:
+def build_vectorstore(
+    embeddings: HuggingFaceEmbeddings,
+    collection_name: str = "fitness_knowledge",
+    persist_dir: str = None,
+    **kwargs,
+) -> Chroma:
+    """创建或加载 Chroma vectorstore。
+
+    显式指定 HNSW 参数，避免 chromadb 1.0.x 在 query + where 过滤时出现
+    "Error executing plan: Internal error: Error finding id" 的问题。
+    """
+    hnsw_metadata = {
+        "hnsw:space": "cosine",
+        "hnsw:construction_ef": 128,
+        "hnsw:search_ef": 128,
+    }
     return Chroma(
-        collection_name="fitness_knowledge",
+        collection_name=collection_name,
         embedding_function=embeddings,
-        persist_directory=config.CHROMA_PERSIST_DIR,
+        persist_directory=persist_dir or config.CHROMA_PERSIST_DIR,
+        collection_metadata=hnsw_metadata,
+        **kwargs,
+    )
+
+
+def build_blogger_vectorstore(embeddings: HuggingFaceEmbeddings) -> Chroma | None:
+    """创建博主知识库 vectorstore（独立 collection）。"""
+    if not config.USE_BLOGGER or not config.BLOGGER_DATA_PATH:
+        return None
+    return build_vectorstore(
+        embeddings,
+        collection_name="blogger_knowledge",
+        persist_dir=config.BLOGGER_CHROMA_DIR,
     )
 
 
@@ -50,6 +78,18 @@ class RetrieverService:
             )
 
         return retriever.invoke(query)[:top_k]
+
+    def search_with_score(self, query: str, top_k: int = 5, domain: str = None):
+        """带相似度分数的检索。"""
+        k = top_k * 3 if self._reranker else top_k
+        filter_kwargs = {}
+        if domain and domain != "comprehensive":
+            filter_kwargs["filter"] = {"domain": domain}
+
+        results = self.vectorstore.similarity_search_with_score(
+            query, k=k, **filter_kwargs
+        )
+        return results[:top_k]
 
     def delete_by_source(self, source_name: str) -> int:
         col = self.vectorstore._collection

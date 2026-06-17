@@ -1,7 +1,7 @@
 # PROJECT_REPORT.md
 
 **项目名称**：RightNow Fitness — AI 驱动的健身显化平台
-**最后更新**：2026-03-01
+**最后更新**：2026-06-17
 **当前状态**：进行中（阶段1已完成）
 
 ## 1. 项目一句话目标
@@ -166,3 +166,14 @@ cd .. && npm run dev  # 端口 5173
 - Root cause: the final `finally` branch used stale React state (`sending`) and could still show "first-day-plan" UI after intake save failure.
 - Fix: use a local `saved` success flag; only show first-day-plan when both intake save and first-plan save succeed.
 - Result: when backend rejects intake (for example 1-2 training days), UI now correctly re-prompts intake frequency instead of showing a fake completed plan.
+
+## 14. RightNow x OpenClaw Agent Strategy (2026-06-17)
+
+- Completed local architecture research using `openclawbook-md/`, `openclaw源码/`, and current RightNow modules.
+- Added workspace-level strategy document: `RIGHTNOW_OPENCLAW_AGENT_STRATEGY.md`.
+- Product direction: keep RightNow App as dashboard/control plane, add a safe allowlisted Agent API, then support two usage paths:
+  - Existing-agent users: `RightNow Skill + CLI` for OpenClaw, Claude Code, Codex, or custom agents.
+  - No-agent users: official RightNow Agent Host with OpenClaw-inspired Gateway, Channel, Cron, and Heartbeat behavior.
+- Recommended MVP order: implement `/api/agent/rpc`, scoped token/device binding, `rightnow-cli`, and `skills/rightnow/SKILL.md` before building a full IM agent host.
+- First proactive rule proposal: if the user has no training, check-in, or interaction for 3 days, send their latest ideal-self image with a short 15-minute action plan, respecting quiet hours and daily frequency limits.
+- No production code, server deployment, or GitHub sync was performed in this research pass.

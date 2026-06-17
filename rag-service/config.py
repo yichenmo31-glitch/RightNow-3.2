@@ -13,6 +13,24 @@ USE_RERANKING           = os.getenv("RAG_USE_RERANKING", "false").lower() == "tr
 RERANKING_MODEL         = os.getenv("RAG_RERANKING_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
 CORS_ORIGINS            = os.getenv("RAG_CORS_ORIGINS", "*")
 
+# ── 三层检索架构 ──
+
+# Layer 1: 博主知识库（好人松松精华）
+BLOGGER_DATA_PATH       = os.getenv("RAG_BLOGGER_DATA_PATH", "")
+BLOGGER_CHROMA_DIR      = os.getenv("RAG_BLOGGER_CHROMA_DIR", str(BASE_DIR / "chroma_blogger"))
+USE_BLOGGER             = os.getenv("RAG_USE_BLOGGER", "true").lower() == "true"
+
+# Layer 2: 专业书库（现有，沿用 CLEANED_DATA_PATH / CHROMA_PERSIST_DIR）
+
+# Layer 3: Web 搜索兜底
+WEB_SEARCH_API_KEY      = os.getenv("RAG_WEB_SEARCH_API_KEY", "")
+WEB_SEARCH_ENGINE       = os.getenv("RAG_WEB_SEARCH_ENGINE", "serpapi")  # serpapi | bing | duckduckgo
+USE_WEB_SEARCH          = os.getenv("RAG_USE_WEB_SEARCH", "false").lower() == "true"
+
+# 检索编排
+SIMILARITY_THRESHOLD    = float(os.getenv("RAG_SIMILARITY_THRESHOLD", "0.40"))  # cosine distance: lower=better, ≤0.40 ≈ similarity≥0.60
+LAYER1_MIN_RESULTS      = int(os.getenv("RAG_LAYER1_MIN_RESULTS", "1"))
+
 # 中文分类目录 → 后端使用的 domain 标识
 DOMAIN_MAP: dict[str, str] = {
     "运动学":       "kinesiology",
