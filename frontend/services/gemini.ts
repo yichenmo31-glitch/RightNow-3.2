@@ -823,6 +823,19 @@ export async function chatWithMultimodal(
   history: GeminiMessage[] = [],
 ): Promise<string> {
   try {
+    // If StepFun is configured, use it directly (no Gemini key needed)
+    if (STEPFUN_API_KEY()) {
+      const contents: GeminiMessage[] = [
+        ...normalizeHistory(history),
+        { role: 'user', parts: [{ text: userText || '请继续。' }] },
+      ];
+      const data = await requestStepFunChat({
+        contents,
+        system_instruction: { parts: [{ text: systemPrompt }] },
+      });
+      return extractFirstTextCandidate(data) || '收到，我再想一下。';
+    }
+
     const key = getGeminiApiKey();
     const parts: GeminiMessagePart[] = [{ text: userText || '请继续。' }];
     const modalities: GeminiInputModality[] = ['text'];
@@ -862,6 +875,19 @@ export async function chatWithGemini(
   history: GeminiMessage[] = [],
 ): Promise<string> {
   try {
+    // If StepFun is configured, use it directly (no Gemini key needed)
+    if (STEPFUN_API_KEY()) {
+      const contents: GeminiMessage[] = [
+        ...normalizeHistory(history),
+        { role: 'user', parts: [{ text: userText || '请继续。' }] },
+      ];
+      const data = await requestStepFunChat({
+        contents,
+        system_instruction: { parts: [{ text: systemPrompt }] },
+      });
+      return extractFirstTextCandidate(data) || '收到，我再想一下。';
+    }
+
     const key = getGeminiApiKey();
     const contents: GeminiMessage[] = [
       ...normalizeHistory(history),
