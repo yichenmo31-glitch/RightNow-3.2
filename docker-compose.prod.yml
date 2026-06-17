@@ -67,6 +67,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        VITE_STEPFUN_API_KEY: ${VITE_STEPFUN_API_KEY:-}
     container_name: rn-frontend
     restart: unless-stopped
     ports:
