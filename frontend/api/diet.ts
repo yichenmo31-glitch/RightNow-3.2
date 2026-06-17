@@ -18,6 +18,17 @@ export interface DietSummary {
   totalCarbs: number;
 }
 
+export interface FoodAnalysis {
+  name: string;
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  mealType: string;
+}
+
+export type NutritionData = FoodAnalysis;
+
 function asObject(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
@@ -96,6 +107,21 @@ function normalizeDietSummary(payload: unknown): DietSummary {
   };
 }
 
+function normalizeFoodAnalysis(payload: unknown): FoodAnalysis {
+  const obj = asObject(payload);
+  const nested = obj ? asObject(obj.data) : null;
+  const source = nested || obj;
+
+  return {
+    name: typeof source?.name === 'string' ? source.name : '未知食物',
+    calories: Math.round(toNumber(source?.calories)),
+    protein: Math.round(toNumber(source?.protein)),
+    fat: Math.round(toNumber(source?.fat)),
+    carbs: Math.round(toNumber(source?.carbs)),
+    mealType: typeof source?.mealType === 'string' ? source.mealType : '加餐',
+  };
+}
+
 export const dietApi = {
   async list(date?: string): Promise<DietRecord[]> {
     const params: Record<string, string> = {};
@@ -131,5 +157,15 @@ export const dietApi = {
 
   async remove(id: string): Promise<void> {
     await client.delete(`/diet/${id}`);
+  },
+
+  async analyzeText(body: { foodName: string; description?: string }): Promise<FoodAnalysis> {
+    const { data } = await client.post<unknown>('/diet/analyze/text', body, { timeout: 60_000 });
+    return normalizeFoodAnalysis(data);
+  },
+
+  async analyzeImage(imageBase64: string): Promise<FoodAnalysis> {
+    const { data } = await client.post<unknown>('/diet/analyze/image', { imageBase64 }, { timeout: 90_000 });
+    return normalizeFoodAnalysis(data);
   },
 };

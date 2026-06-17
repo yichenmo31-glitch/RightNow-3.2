@@ -1,13 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { aiCoachApi, trainingSessionApi } from '../api';
+import { aiCoachApi, authApi, trainingSessionApi } from '../api';
 import type {
   CoachAssessment,
   CoachIntakePayload,
   FirstDayPlan,
   FirstDayPlanContext,
 } from '../api/ai-coach';
-import { chatWithGemini, FITNESS_COACH_PROMPT, generateFirstDayPlan } from '../services/gemini';
-import type { GeminiMessage } from '../services/gemini';
+import {
+  chatWithGemini,
+  buildPersonalizedCoachPrompt,
+  FITNESS_COACH_PROMPT,
+  generateFirstDayPlan,
+} from '../services/gemini';
+import type { GeminiMessage, UserProfileContext } from '../services/gemini';
 import { View } from '../types';
 import AssessmentCard, { type AssessmentData } from '../components/coach/AssessmentCard';
 import FirstDayPlanCard, { type FirstDayPlanData } from '../components/coach/FirstDayPlanCard';
@@ -143,7 +148,7 @@ const formatPercent = (value: number | null | undefined): string => {
   return `${Math.round(value * 10) / 10}%`;
 };
 
-const buildTrainingModePrompt = (session: any): string => {
+const buildTrainingModePrompt = (session: any, profile: UserProfileContext): string => {
   const todos = Array.isArray(session?.contextData?.todayTodos)
     ? session.contextData.todayTodos
         .map((t: any) => (typeof t?.title === 'string' ? t.title.trim() : ''))
@@ -154,15 +159,18 @@ const buildTrainingModePrompt = (session: any): string => {
     ? JSON.stringify(session.contextData.lastCycleHistory)
     : '无';
 
-  return [
-    FITNESS_COACH_PROMPT,
-    '你现在处于训练模式，请严格按训练教练角色输出。',
-    `本次目标肌群：${targetMuscle}`,
-    `今日训练任务：${todos.length > 0 ? todos.join('，') : '暂无'}`,
-    `最近训练历史：${lastCycleHistory}`,
-    '回答要求：中文、简洁、可执行、优先给出当前一组训练指令。',
-    FREE_CHAT_PROMPT_SUFFIX,
-  ].join('\n');
+  return buildPersonalizedCoachPrompt(
+    [
+      FITNESS_COACH_PROMPT,
+      '你现在处于训练模式，请严格按训练教练角色输出。',
+      `本次目标肌群：${targetMuscle}`,
+      `今日训练任务：${todos.length > 0 ? todos.join('，') : '暂无'}`,
+      `最近训练历史：${lastCycleHistory}`,
+      '回答要求：中文、简洁、可执行、优先给出当前一组训练指令。',
+      FREE_CHAT_PROMPT_SUFFIX,
+    ].join('\n'),
+    profile,
+  );
 };
 
 const mapAssessmentToCardData = (assessment: CoachAssessment): AssessmentData => {
@@ -270,6 +278,7 @@ const AIChat: React.FC<Props> = ({
   const [firstDayPlanData, setFirstDayPlanData] = useState<FirstDayPlanData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const freeChatHistoryRef = useRef<GeminiMessage[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfileContext>({});
 
   const addMessage = (sender: 'user' | 'ai', text: string) => {
     setMessages((prev) => [
@@ -337,6 +346,32 @@ const AIChat: React.FC<Props> = ({
       setIntakeAnswers({});
       setFirstDayPlanData(null);
       freeChatHistoryRef.current = [];
+
+      // Fetch user profile + coach assessment for personalized AI context
+      try {
+        const [authUser, coachAssessment] = await Promise.all([
+          authApi.me(),
+          aiCoachApi.getAssessment().catch(() => null),
+        ]);
+        if (!cancelled) {
+          setUserProfile({
+            gender: authUser.gender,
+            height: authUser.height,
+            weight: authUser.weight,
+            age: authUser.age,
+            bodyStyle: authUser.bodyStyle,
+            goalWeight: authUser.goalWeight,
+            goalDirection: (coachAssessment as CoachAssessment | null)?.goalDirection,
+            stage: (coachAssessment as CoachAssessment | null)?.stage,
+            bmi: (coachAssessment as CoachAssessment | null)?.bmi,
+            bmr: (coachAssessment as CoachAssessment | null)?.bmr,
+            tdee: (coachAssessment as CoachAssessment | null)?.tdee,
+            bodyFatEstimate: (coachAssessment as CoachAssessment | null)?.bodyFatEstimate,
+          });
+        }
+      } catch {
+        // Non-critical: chat works without personalized context
+      }
 
       if (mode === 'training' && sessionId) {
         try {
@@ -522,8 +557,11 @@ const AIChat: React.FC<Props> = ({
       try {
         const modePrompt =
           mode === 'training'
-            ? buildTrainingModePrompt(trainingSession)
-            : `${FITNESS_COACH_PROMPT}${FREE_CHAT_PROMPT_SUFFIX}`;
+            ? buildTrainingModePrompt(trainingSession, userProfile)
+            : buildPersonalizedCoachPrompt(
+                `${FITNESS_COACH_PROMPT}${FREE_CHAT_PROMPT_SUFFIX}`,
+                userProfile,
+              );
 
         const reply = await chatWithGemini(userText, modePrompt, freeChatHistoryRef.current);
 

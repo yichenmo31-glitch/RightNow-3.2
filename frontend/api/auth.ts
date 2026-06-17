@@ -9,6 +9,11 @@ export interface AuthUser {
   bodyStyle?: string;
   currentPhase?: string;
   isProfileComplete: boolean;
+  height?: number | null;
+  weight?: number | null;
+  age?: number | null;
+  goalWeight?: number | null;
+  activityLevel?: string | null;
 }
 
 export interface AuthResponse {

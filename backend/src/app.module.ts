@@ -8,6 +8,7 @@ import { EvolutionModule } from './evolution/evolution.module';
 import { FitnessPlanModule } from './fitness-plan/fitness-plan.module';
 import { FriendshipsModule } from './friendships/friendships.module';
 import { ImageGenModule } from './image-gen/image-gen.module';
+import { DietModule } from './diet/diet.module';
 import { PostsModule } from './posts/posts.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TodosModule } from './todos/todos.module';
@@ -39,6 +40,7 @@ import { EvolutionStageModule } from './evolution-stage/evolution-stage.module';
     FriendshipsModule,
     ChatModule,
     ImageGenModule,
+    DietModule,
     FitnessPlanModule,
     EvolutionStageModule,
   ],

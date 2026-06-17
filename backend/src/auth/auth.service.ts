@@ -88,6 +88,11 @@ export class AuthService {
       bodyStyle: user.bodyStyle ?? undefined,
       currentPhase: user.currentPhase ?? undefined,
       isProfileComplete: user.isProfileComplete,
+      height: user.height ?? undefined,
+      weight: user.weight ?? undefined,
+      age: user.age ?? undefined,
+      goalWeight: user.goalWeight ?? undefined,
+      activityLevel: user.activityLevel ?? undefined,
     };
   }
 }

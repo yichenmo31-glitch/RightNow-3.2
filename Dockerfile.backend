@@ -1,9 +1,8 @@
-FROM node:20-alpine
+FROM rightnow-backend
 WORKDIR /app
-COPY backend/package.json backend/package-lock.json ./
 COPY backend/prisma ./prisma
-RUN npm install
 COPY backend/ ./
+RUN npx prisma generate
 RUN npm run build
 EXPOSE 5000
 CMD ["node", "dist/main.js"]

@@ -670,6 +670,132 @@ export const FITNESS_COACH_PROMPT = [
   '- 使用简体中文，语气专业但有温度、有鼓励',
 ].join('\n');
 
+// ── 用户画像上下文 ──
+
+const BODY_STYLE_LABELS: Record<string, string> = {
+  slim: '偏瘦',
+  balanced: '匀称',
+  athletic: '运动型',
+  muscular: '肌肉型',
+  curvy: '丰满型',
+};
+
+const GOAL_DIRECTION_LABELS: Record<string, string> = {
+  fat_loss: '减脂塑形',
+  recomposition: '体态重塑',
+  muscle_gain: '增肌提升',
+};
+
+const STAGE_LABELS: Record<string, string> = {
+  foundation: '基础适应期',
+  build: '增肌构建期',
+  cut: '减脂塑形期',
+  maintain: '巩固维持期',
+};
+
+export interface UserProfileContext {
+  gender?: string | null;
+  height?: number | null;
+  weight?: number | null;
+  age?: number | null;
+  bodyStyle?: string | null;
+  goalWeight?: number | null;
+  goalDirection?: string | null;
+  stage?: string | null;
+  bmi?: number | null;
+  bmr?: number | null;
+  tdee?: number | null;
+  bodyFatEstimate?: number | null;
+  trainingExperience?: string | null;
+  injuryHistory?: string | null;
+  trainingDaysPerWeek?: number | null;
+}
+
+/**
+ * 将用户身体数据拼成系统提示词上下文，加上占位符后可插入教练 prompt 中。
+ */
+export function buildUserContextPrompt(profile: UserProfileContext): string {
+  const lines: string[] = [];
+
+  lines.push('## 当前用户信息');
+  lines.push('以下是该用户的真实身体数据，请基于这些数据提供个性化建议：');
+  lines.push('');
+
+  if (profile.gender) {
+    lines.push(`- 性别：${profile.gender === 'male' ? '男' : profile.gender === 'female' ? '女' : profile.gender}`);
+  }
+  if (typeof profile.height === 'number' && profile.height > 0) {
+    lines.push(`- 身高：${profile.height}cm`);
+  }
+  if (typeof profile.weight === 'number' && profile.weight > 0) {
+    lines.push(`- 体重：${profile.weight}kg`);
+  }
+  if (typeof profile.age === 'number' && profile.age > 0) {
+    lines.push(`- 年龄：${profile.age}岁`);
+  }
+  if (profile.bodyStyle) {
+    lines.push(`- 目标体型偏好：${BODY_STYLE_LABELS[profile.bodyStyle] || profile.bodyStyle}`);
+  }
+  if (profile.goalWeight && profile.goalWeight > 0) {
+    lines.push(`- 目标体重：${profile.goalWeight}kg`);
+  }
+
+  // 教练评估数据
+  if (profile.goalDirection) {
+    lines.push(`- 目标方向：${GOAL_DIRECTION_LABELS[profile.goalDirection] || profile.goalDirection}`);
+  }
+  if (profile.stage) {
+    lines.push(`- 当前阶段：${STAGE_LABELS[profile.stage] || profile.stage}`);
+  }
+  if (typeof profile.bmi === 'number' && profile.bmi > 0) {
+    lines.push(`- BMI：${profile.bmi}`);
+  }
+  if (typeof profile.bmr === 'number' && profile.bmr > 0) {
+    lines.push(`- 基础代谢：${profile.bmr} kcal/天`);
+  }
+  if (typeof profile.tdee === 'number' && profile.tdee > 0) {
+    lines.push(`- 每日消耗：${profile.tdee} kcal/天`);
+  }
+  if (typeof profile.bodyFatEstimate === 'number' && profile.bodyFatEstimate > 0) {
+    lines.push(`- 体脂率估算：${profile.bodyFatEstimate}%`);
+  }
+
+  // 训练背景
+  if (profile.trainingExperience) {
+    lines.push(`- 训练经验：${profile.trainingExperience}`);
+  }
+  if (profile.trainingDaysPerWeek && profile.trainingDaysPerWeek > 0) {
+    lines.push(`- 每周训练天数：${profile.trainingDaysPerWeek}天`);
+  }
+  if (profile.injuryHistory && profile.injuryHistory !== '无明显限制' && profile.injuryHistory !== '无') {
+    lines.push(`- 需要规避的身体限制：${profile.injuryHistory}`);
+  }
+
+  if (lines.length <= 3) {
+    return ''; // 没有有效数据
+  }
+
+  lines.push('');
+  lines.push('请务必根据以上真实用户数据提供量身定制的建议。');
+  lines.push('例如：计算热量缺口时基于用户的 TDEE、体重和身高；推荐训练方案时考虑训练经验和身体限制。');
+
+  return lines.join('\n');
+}
+
+/**
+ * 将用户画像注入到教练系统提示词中。
+ */
+export function buildPersonalizedCoachPrompt(
+  basePrompt: string,
+  profile: UserProfileContext,
+): string {
+  const context = buildUserContextPrompt(profile);
+  if (!context) {
+    return basePrompt;
+  }
+  return `${basePrompt}\n\n${context}`;
+}
+
 export const COACH_ASSESSMENT_PROMPT = [
   '你是 RightNow Fitness 的 AI 体测分析师。',
   '根据用户身体数据给出简洁阶段判断（1-2 句）。',
@@ -1141,42 +1267,18 @@ function parseFoodJSON(text: string): FoodAnalysis {
 }
 
 export async function analyzeFoodText(foodName: string, description?: string): Promise<FoodAnalysis> {
-  const query = description ? `${foodName}，${description}` : foodName;
-
-  const userPrompt = await resolveManagedPrompt(
-    'food.analyze_text_user_prompt',
-    '分析这个食物的营养成分：{{query}}',
-    { query },
-  );
-
-  const systemPrompt = await resolveManagedPrompt(
-    'core.food_analysis_system',
-    FOOD_ANALYSIS_SYSTEM_PROMPT_FALLBACK,
-    {},
-    true,
-  );
-
-  const reply = await chatWithGemini(userPrompt, systemPrompt);
-  return parseFoodJSON(reply);
+  const { data } = await apiClient.post<FoodAnalysis>('/diet/analyze/text', {
+    foodName,
+    description,
+  }, { timeout: 60_000 });
+  return parseFoodJSON(JSON.stringify(data));
 }
 
 export async function analyzeFoodImage(imageBase64: string): Promise<FoodAnalysis> {
-  const userPrompt = await resolveManagedPrompt(
-    'food.analyze_image_user_prompt',
-    '识别这张图片中的食物并估算营养成分，返回纯 JSON。',
-    {},
-    true,
-  );
-
-  const systemPrompt = await resolveManagedPrompt(
-    'core.food_analysis_system',
-    FOOD_ANALYSIS_SYSTEM_PROMPT_FALLBACK,
-    {},
-    true,
-  );
-
-  const reply = await chatWithImage(userPrompt, imageBase64, systemPrompt);
-  return parseFoodJSON(reply);
+  const { data } = await apiClient.post<FoodAnalysis>('/diet/analyze/image', {
+    imageBase64,
+  }, { timeout: 90_000 });
+  return parseFoodJSON(JSON.stringify(data));
 }
 
 export async function generateDataInsights(context: {
