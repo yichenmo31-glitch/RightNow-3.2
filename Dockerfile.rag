@@ -1,16 +1,24 @@
 FROM python:3.11-slim
 WORKDIR /app
+
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    fastapi==0.109.0 \
+    fastapi==0.115.9 \
     uvicorn==0.27.0 \
-    chromadb==0.4.22 \
-    sentence-transformers==2.3.1 \
-    langchain-text-splitters==0.0.1 \
-    pdfplumber==0.10.3 \
+    langchain==0.3.25 \
+    langchain-community==0.3.24 \
+    langchain-chroma==0.2.4 \
+    langchain-huggingface==0.1.2 \
+    langchain-text-splitters==0.3.8 \
+    chromadb==1.0.9 \
+    sentence-transformers==3.4.1 \
     python-multipart==0.0.6
+
 COPY rag-service/ ./
+
+# 构建时预下载中文 embedding 模型（走镜像加速）
 ENV HF_ENDPOINT=https://hf-mirror.com
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+RUN python -c "from langchain_huggingface import HuggingFaceEmbeddings; HuggingFaceEmbeddings(model_name='BAAI/bge-small-zh-v1.5', model_kwargs={'device':'cpu'})"
+
 ENV RAG_CORS_ORIGINS="*"
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

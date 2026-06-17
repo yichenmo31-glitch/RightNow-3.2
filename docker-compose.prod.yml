@@ -48,11 +48,12 @@ services:
     environment:
       RAG_CORS_ORIGINS: "*"
       RAG_CHROMA_PERSIST_DIR: /app/chroma_db
-      RAG_PDF_BASE_PATH: /app/knowledge_base
+      RAG_CLEANED_DATA_PATH: /data/cleaned-data
+      RAG_EMBEDDING_MODEL: BAAI/bge-small-zh-v1.5
       HF_ENDPOINT: https://hf-mirror.com
     volumes:
       - chroma_data:/app/chroma_db
-      - ./rag-service/knowledge_base:/app/knowledge_base
+      - ./cleaned-data:/data/cleaned-data:ro
 
   frontend:
     build:

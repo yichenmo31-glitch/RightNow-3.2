@@ -237,3 +237,29 @@
 - 服务目录：`/root/rightnow`，前端静态：`/var/www/rightnow`
 - 后端服务：`systemctl restart rightnow-backend`，查看日志：`journalctl -u rightnow-backend -f`
 - `.env` 中 `IMAGE_GEN_API_KEY` 明文值不得输出或记录
+
+---
+
+## 2026-06-17: RAG service deployed and synced
+
+### Summary
+- Deployed the LangChain/Chroma RAG service on the current server at `/root/rightnow`.
+- Uploaded `rag-service` and `cleaned-data` to the server.
+- Built and started Docker Compose service `rag` as container `rn-rag`.
+- Imported the cleaned Markdown corpus into Chroma.
+
+### Server Verification
+- SSH target: `ssh -p 42677 root@103.236.92.40`
+- Public site NAT remains `103.236.92.40:25650 -> 80`.
+- `rn-backend` can reach RAG internally at `http://rag:8000/health`.
+- Final health check returned `status: healthy`, embedding model `BAAI/bge-small-zh-v1.5`, and `vector_count: 12425`.
+- Search smoke test returned real document snippets.
+
+### Port Decision
+- No new external NAT port is required.
+- RAG port `8000` is intentionally internal to the Docker network and is consumed by the backend through `http://rag:8000`.
+- Do not expose RAG publicly unless there is a specific product or debugging need.
+
+### Notes
+- No real API keys or server passwords were added to Git.
+- The RAG image currently pulls a large Torch dependency stack; it works, but a later optimization can pin CPU-only Torch wheels to reduce image size.

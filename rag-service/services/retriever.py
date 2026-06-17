@@ -1,63 +1,70 @@
-import chromadb
-from sentence_transformers import CrossEncoder
+"""
+LangChain Chroma 检索服务
+"""
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
 import config
 
-class RetrievalService:
-    def __init__(self, persist_dir: str):
-        self.client = chromadb.PersistentClient(path=persist_dir)
-        self.collection = self.client.get_or_create_collection("fitness_knowledge")
 
-        self.use_reranking = config.USE_RERANKING
-        if self.use_reranking:
-            self.reranker = CrossEncoder(config.RERANKING_MODEL)
+def build_embeddings() -> HuggingFaceEmbeddings:
+    return HuggingFaceEmbeddings(
+        model_name=config.EMBEDDING_MODEL,
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True},
+    )
 
-    def add_documents(self, texts: list[str], embeddings: list, metadatas: list):
-        import uuid
-        ids = [str(uuid.uuid4()) for _ in range(len(texts))]
-        self.collection.add(
-            documents=texts,
-            embeddings=embeddings,
-            metadatas=metadatas,
-            ids=ids
-        )
-        return ids
 
-    def delete_by_source(self, source_name: str):
-        results = self.collection.get(where={"source": source_name})
-        if results['ids']:
-            self.collection.delete(ids=results['ids'])
-        return len(results['ids'])
+def build_vectorstore(embeddings: HuggingFaceEmbeddings) -> Chroma:
+    return Chroma(
+        collection_name="fitness_knowledge",
+        embedding_function=embeddings,
+        persist_directory=config.CHROMA_PERSIST_DIR,
+    )
 
-    def list_sources(self):
-        all_docs = self.collection.get()
-        sources = {}
-        for metadata in all_docs['metadatas']:
-            source = metadata.get('source', 'unknown')
-            domain = metadata.get('domain', 'unknown')
-            if source not in sources:
-                sources[source] = {'domain': domain, 'chunks': 0}
-            sources[source]['chunks'] += 1
-        return [{'source': k, **v} for k, v in sources.items()]
 
-    def search(self, query_embedding: list, query_text: str = "", top_k: int = 5, domain: str = None):
-        where = {"domain": domain} if domain else None
+class RetrieverService:
+    def __init__(self, vectorstore: Chroma):
+        self.vectorstore = vectorstore
+        self._reranker = None
+        if config.USE_RERANKING:
+            from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+            from langchain.retrievers.document_compressors import CrossEncoderReranker
+            self._reranker = CrossEncoderReranker(
+                model=HuggingFaceCrossEncoder(model_name=config.RERANKING_MODEL),
+                top_n=10,
+            )
 
-        initial_k = top_k * 4 if self.use_reranking else top_k
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=initial_k,
-            where=where
-        )
+    def search(self, query: str, top_k: int = 5, domain: str = None):
+        k = top_k * 3 if self._reranker else top_k
+        search_kwargs = {"k": k}
+        if domain and domain != "comprehensive":
+            search_kwargs["filter"] = {"domain": domain}
 
-        if not self.use_reranking:
-            return results
+        retriever = self.vectorstore.as_retriever(search_kwargs=search_kwargs)
 
-        pairs = [[query_text, doc] for doc in results['documents'][0]]
-        scores = self.reranker.predict(pairs)
+        if self._reranker:
+            from langchain.retrievers import ContextualCompressionRetriever
+            retriever = ContextualCompressionRetriever(
+                base_compressor=self._reranker,
+                base_retriever=retriever,
+            )
 
-        ranked_indices = scores.argsort()[::-1][:top_k]
-        return {
-            'documents': [[results['documents'][0][i] for i in ranked_indices]],
-            'metadatas': [[results['metadatas'][0][i] for i in ranked_indices]],
-            'distances': [[float(scores[i]) for i in ranked_indices]]
-        }
+        return retriever.invoke(query)[:top_k]
+
+    def delete_by_source(self, source_name: str) -> int:
+        col = self.vectorstore._collection
+        ids = col.get(where={"source": source_name})["ids"]
+        if ids:
+            col.delete(ids=ids)
+        return len(ids)
+
+    def list_sources(self) -> list:
+        metas = self.vectorstore._collection.get(include=["metadatas"])["metadatas"]
+        counts: dict[str, int] = {}
+        for m in metas:
+            s = m.get("source", "unknown")
+            counts[s] = counts.get(s, 0) + 1
+        return [{"source": s, "chunks": c} for s, c in counts.items()]
+
+    def count(self) -> int:
+        return self.vectorstore._collection.count()
