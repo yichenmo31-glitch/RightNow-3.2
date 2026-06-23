@@ -1,19 +1,19 @@
-# 认证接口文档
+﻿# 璁よ瘉鎺ュ彛鏂囨。
 
-## 用户注册
+## 鐢ㄦ埛娉ㄥ唽
 
 **POST** `/api/auth/register`
 
-### 请求
+### 璇锋眰
 ```json
 {
   "email": "user@example.com",
-  "password": "password123",
-  "nickname": "用户昵称"
+  "password": "<demo-password>",
+  "nickname": "鐢ㄦ埛鏄电О"
 }
 ```
 
-### 响应
+### 鍝嶅簲
 ```json
 {
   "success": true,
@@ -21,26 +21,26 @@
     "user": {
       "id": "user_123",
       "email": "user@example.com",
-      "nickname": "用户昵称"
+      "nickname": "鐢ㄦ埛鏄电О"
     },
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   }
 }
 ```
 
-## 用户登录
+## 鐢ㄦ埛鐧诲綍
 
 **POST** `/api/auth/login`
 
-### 请求
+### 璇锋眰
 ```json
 {
   "email": "user@example.com",
-  "password": "password123"
+  "password": "<demo-password>"
 }
 ```
 
-### 响应
+### 鍝嶅簲
 ```json
 {
   "success": true,
@@ -48,43 +48,43 @@
     "user": {
       "id": "user_123",
       "email": "user@example.com",
-      "nickname": "用户昵称"
+      "nickname": "鐢ㄦ埛鏄电О"
     },
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   }
 }
 ```
 
-## 获取用户信息
+## 鑾峰彇鐢ㄦ埛淇℃伅
 
 **GET** `/api/auth/me`
 
-### 响应
+### 鍝嶅簲
 ```json
 {
   "success": true,
   "data": {
     "id": "user_123",
     "email": "user@example.com",
-    "nickname": "用户昵称",
+    "nickname": "鐢ㄦ埛鏄电О",
     "avatar": "https://...",
     "createdAt": "2026-01-01T00:00:00Z"
   }
 }
 ```
 
-## Token刷新
+## Token鍒锋柊
 
 **POST** `/api/auth/refresh`
 
-### 请求
+### 璇锋眰
 ```json
 {
   "refreshToken": "..."
 }
 ```
 
-### 响应
+### 鍝嶅簲
 ```json
 {
   "success": true,
@@ -93,3 +93,4 @@
   }
 }
 ```
+

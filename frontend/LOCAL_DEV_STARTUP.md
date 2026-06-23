@@ -1,54 +1,40 @@
-# RightNow Fitness Frontend Local Startup (Monorepo)
+ï»¿# RightNow Frontend Local Startup
 
-Last updated: 2026-03-06
+This document is safe for the public repository. It contains local development guidance only and does not include production hosts, passwords, or private account details.
 
-This project uses a monorepo layout:
+## Manual Startup
 
-- frontend app: `frontend/`
-- backend API: `backend/`
-- scripts and shared commands: repository root
-
-## Recommended command
-
-Run from repository root:
+Run from the repository root:
 
 ```powershell
-cd E:\RightNow-Fitness
-.\scripts\start-dev.ps1
-```
-
-## Manual commands
-
-```powershell
-cd E:\RightNow-Fitness
+npm install
 npm run db:up
-npm run db:init
+npm run db:push
 npm run dev:backend
 $env:VITE_API_BASE_URL='http://localhost:5000/api'
 npm run dev:frontend
 ```
 
-## Key notes
+## Local URLs
 
-- Frontend dev URL: `http://localhost:5173`
-- Backend API URL: `http://localhost:5000`
-- Frontend dev API base now defaults to `http://localhost:5000/api` (`frontend/api/client.ts`)
-- Vite proxy route pattern already includes `training-sessions` (`frontend/vite.config.ts`)
-- Demo login: `demo@rightnow.fit` / `password123`
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:5000`
 
-## Training flow verification
+## Demo Data
 
-- In Action Center, click `¿ªÊ¼ÑµÁ·`.
-- The app should call `POST /api/training-sessions` and then navigate to AI Coach.
-- AI Coach in training mode should start with context-aware guidance (target muscle + recent training history summary).
+If you need seeded demo users, configure these values in your private local environment before running the seed command:
 
-## 404 troubleshooting
+- `DEMO_SEED_EMAIL`
+- `DEMO_SEED_PASSWORD`
+- `BUDDY_SEED_EMAIL`
+- `BUDDY_SEED_PASSWORD`
+- `ADMIN_SEED_EMAIL`
+- `ADMIN_SEED_PASSWORD`
 
-- If you see `POST http://localhost:5173/api/training-sessions 404`, restart frontend dev service.
-- If you see `POST http://localhost:5000/api/training-sessions 404`, backend route is unavailable in current backend process.
-- If you changed `frontend/vite.config.ts`, restart `npm run dev:frontend` to apply proxy changes.
+Do not commit real demo passwords or production account details.
 
-## Legacy path cleanup
+## Troubleshooting
 
-Old path `rightnow-api` has been replaced by `backend` in scripts.
-If you still use old commands, replace `rightnow-api` with `backend`.
+- If `POST /api/training-sessions` returns `404`, restart both frontend and backend dev services.
+- If you change `frontend/vite.config.ts`, restart `npm run dev:frontend`.
+- If Prisma schema changes, run `npm run db:push` before testing backend flows.

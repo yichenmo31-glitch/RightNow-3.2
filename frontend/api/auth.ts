@@ -7,6 +7,7 @@ export interface AuthUser {
   avatar?: string;
   gender?: 'male' | 'female';
   bodyStyle?: string;
+  idealBodyImage?: string;
   currentPhase?: string;
   isProfileComplete: boolean;
   height?: number | null;
@@ -14,6 +15,8 @@ export interface AuthUser {
   age?: number | null;
   goalWeight?: number | null;
   activityLevel?: string | null;
+  userImage?: string;
+  userFaceImage?: string;
 }
 
 export interface AuthResponse {

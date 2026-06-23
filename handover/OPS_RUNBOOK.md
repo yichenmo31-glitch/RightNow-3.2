@@ -1,46 +1,46 @@
-# RightNow Fitness - 运维手册
+﻿# RightNow Fitness - 杩愮淮鎵嬪唽
 
-**文档版本**: v1.0
-**生成日期**: 2026-03-06
-**适用环境**: 开发/测试/生产
-
----
-
-## 目录
-
-- [1. 基础设施概览](#1-基础设施概览)
-- [2. 部署架构](#2-部署架构)
-- [3. 配置管理](#3-配置管理)
-- [4. 日常运维 SOP](#4-日常运维-sop)
-- [5. 监控与告警](#5-监控与告警)
-- [6. 故障排查指南](#6-故障排查指南)
-- [7. 备份与恢复](#7-备份与恢复)
-- [8. 安全与合规](#8-安全与合规)
-- [9. 性能优化](#9-性能优化)
-- [10. 应急响应](#10-应急响应)
-- [11. 运维验收清单](#11-运维验收清单)
+**鏂囨。鐗堟湰**: v1.0
+**鐢熸垚鏃ユ湡**: 2026-03-06
+**閫傜敤鐜**: 寮€鍙?娴嬭瘯/鐢熶骇
 
 ---
 
-## 1. 基础设施概览
+## 鐩綍
 
-### 1.1 系统组件
+- [1. 鍩虹璁炬柦姒傝](#1-鍩虹璁炬柦姒傝)
+- [2. 閮ㄧ讲鏋舵瀯](#2-閮ㄧ讲鏋舵瀯)
+- [3. 閰嶇疆绠＄悊](#3-閰嶇疆绠＄悊)
+- [4. 鏃ュ父杩愮淮 SOP](#4-鏃ュ父杩愮淮-sop)
+- [5. 鐩戞帶涓庡憡璀(#5-鐩戞帶涓庡憡璀?
+- [6. 鏁呴殰鎺掓煡鎸囧崡](#6-鏁呴殰鎺掓煡鎸囧崡)
+- [7. 澶囦唤涓庢仮澶峕(#7-澶囦唤涓庢仮澶?
+- [8. 瀹夊叏涓庡悎瑙刔(#8-瀹夊叏涓庡悎瑙?
+- [9. 鎬ц兘浼樺寲](#9-鎬ц兘浼樺寲)
+- [10. 搴旀€ュ搷搴擼(#10-搴旀€ュ搷搴?
+- [11. 杩愮淮楠屾敹娓呭崟](#11-杩愮淮楠屾敹娓呭崟)
 
-| 组件 | 技术栈 | 端口 | 资源需求 | 状态 |
+---
+
+## 1. 鍩虹璁炬柦姒傝
+
+### 1.1 绯荤粺缁勪欢
+
+| 缁勪欢 | 鎶€鏈爤 | 绔彛 | 璧勬簮闇€姹?| 鐘舵€?|
 |------|--------|------|---------|------|
-| 前端应用 | React + Vite | 5173 | 512MB RAM | 运行中 |
-| 后端 API | NestJS | 5000 | 1GB RAM | 运行中 |
-| 数据库 | PostgreSQL 15 | 15433 | 2GB RAM | 运行中 |
-| RAG 服务 | Python FastAPI | 8000 | 1GB RAM | 运行中 |
-| 向量数据库 | ChromaDB | - | 512MB RAM | 运行中 |
+| 鍓嶇搴旂敤 | React + Vite | 5173 | 512MB RAM | 杩愯涓?|
+| 鍚庣 API | NestJS | 5000 | 1GB RAM | 杩愯涓?|
+| 鏁版嵁搴?| PostgreSQL 15 | 15433 | 2GB RAM | 杩愯涓?|
+| RAG 鏈嶅姟 | Python FastAPI | 8000 | 1GB RAM | 杩愯涓?|
+| 鍚戦噺鏁版嵁搴?| ChromaDB | - | 512MB RAM | 杩愯涓?|
 
-### 1.2 服务依赖关系
+### 1.2 鏈嶅姟渚濊禆鍏崇郴
 
 ```mermaid
 graph LR
-    A[前端 5173] --> B[后端 API 5000]
+    A[鍓嶇 5173] --> B[鍚庣 API 5000]
     B --> C[PostgreSQL 15433]
-    B --> D[RAG 服务 8000]
+    B --> D[RAG 鏈嶅姟 8000]
     B --> E[Gemini API]
     D --> F[ChromaDB]
 
@@ -52,32 +52,32 @@ graph LR
     style F fill:#FFA07A
 ```
 
-### 1.3 外部依赖
+### 1.3 澶栭儴渚濊禆
 
-- **Google Gemini API**: AI 对话和图像识别
-- **文件存储**: 本地文件系统 (生产环境建议使用 OSS/S3)
-- **DNS**: (待配置)
-- **CDN**: (待配置)
+- **Google Gemini API**: AI 瀵硅瘽鍜屽浘鍍忚瘑鍒?
+- **鏂囦欢瀛樺偍**: 鏈湴鏂囦欢绯荤粺 (鐢熶骇鐜寤鸿浣跨敤 OSS/S3)
+- **DNS**: (寰呴厤缃?
+- **CDN**: (寰呴厤缃?
 
 ---
 
-## 2. 部署架构
+## 2. 閮ㄧ讲鏋舵瀯
 
-### 2.1 开发环境拓扑
+### 2.1 寮€鍙戠幆澧冩嫇鎵?
 
 ```mermaid
 graph TB
-    subgraph "开发机器"
-        A[前端 localhost:5173]
-        B[后端 localhost:5000]
+    subgraph "寮€鍙戞満鍣?
+        A[鍓嶇 localhost:5173]
+        B[鍚庣 localhost:5000]
         C[RAG localhost:8000]
     end
 
-    subgraph "Docker 容器"
+    subgraph "Docker 瀹瑰櫒"
         D[PostgreSQL<br/>localhost:15433]
     end
 
-    subgraph "外部服务"
+    subgraph "澶栭儴鏈嶅姟"
         E[Google Gemini API]
     end
 
@@ -88,30 +88,30 @@ graph TB
     C --> E
 ```
 
-### 2.2 生产环境架构 (建议)
+### 2.2 鐢熶骇鐜鏋舵瀯 (寤鸿)
 
 ```mermaid
 graph TB
-    subgraph "负载均衡层"
+    subgraph "璐熻浇鍧囪　灞?
         LB[Nginx/ALB]
     end
 
-    subgraph "应用层"
-        FE1[前端实例 1]
-        FE2[前端实例 2]
-        BE1[后端实例 1]
-        BE2[后端实例 2]
-        RAG1[RAG 实例]
+    subgraph "搴旂敤灞?
+        FE1[鍓嶇瀹炰緥 1]
+        FE2[鍓嶇瀹炰緥 2]
+        BE1[鍚庣瀹炰緥 1]
+        BE2[鍚庣瀹炰緥 2]
+        RAG1[RAG 瀹炰緥]
     end
 
-    subgraph "数据层"
-        DB[(PostgreSQL<br/>主从复制)]
-        CACHE[(Redis<br/>缓存)]
+    subgraph "鏁版嵁灞?
+        DB[(PostgreSQL<br/>涓讳粠澶嶅埗)]
+        CACHE[(Redis<br/>缂撳瓨)]
         VDB[(ChromaDB)]
     end
 
-    subgraph "存储层"
-        OSS[对象存储<br/>OSS/S3]
+    subgraph "瀛樺偍灞?
+        OSS[瀵硅薄瀛樺偍<br/>OSS/S3]
     end
 
     LB --> FE1
@@ -129,126 +129,126 @@ graph TB
     BE2 --> OSS
 ```
 
-### 2.3 部署清单
+### 2.3 閮ㄧ讲娓呭崟
 
-**开发环境**:
-- ✅ Docker Compose (PostgreSQL)
-- ✅ npm scripts (前后端启动)
-- ⚠️ 缺少自动化部署脚本
+**寮€鍙戠幆澧?*:
+- 鉁?Docker Compose (PostgreSQL)
+- 鉁?npm scripts (鍓嶅悗绔惎鍔?
+- 鈿狅笍 缂哄皯鑷姩鍖栭儴缃茶剼鏈?
 
-**生产环境 (待实施)**:
-- ❌ CI/CD 流水线
-- ❌ 容器编排 (Kubernetes/Docker Swarm)
-- ❌ 负载均衡器
-- ❌ 数据库主从复制
-- ❌ Redis 缓存
-- ❌ 对象存储集成
+**鐢熶骇鐜 (寰呭疄鏂?**:
+- 鉂?CI/CD 娴佹按绾?
+- 鉂?瀹瑰櫒缂栨帓 (Kubernetes/Docker Swarm)
+- 鉂?璐熻浇鍧囪　鍣?
+- 鉂?鏁版嵁搴撲富浠庡鍒?
+- 鉂?Redis 缂撳瓨
+- 鉂?瀵硅薄瀛樺偍闆嗘垚
 
 ---
 
-## 3. 配置管理
+## 3. 閰嶇疆绠＄悊
 
-### 3.1 环境变量
+### 3.1 鐜鍙橀噺
 
-#### 后端环境变量 (backend/.env)
+#### 鍚庣鐜鍙橀噺 (backend/.env)
 
 ```bash
-# 数据库配置
-DATABASE_URL="postgresql://postgres:postgres@localhost:15433/rightnow_fitness?schema=public"
+# 鏁版嵁搴撻厤缃?
+DATABASE_URL="postgresql://postgres:<db-password>@localhost:15433/rightnow_fitness?schema=public"
 
-# JWT 配置
-JWT_SECRET="your-secret-key-change-in-production"  # ⚠️ 生产环境必须更换
+# JWT 閰嶇疆
+JWT_SECRET="your-secret-key-change-in-production"  # 鈿狅笍 鐢熶骇鐜蹇呴』鏇存崲
 
-# 服务配置
+# 鏈嶅姟閰嶇疆
 PORT=5000
 HOST=0.0.0.0
 CORS_ORIGIN="http://localhost:5173,http://localhost:5174"
 
-# 外部服务
+# 澶栭儴鏈嶅姟
 RAG_SERVICE_URL="http://localhost:8000"
 
-# 种子数据 (仅开发环境)
-ADMIN_SEED_EMAIL="admin@admin.com"
-ADMIN_SEED_PASSWORD="123456"
+# 绉嶅瓙鏁版嵁 (浠呭紑鍙戠幆澧?
+ADMIN_SEED_EMAIL="admin@example.com"
+ADMIN_SEED_PASSWORD="<admin-password>"
 ADMIN_SEED_NAME="RightNow Admin"
 ```
 
-#### 前端环境变量 (frontend/.env.local)
+#### 鍓嶇鐜鍙橀噺 (frontend/.env.local)
 
 ```bash
 # Gemini API
-VITE_GEMINI_API_KEY="your-gemini-api-key"  # ⚠️ 不要提交到 Git
+VITE_GEMINI_API_KEY="your-gemini-api-key"  # 鈿狅笍 涓嶈鎻愪氦鍒?Git
 ```
 
-#### RAG 服务配置 (rag-service/config.py)
+#### RAG 鏈嶅姟閰嶇疆 (rag-service/config.py)
 
 ```python
-# ChromaDB 配置
+# ChromaDB 閰嶇疆
 CHROMA_DB_PATH = "./chroma_db"
 
 # Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# 服务配置
+# 鏈嶅姟閰嶇疆
 HOST = "0.0.0.0"
 PORT = 8000
 ```
 
-### 3.2 配置文件位置
+### 3.2 閰嶇疆鏂囦欢浣嶇疆
 
-| 配置文件 | 路径 | 用途 |
+| 閰嶇疆鏂囦欢 | 璺緞 | 鐢ㄩ€?|
 |---------|------|------|
-| 后端环境变量 | `backend/.env` | 数据库、JWT、CORS |
-| 前端环境变量 | `frontend/.env.local` | API 密钥 |
-| 数据库配置 | `backend/docker-compose.yml` | PostgreSQL 容器 |
-| Vite 配置 | `frontend/vite.config.ts` | 前端构建 |
-| NestJS 配置 | `backend/src/main.ts` | 后端启动 |
-| Prisma 配置 | `backend/prisma/schema.prisma` | 数据库 Schema |
+| 鍚庣鐜鍙橀噺 | `backend/.env` | 鏁版嵁搴撱€丣WT銆丆ORS |
+| 鍓嶇鐜鍙橀噺 | `frontend/.env.local` | API 瀵嗛挜 |
+| 鏁版嵁搴撻厤缃?| `backend/docker-compose.yml` | PostgreSQL 瀹瑰櫒 |
+| Vite 閰嶇疆 | `frontend/vite.config.ts` | 鍓嶇鏋勫缓 |
+| NestJS 閰嶇疆 | `backend/src/main.ts` | 鍚庣鍚姩 |
+| Prisma 閰嶇疆 | `backend/prisma/schema.prisma` | 鏁版嵁搴?Schema |
 
-### 3.3 Secrets 管理
+### 3.3 Secrets 绠＄悊
 
-⚠️ **重要**: 以下信息不得提交到版本控制:
+鈿狅笍 **閲嶈**: 浠ヤ笅淇℃伅涓嶅緱鎻愪氦鍒扮増鏈帶鍒?
 - JWT_SECRET
 - GEMINI_API_KEY
-- 数据库密码
-- 第三方 API 密钥
+- 鏁版嵁搴撳瘑鐮?
+- 绗笁鏂?API 瀵嗛挜
 
-**建议方案**:
-- 开发环境: `.env.local` (添加到 .gitignore)
-- 生产环境: 使用密钥管理服务 (AWS Secrets Manager, HashiCorp Vault)
+**寤鸿鏂规**:
+- 寮€鍙戠幆澧? `.env.local` (娣诲姞鍒?.gitignore)
+- 鐢熶骇鐜: 浣跨敤瀵嗛挜绠＄悊鏈嶅姟 (AWS Secrets Manager, HashiCorp Vault)
 
 ---
 
-## 4. 日常运维 SOP
+## 4. 鏃ュ父杩愮淮 SOP
 
-### 4.1 服务启动流程
+### 4.1 鏈嶅姟鍚姩娴佺▼
 
-#### 完整启动顺序
+#### 瀹屾暣鍚姩椤哄簭
 
 ```bash
-# 1. 启动 PostgreSQL (必须最先启动)
+# 1. 鍚姩 PostgreSQL (蹇呴』鏈€鍏堝惎鍔?
 cd /path/to/RightNow-Fitness
 npm run db:up
-# 等待 10 秒确保数据库就绪
+# 绛夊緟 10 绉掔‘淇濇暟鎹簱灏辩华
 
-# 2. 验证数据库连接
+# 2. 楠岃瘉鏁版嵁搴撹繛鎺?
 npm run db:logs
-# 查看日志确认 "database system is ready to accept connections"
+# 鏌ョ湅鏃ュ織纭 "database system is ready to accept connections"
 
-# 3. 启动后端 API (新终端)
+# 3. 鍚姩鍚庣 API (鏂扮粓绔?
 npm run dev:backend
-# 等待看到 "Nest application successfully started"
+# 绛夊緟鐪嬪埌 "Nest application successfully started"
 
-# 4. 启动前端 (新终端)
+# 4. 鍚姩鍓嶇 (鏂扮粓绔?
 npm run dev:frontend
-# 等待看到 "Local: http://localhost:5173"
+# 绛夊緟鐪嬪埌 "Local: http://localhost:5173"
 
-# 5. (可选) 启动 RAG 服务 (新终端)
+# 5. (鍙€? 鍚姩 RAG 鏈嶅姟 (鏂扮粓绔?
 npm run dev:rag
-# 等待看到 "Application startup complete"
+# 绛夊緟鐪嬪埌 "Application startup complete"
 ```
 
-#### 快速启动 (使用脚本)
+#### 蹇€熷惎鍔?(浣跨敤鑴氭湰)
 
 ```bash
 # Linux/Mac
@@ -258,129 +258,129 @@ npm run dev:rag
 .\scripts\start-dev.ps1
 ```
 
-### 4.2 服务停止流程
+### 4.2 鏈嶅姟鍋滄娴佺▼
 
 ```bash
-# 1. 停止前端 (Ctrl+C)
-# 2. 停止后端 (Ctrl+C)
-# 3. 停止 RAG 服务 (Ctrl+C)
-# 4. 停止 PostgreSQL
+# 1. 鍋滄鍓嶇 (Ctrl+C)
+# 2. 鍋滄鍚庣 (Ctrl+C)
+# 3. 鍋滄 RAG 鏈嶅姟 (Ctrl+C)
+# 4. 鍋滄 PostgreSQL
 npm run db:down
 ```
 
-### 4.3 服务重启流程
+### 4.3 鏈嶅姟閲嶅惎娴佺▼
 
 ```bash
-# 重启后端 (代码更改后)
-# Ctrl+C 停止，然后重新运行
+# 閲嶅惎鍚庣 (浠ｇ爜鏇存敼鍚?
+# Ctrl+C 鍋滄锛岀劧鍚庨噸鏂拌繍琛?
 npm run dev:backend
 
-# 重启数据库 (配置更改后)
+# 閲嶅惎鏁版嵁搴?(閰嶇疆鏇存敼鍚?
 npm run db:down
 npm run db:up
 
-# 重置数据库 (清空所有数据)
+# 閲嶇疆鏁版嵁搴?(娓呯┖鎵€鏈夋暟鎹?
 npm run db:down
-docker volume rm backend_postgres_data  # 删除数据卷
+docker volume rm backend_postgres_data  # 鍒犻櫎鏁版嵁鍗?
 npm run db:up
 npm run db:init
 ```
 
-### 4.4 日常检查清单
+### 4.4 鏃ュ父妫€鏌ユ竻鍗?
 
-**每日检查** (5 分钟):
-- [ ] 所有服务运行正常
-- [ ] 数据库连接正常
-- [ ] 磁盘空间充足 (>20%)
-- [ ] 日志无严重错误
+**姣忔棩妫€鏌?* (5 鍒嗛挓):
+- [ ] 鎵€鏈夋湇鍔¤繍琛屾甯?
+- [ ] 鏁版嵁搴撹繛鎺ユ甯?
+- [ ] 纾佺洏绌洪棿鍏呰冻 (>20%)
+- [ ] 鏃ュ織鏃犱弗閲嶉敊璇?
 
-**每周检查** (15 分钟):
-- [ ] 数据库备份完成
-- [ ] 依赖包无安全漏洞 (`npm audit`)
-- [ ] 日志文件清理
-- [ ] 性能指标正常
+**姣忓懆妫€鏌?* (15 鍒嗛挓):
+- [ ] 鏁版嵁搴撳浠藉畬鎴?
+- [ ] 渚濊禆鍖呮棤瀹夊叏婕忔礊 (`npm audit`)
+- [ ] 鏃ュ織鏂囦欢娓呯悊
+- [ ] 鎬ц兘鎸囨爣姝ｅ父
 
-**每月检查** (30 分钟):
-- [ ] 系统更新
-- [ ] 数据库优化 (VACUUM, ANALYZE)
-- [ ] 备份恢复演练
-- [ ] 容量规划评估
+**姣忔湀妫€鏌?* (30 鍒嗛挓):
+- [ ] 绯荤粺鏇存柊
+- [ ] 鏁版嵁搴撲紭鍖?(VACUUM, ANALYZE)
+- [ ] 澶囦唤鎭㈠婕旂粌
+- [ ] 瀹归噺瑙勫垝璇勪及
 
 ---
 
-## 5. 监控与告警
+## 5. 鐩戞帶涓庡憡璀?
 
-### 5.1 监控指标
+### 5.1 鐩戞帶鎸囨爣
 
-#### 应用层指标
+#### 搴旂敤灞傛寚鏍?
 
-| 指标 | 正常范围 | 告警阈值 | 监控方式 |
+| 鎸囨爣 | 姝ｅ父鑼冨洿 | 鍛婅闃堝€?| 鐩戞帶鏂瑰紡 |
 |------|---------|---------|---------|
-| API 响应时间 | <500ms | >2s | ⚠️ 待实施 |
-| API 错误率 | <1% | >5% | ⚠️ 待实施 |
-| 并发用户数 | - | - | ⚠️ 待实施 |
-| AI 响应时间 | <3s | >10s | ⚠️ 待实施 |
+| API 鍝嶅簲鏃堕棿 | <500ms | >2s | 鈿狅笍 寰呭疄鏂?|
+| API 閿欒鐜?| <1% | >5% | 鈿狅笍 寰呭疄鏂?|
+| 骞跺彂鐢ㄦ埛鏁?| - | - | 鈿狅笍 寰呭疄鏂?|
+| AI 鍝嶅簲鏃堕棿 | <3s | >10s | 鈿狅笍 寰呭疄鏂?|
 
-#### 系统层指标
+#### 绯荤粺灞傛寚鏍?
 
-| 指标 | 正常范围 | 告警阈值 | 监控方式 |
+| 鎸囨爣 | 姝ｅ父鑼冨洿 | 鍛婅闃堝€?| 鐩戞帶鏂瑰紡 |
 |------|---------|---------|---------|
-| CPU 使用率 | <70% | >90% | ⚠️ 待实施 |
-| 内存使用率 | <80% | >95% | ⚠️ 待实施 |
-| 磁盘使用率 | <80% | >90% | ⚠️ 待实施 |
-| 网络带宽 | - | - | ⚠️ 待实施 |
+| CPU 浣跨敤鐜?| <70% | >90% | 鈿狅笍 寰呭疄鏂?|
+| 鍐呭瓨浣跨敤鐜?| <80% | >95% | 鈿狅笍 寰呭疄鏂?|
+| 纾佺洏浣跨敤鐜?| <80% | >90% | 鈿狅笍 寰呭疄鏂?|
+| 缃戠粶甯﹀ | - | - | 鈿狅笍 寰呭疄鏂?|
 
-#### 数据库指标
+#### 鏁版嵁搴撴寚鏍?
 
-| 指标 | 正常范围 | 告警阈值 | 监控方式 |
+| 鎸囨爣 | 姝ｅ父鑼冨洿 | 鍛婅闃堝€?| 鐩戞帶鏂瑰紡 |
 |------|---------|---------|---------|
-| 连接数 | <50 | >80 | ⚠️ 待实施 |
-| 慢查询 | 0 | >10/分钟 | ⚠️ 待实施 |
-| 死锁 | 0 | >0 | ⚠️ 待实施 |
-| 复制延迟 | <1s | >10s | ⚠️ 待实施 |
+| 杩炴帴鏁?| <50 | >80 | 鈿狅笍 寰呭疄鏂?|
+| 鎱㈡煡璇?| 0 | >10/鍒嗛挓 | 鈿狅笍 寰呭疄鏂?|
+| 姝婚攣 | 0 | >0 | 鈿狅笍 寰呭疄鏂?|
+| 澶嶅埗寤惰繜 | <1s | >10s | 鈿狅笍 寰呭疄鏂?|
 
-### 5.2 日志管理
+### 5.2 鏃ュ織绠＄悊
 
-#### 日志位置
+#### 鏃ュ織浣嶇疆
 
 ```bash
-# 后端日志 (控制台输出)
+# 鍚庣鏃ュ織 (鎺у埗鍙拌緭鍑?
 npm run dev:backend 2>&1 | tee logs/backend.log
 
-# 数据库日志
+# 鏁版嵁搴撴棩蹇?
 npm run db:logs
 
-# RAG 服务日志
-# 查看 rag-service/ 目录下的日志文件
+# RAG 鏈嶅姟鏃ュ織
+# 鏌ョ湅 rag-service/ 鐩綍涓嬬殑鏃ュ織鏂囦欢
 ```
 
-#### 日志级别
+#### 鏃ュ織绾у埆
 
-- **ERROR**: 严重错误，需要立即处理
-- **WARN**: 警告信息，需要关注
-- **INFO**: 一般信息
-- **DEBUG**: 调试信息 (仅开发环境)
+- **ERROR**: 涓ラ噸閿欒锛岄渶瑕佺珛鍗冲鐞?
+- **WARN**: 璀﹀憡淇℃伅锛岄渶瑕佸叧娉?
+- **INFO**: 涓€鑸俊鎭?
+- **DEBUG**: 璋冭瘯淇℃伅 (浠呭紑鍙戠幆澧?
 
-#### 日志清理策略
+#### 鏃ュ織娓呯悊绛栫暐
 
 ```bash
-# 手动清理 (建议每周执行)
+# 鎵嬪姩娓呯悊 (寤鸿姣忓懆鎵ц)
 find logs/ -name "*.log" -mtime +7 -delete
 
-# 或使用 logrotate (Linux)
-# 配置文件: /etc/logrotate.d/rightnow-fitness
+# 鎴栦娇鐢?logrotate (Linux)
+# 閰嶇疆鏂囦欢: /etc/logrotate.d/rightnow-fitness
 ```
 
-### 5.3 告警配置 (待实施)
+### 5.3 鍛婅閰嶇疆 (寰呭疄鏂?
 
-**建议告警渠道**:
-- 邮件通知
-- 短信通知 (紧急情况)
-- Slack/钉钉/企业微信
+**寤鸿鍛婅娓犻亾**:
+- 閭欢閫氱煡
+- 鐭俊閫氱煡 (绱ф€ユ儏鍐?
+- Slack/閽夐拤/浼佷笟寰俊
 
-**告警规则示例**:
+**鍛婅瑙勫垯绀轰緥**:
 ```yaml
-# 示例配置 (需要集成监控系统)
+# 绀轰緥閰嶇疆 (闇€瑕侀泦鎴愮洃鎺х郴缁?
 alerts:
   - name: api_high_error_rate
     condition: error_rate > 5%
@@ -395,210 +395,210 @@ alerts:
 
 ---
 
-## 6. 故障排查指南
+## 6. 鏁呴殰鎺掓煡鎸囧崡
 
-### 6.1 常见问题速查表
+### 6.1 甯歌闂閫熸煡琛?
 
-| 问题 | 可能原因 | 解决方案 | 优先级 |
+| 闂 | 鍙兘鍘熷洜 | 瑙ｅ喅鏂规 | 浼樺厛绾?|
 |------|---------|---------|--------|
-| 前端无法访问 | 服务未启动 | `npm run dev:frontend` | P0 |
-| API 502 错误 | 后端未启动 | `npm run dev:backend` | P0 |
-| 数据库连接失败 | PostgreSQL 未启动 | `npm run db:up` | P0 |
-| JWT 验证失败 | Token 过期或无效 | 重新登录获取新 Token | P1 |
-| AI 响应超时 | Gemini API 限流 | 检查 API 配额，添加重试 | P1 |
-| 文件上传失败 | 磁盘空间不足 | 清理磁盘空间 | P1 |
+| 鍓嶇鏃犳硶璁块棶 | 鏈嶅姟鏈惎鍔?| `npm run dev:frontend` | P0 |
+| API 502 閿欒 | 鍚庣鏈惎鍔?| `npm run dev:backend` | P0 |
+| 鏁版嵁搴撹繛鎺ュけ璐?| PostgreSQL 鏈惎鍔?| `npm run db:up` | P0 |
+| JWT 楠岃瘉澶辫触 | Token 杩囨湡鎴栨棤鏁?| 閲嶆柊鐧诲綍鑾峰彇鏂?Token | P1 |
+| AI 鍝嶅簲瓒呮椂 | Gemini API 闄愭祦 | 妫€鏌?API 閰嶉锛屾坊鍔犻噸璇?| P1 |
+| 鏂囦欢涓婁紶澶辫触 | 纾佺洏绌洪棿涓嶈冻 | 娓呯悊纾佺洏绌洪棿 | P1 |
 
-### 6.2 前端故障排查
+### 6.2 鍓嶇鏁呴殰鎺掓煡
 
-#### 问题: 页面白屏
+#### 闂: 椤甸潰鐧藉睆
 
-**排查步骤**:
+**鎺掓煡姝ラ**:
 ```bash
-# 1. 检查浏览器控制台错误
-# 打开 DevTools (F12) 查看 Console 和 Network
+# 1. 妫€鏌ユ祻瑙堝櫒鎺у埗鍙伴敊璇?
+# 鎵撳紑 DevTools (F12) 鏌ョ湅 Console 鍜?Network
 
-# 2. 检查前端服务状态
+# 2. 妫€鏌ュ墠绔湇鍔＄姸鎬?
 curl http://localhost:5173
 
-# 3. 检查后端 API 连接
+# 3. 妫€鏌ュ悗绔?API 杩炴帴
 curl http://localhost:5000
 
-# 4. 重启前端服务
-# Ctrl+C 停止
+# 4. 閲嶅惎鍓嶇鏈嶅姟
+# Ctrl+C 鍋滄
 npm run dev:frontend
 ```
 
-#### 问题: 3D 模型不显示
+#### 闂: 3D 妯″瀷涓嶆樉绀?
 
-**排查步骤**:
+**鎺掓煡姝ラ**:
 ```bash
-# 1. 检查模型文件是否存在
+# 1. 妫€鏌ユā鍨嬫枃浠舵槸鍚﹀瓨鍦?
 ls -la frontend/public/models/
 
-# 2. 检查浏览器 WebGL 支持
-# 访问 https://get.webgl.org/
+# 2. 妫€鏌ユ祻瑙堝櫒 WebGL 鏀寔
+# 璁块棶 https://get.webgl.org/
 
-# 3. 清除浏览器缓存
+# 3. 娓呴櫎娴忚鍣ㄧ紦瀛?
 # Ctrl+Shift+Delete
 
-# 4. 检查控制台 Three.js 错误
+# 4. 妫€鏌ユ帶鍒跺彴 Three.js 閿欒
 ```
 
-### 6.3 后端故障排查
+### 6.3 鍚庣鏁呴殰鎺掓煡
 
-#### 问题: API 返回 500 错误
+#### 闂: API 杩斿洖 500 閿欒
 
-**排查步骤**:
+**鎺掓煡姝ラ**:
 ```bash
-# 1. 查看后端日志
-# 检查终端输出的错误堆栈
+# 1. 鏌ョ湅鍚庣鏃ュ織
+# 妫€鏌ョ粓绔緭鍑虹殑閿欒鍫嗘爤
 
-# 2. 检查数据库连接
+# 2. 妫€鏌ユ暟鎹簱杩炴帴
 npm run db:logs
 
-# 3. 验证环境变量
+# 3. 楠岃瘉鐜鍙橀噺
 cat backend/.env
 
-# 4. 重启后端服务
+# 4. 閲嶅惎鍚庣鏈嶅姟
 npm run dev:backend
 ```
 
-#### 问题: Prisma 连接错误
+#### 闂: Prisma 杩炴帴閿欒
 
-**排查步骤**:
+**鎺掓煡姝ラ**:
 ```bash
-# 1. 检查数据库是否运行
+# 1. 妫€鏌ユ暟鎹簱鏄惁杩愯
 docker ps | grep postgres
 
-# 2. 测试数据库连接
+# 2. 娴嬭瘯鏁版嵁搴撹繛鎺?
 docker exec -it <container_id> psql -U postgres -d rightnow_fitness
 
-# 3. 重新生成 Prisma Client
+# 3. 閲嶆柊鐢熸垚 Prisma Client
 cd backend
 npm run prisma:generate
 
-# 4. 推送 Schema
+# 4. 鎺ㄩ€?Schema
 npm run prisma:push
 ```
 
-### 6.4 数据库故障排查
+### 6.4 鏁版嵁搴撴晠闅滄帓鏌?
 
-#### 问题: 数据库无法启动
+#### 闂: 鏁版嵁搴撴棤娉曞惎鍔?
 
-**排查步骤**:
+**鎺掓煡姝ラ**:
 ```bash
-# 1. 检查端口占用
+# 1. 妫€鏌ョ鍙ｅ崰鐢?
 netstat -an | grep 15433
-# 或 Windows: netstat -ano | findstr 15433
+# 鎴?Windows: netstat -ano | findstr 15433
 
-# 2. 检查 Docker 状态
+# 2. 妫€鏌?Docker 鐘舵€?
 docker ps -a
 
-# 3. 查看容器日志
+# 3. 鏌ョ湅瀹瑰櫒鏃ュ織
 npm run db:logs
 
-# 4. 重启容器
+# 4. 閲嶅惎瀹瑰櫒
 npm run db:down
 npm run db:up
 
-# 5. 如果仍失败，删除数据卷重建
+# 5. 濡傛灉浠嶅け璐ワ紝鍒犻櫎鏁版嵁鍗烽噸寤?
 docker volume ls
 docker volume rm backend_postgres_data
 npm run db:up
 npm run db:init
 ```
 
-#### 问题: 慢查询
+#### 闂: 鎱㈡煡璇?
 
-**诊断命令**:
+**璇婃柇鍛戒护**:
 ```sql
--- 查看慢查询
+-- 鏌ョ湅鎱㈡煡璇?
 SELECT pid, now() - pg_stat_activity.query_start AS duration, query
 FROM pg_stat_activity
 WHERE state = 'active' AND now() - pg_stat_activity.query_start > interval '5 seconds';
 
--- 查看表大小
+-- 鏌ョ湅琛ㄥぇ灏?
 SELECT schemaname, tablename, 
        pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
 FROM pg_tables
 WHERE schemaname = 'public'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
--- 查看索引使用情况
+-- 鏌ョ湅绱㈠紩浣跨敤鎯呭喌
 SELECT schemaname, tablename, indexname, idx_scan
 FROM pg_stat_user_indexes
 ORDER BY idx_scan ASC;
 ```
 
-### 6.5 RAG 服务故障排查
+### 6.5 RAG 鏈嶅姟鏁呴殰鎺掓煡
 
-#### 问题: RAG 服务无响应
+#### 闂: RAG 鏈嶅姟鏃犲搷搴?
 
-**排查步骤**:
+**鎺掓煡姝ラ**:
 ```bash
-# 1. 检查服务状态
+# 1. 妫€鏌ユ湇鍔＄姸鎬?
 curl http://localhost:8000/docs
 
-# 2. 查看 Python 进程
+# 2. 鏌ョ湅 Python 杩涚▼
 ps aux | grep uvicorn
 
-# 3. 检查 ChromaDB 数据
+# 3. 妫€鏌?ChromaDB 鏁版嵁
 ls -la rag-service/chroma_db/
 
-# 4. 重启服务
-# Ctrl+C 停止
+# 4. 閲嶅惎鏈嶅姟
+# Ctrl+C 鍋滄
 npm run dev:rag
 ```
 
-### 6.6 回滚操作
+### 6.6 鍥炴粴鎿嶄綔
 
-#### 代码回滚
+#### 浠ｇ爜鍥炴粴
 
 ```bash
-# 1. 查看 Git 历史
+# 1. 鏌ョ湅 Git 鍘嗗彶
 git log --oneline -10
 
-# 2. 回滚到指定提交
+# 2. 鍥炴粴鍒版寚瀹氭彁浜?
 git reset --hard <commit-hash>
 
-# 3. 重启服务
+# 3. 閲嶅惎鏈嶅姟
 npm run dev:backend
 npm run dev:frontend
 ```
 
-#### 数据库回滚
+#### 鏁版嵁搴撳洖婊?
 
 ```bash
-# 1. 停止所有服务
+# 1. 鍋滄鎵€鏈夋湇鍔?
 npm run db:down
 
-# 2. 恢复备份 (见备份章节)
+# 2. 鎭㈠澶囦唤 (瑙佸浠界珷鑺?
 docker exec -i <container_id> psql -U postgres -d rightnow_fitness < backup.sql
 
-# 3. 重启服务
+# 3. 閲嶅惎鏈嶅姟
 npm run db:up
 ```
 
 ---
 
-## 7. 备份与恢复
+## 7. 澶囦唤涓庢仮澶?
 
-### 7.1 数据库备份策略
+### 7.1 鏁版嵁搴撳浠界瓥鐣?
 
-#### 手动备份
+#### 鎵嬪姩澶囦唤
 
 ```bash
-# 创建备份目录
+# 鍒涘缓澶囦唤鐩綍
 mkdir -p backups
 
-# 备份数据库
+# 澶囦唤鏁版嵁搴?
 docker exec <container_id> pg_dump -U postgres rightnow_fitness > backups/backup_$(date +%Y%m%d_%H%M%S).sql
 
-# 验证备份文件
+# 楠岃瘉澶囦唤鏂囦欢
 ls -lh backups/
 ```
 
-#### 自动备份脚本
+#### 鑷姩澶囦唤鑴氭湰
 
 ```bash
 #!/bin/bash
@@ -608,215 +608,215 @@ BACKUP_DIR="./backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 CONTAINER_NAME="backend-postgres-1"
 
-# 创建备份
+# 鍒涘缓澶囦唤
 docker exec $CONTAINER_NAME pg_dump -U postgres rightnow_fitness > $BACKUP_DIR/backup_$TIMESTAMP.sql
 
-# 压缩备份
+# 鍘嬬缉澶囦唤
 gzip $BACKUP_DIR/backup_$TIMESTAMP.sql
 
-# 删除 7 天前的备份
+# 鍒犻櫎 7 澶╁墠鐨勫浠?
 find $BACKUP_DIR -name "backup_*.sql.gz" -mtime +7 -delete
 
 echo "Backup completed: backup_$TIMESTAMP.sql.gz"
 ```
 
-#### 定时备份 (Cron)
+#### 瀹氭椂澶囦唤 (Cron)
 
 ```bash
-# 编辑 crontab
+# 缂栬緫 crontab
 crontab -e
 
-# 每天凌晨 2 点备份
+# 姣忓ぉ鍑屾櫒 2 鐐瑰浠?
 0 2 * * * /path/to/RightNow-Fitness/backup-db.sh >> /var/log/backup.log 2>&1
 ```
 
-### 7.2 数据恢复流程
+### 7.2 鏁版嵁鎭㈠娴佺▼
 
-#### 完整恢复
+#### 瀹屾暣鎭㈠
 
 ```bash
-# 1. 停止后端服务
+# 1. 鍋滄鍚庣鏈嶅姟
 # Ctrl+C
 
-# 2. 恢复数据库
+# 2. 鎭㈠鏁版嵁搴?
 docker exec -i <container_id> psql -U postgres -d rightnow_fitness < backups/backup_20260306_020000.sql
 
-# 3. 验证数据
+# 3. 楠岃瘉鏁版嵁
 docker exec -it <container_id> psql -U postgres -d rightnow_fitness -c "SELECT COUNT(*) FROM \"User\";"
 
-# 4. 重启后端
+# 4. 閲嶅惎鍚庣
 npm run dev:backend
 ```
 
-#### 部分恢复 (单表)
+#### 閮ㄥ垎鎭㈠ (鍗曡〃)
 
 ```bash
-# 导出单表
+# 瀵煎嚭鍗曡〃
 docker exec <container_id> pg_dump -U postgres -t User rightnow_fitness > user_backup.sql
 
-# 恢复单表
+# 鎭㈠鍗曡〃
 docker exec -i <container_id> psql -U postgres -d rightnow_fitness < user_backup.sql
 ```
 
-### 7.3 文件备份
+### 7.3 鏂囦欢澶囦唤
 
 ```bash
-# 备份上传文件 (如果使用本地存储)
+# 澶囦唤涓婁紶鏂囦欢 (濡傛灉浣跨敤鏈湴瀛樺偍)
 tar -czf uploads_backup_$(date +%Y%m%d).tar.gz backend/uploads/
 
-# 备份 RAG 向量数据库
+# 澶囦唤 RAG 鍚戦噺鏁版嵁搴?
 tar -czf chroma_backup_$(date +%Y%m%d).tar.gz rag-service/chroma_db/
 ```
 
-### 7.4 灾备演练
+### 7.4 鐏惧婕旂粌
 
-**每月执行**:
-1. 从备份恢复到测试环境
-2. 验证数据完整性
-3. 测试应用功能
-4. 记录恢复时间 (RTO)
-5. 更新恢复文档
+**姣忔湀鎵ц**:
+1. 浠庡浠芥仮澶嶅埌娴嬭瘯鐜
+2. 楠岃瘉鏁版嵁瀹屾暣鎬?
+3. 娴嬭瘯搴旂敤鍔熻兘
+4. 璁板綍鎭㈠鏃堕棿 (RTO)
+5. 鏇存柊鎭㈠鏂囨。
 
 ---
 
-## 8. 安全与合规
+## 8. 瀹夊叏涓庡悎瑙?
 
-### 8.1 安全检查清单
+### 8.1 瀹夊叏妫€鏌ユ竻鍗?
 
-#### 应用安全
+#### 搴旂敤瀹夊叏
 
-- [ ] JWT Secret 已更换为强密码 (生产环境)
-- [ ] API 密钥不在代码库中
-- [ ] CORS 配置正确 (仅允许可信域名)
-- [ ] 文件上传有类型和大小限制
-- [ ] SQL 注入防护 (Prisma ORM 已提供)
-- [ ] XSS 防护 (React 已提供)
-- [ ] CSRF 防护 (待实施)
-- [ ] API 请求频率限制 (待实施)
+- [ ] JWT Secret 宸叉洿鎹负寮哄瘑鐮?(鐢熶骇鐜)
+- [ ] API 瀵嗛挜涓嶅湪浠ｇ爜搴撲腑
+- [ ] CORS 閰嶇疆姝ｇ‘ (浠呭厑璁稿彲淇″煙鍚?
+- [ ] 鏂囦欢涓婁紶鏈夌被鍨嬪拰澶у皬闄愬埗
+- [ ] SQL 娉ㄥ叆闃叉姢 (Prisma ORM 宸叉彁渚?
+- [ ] XSS 闃叉姢 (React 宸叉彁渚?
+- [ ] CSRF 闃叉姢 (寰呭疄鏂?
+- [ ] API 璇锋眰棰戠巼闄愬埗 (寰呭疄鏂?
 
-#### 数据库安全
+#### 鏁版嵁搴撳畨鍏?
 
-- [ ] 数据库密码强度足够
-- [ ] 数据库不对外网开放
-- [ ] 定期备份已启用
-- [ ] 敏感数据已加密 (passwordHash)
-- [ ] 数据库连接使用 SSL (生产环境)
+- [ ] 鏁版嵁搴撳瘑鐮佸己搴﹁冻澶?
+- [ ] 鏁版嵁搴撲笉瀵瑰缃戝紑鏀?
+- [ ] 瀹氭湡澶囦唤宸插惎鐢?
+- [ ] 鏁忔劅鏁版嵁宸插姞瀵?(passwordHash)
+- [ ] 鏁版嵁搴撹繛鎺ヤ娇鐢?SSL (鐢熶骇鐜)
 
-#### 网络安全
+#### 缃戠粶瀹夊叏
 
-- [ ] HTTPS 已启用 (生产环境)
-- [ ] 防火墙规则配置正确
-- [ ] 仅必要端口对外开放
-- [ ] DDoS 防护已启用 (生产环境)
+- [ ] HTTPS 宸插惎鐢?(鐢熶骇鐜)
+- [ ] 闃茬伀澧欒鍒欓厤缃纭?
+- [ ] 浠呭繀瑕佺鍙ｅ澶栧紑鏀?
+- [ ] DDoS 闃叉姢宸插惎鐢?(鐢熶骇鐜)
 
-### 8.2 访问权限矩阵
+### 8.2 璁块棶鏉冮檺鐭╅樀
 
-| 角色 | 数据库 | 后端代码 | 前端代码 | 服务器 | 生产环境 |
+| 瑙掕壊 | 鏁版嵁搴?| 鍚庣浠ｇ爜 | 鍓嶇浠ｇ爜 | 鏈嶅姟鍣?| 鐢熶骇鐜 |
 |------|--------|---------|---------|--------|---------|
-| 开发人员 | ✅ 读写 | ✅ 读写 | ✅ 读写 | ❌ | ❌ |
-| 运维人员 | ✅ 读写 | ✅ 只读 | ✅ 只读 | ✅ 读写 | ✅ 读写 |
-| 测试人员 | ✅ 只读 | ✅ 只读 | ✅ 只读 | ❌ | ❌ |
-| 项目经理 | ❌ | ✅ 只读 | ✅ 只读 | ❌ | ❌ |
+| 寮€鍙戜汉鍛?| 鉁?璇诲啓 | 鉁?璇诲啓 | 鉁?璇诲啓 | 鉂?| 鉂?|
+| 杩愮淮浜哄憳 | 鉁?璇诲啓 | 鉁?鍙 | 鉁?鍙 | 鉁?璇诲啓 | 鉁?璇诲啓 |
+| 娴嬭瘯浜哄憳 | 鉁?鍙 | 鉁?鍙 | 鉁?鍙 | 鉂?| 鉂?|
+| 椤圭洰缁忕悊 | 鉂?| 鉁?鍙 | 鉁?鍙 | 鉂?| 鉂?|
 
-### 8.3 安全事件响应
+### 8.3 瀹夊叏浜嬩欢鍝嶅簲
 
-#### 发现安全漏洞
+#### 鍙戠幇瀹夊叏婕忔礊
 
-1. 立即隔离受影响系统
-2. 评估影响范围
-3. 通知安全团队和管理层
-4. 修复漏洞
-5. 更新所有实例
-6. 记录事件报告
+1. 绔嬪嵆闅旂鍙楀奖鍝嶇郴缁?
+2. 璇勪及褰卞搷鑼冨洿
+3. 閫氱煡瀹夊叏鍥㈤槦鍜岀鐞嗗眰
+4. 淇婕忔礊
+5. 鏇存柊鎵€鏈夊疄渚?
+6. 璁板綍浜嬩欢鎶ュ憡
 
-#### 数据泄露响应
+#### 鏁版嵁娉勯湶鍝嶅簲
 
-1. 立即停止服务
-2. 确定泄露范围
-3. 通知受影响用户
-4. 修复安全漏洞
-5. 加强监控
-6. 提交合规报告
+1. 绔嬪嵆鍋滄鏈嶅姟
+2. 纭畾娉勯湶鑼冨洿
+3. 閫氱煡鍙楀奖鍝嶇敤鎴?
+4. 淇瀹夊叏婕忔礊
+5. 鍔犲己鐩戞帶
+6. 鎻愪氦鍚堣鎶ュ憡
 
-### 8.4 依赖安全审计
+### 8.4 渚濊禆瀹夊叏瀹¤
 
 ```bash
-# 检查 npm 依赖漏洞
+# 妫€鏌?npm 渚濊禆婕忔礊
 npm audit
 
-# 修复可自动修复的漏洞
+# 淇鍙嚜鍔ㄤ慨澶嶇殑婕忔礊
 npm audit fix
 
-# 查看详细报告
+# 鏌ョ湅璇︾粏鎶ュ憡
 npm audit --json
 
-# 检查 Python 依赖 (RAG 服务)
+# 妫€鏌?Python 渚濊禆 (RAG 鏈嶅姟)
 cd rag-service
 pip list --outdated
 ```
 
 ---
 
-## 9. 性能优化
+## 9. 鎬ц兘浼樺寲
 
-### 9.1 前端性能优化
+### 9.1 鍓嶇鎬ц兘浼樺寲
 
-#### 已实施
-- ✅ Vite 构建优化
-- ✅ 代码分割 (动态导入)
-- ✅ 图片懒加载
+#### 宸插疄鏂?
+- 鉁?Vite 鏋勫缓浼樺寲
+- 鉁?浠ｇ爜鍒嗗壊 (鍔ㄦ€佸鍏?
+- 鉁?鍥剧墖鎳掑姞杞?
 
-#### 待实施
-- ⚠️ 3D 模型压缩和优化
-- ⚠️ 图片 CDN 加速
-- ⚠️ Service Worker 缓存
-- ⚠️ 首屏加载优化
+#### 寰呭疄鏂?
+- 鈿狅笍 3D 妯″瀷鍘嬬缉鍜屼紭鍖?
+- 鈿狅笍 鍥剧墖 CDN 鍔犻€?
+- 鈿狅笍 Service Worker 缂撳瓨
+- 鈿狅笍 棣栧睆鍔犺浇浼樺寲
 
-#### 优化建议
+#### 浼樺寲寤鸿
 
 ```typescript
-// 1. 组件懒加载
+// 1. 缁勪欢鎳掑姞杞?
 const Dashboard = lazy(() => import('./views/Dashboard'));
 
-// 2. 图片优化
+// 2. 鍥剧墖浼樺寲
 <img loading="lazy" src="..." />
 
-// 3. 使用 React.memo 避免重渲染
+// 3. 浣跨敤 React.memo 閬垮厤閲嶆覆鏌?
 export const Component = React.memo(({ data }) => {
   // ...
 });
 ```
 
-### 9.2 后端性能优化
+### 9.2 鍚庣鎬ц兘浼樺寲
 
-#### 数据库查询优化
+#### 鏁版嵁搴撴煡璇紭鍖?
 
 ```typescript
-// 1. 使用 select 减少字段
+// 1. 浣跨敤 select 鍑忓皯瀛楁
 const users = await prisma.user.findMany({
   select: { id: true, name: true, email: true }
 });
 
-// 2. 使用 include 优化关联查询
+// 2. 浣跨敤 include 浼樺寲鍏宠仈鏌ヨ
 const posts = await prisma.post.findMany({
   include: { author: true, comments: true }
 });
 
-// 3. 添加索引 (已在 schema.prisma 中定义)
+// 3. 娣诲姞绱㈠紩 (宸插湪 schema.prisma 涓畾涔?
 @@index([userId, date])
 ```
 
-#### API 响应优化
+#### API 鍝嶅簲浼樺寲
 
 ```typescript
-// 1. 实现分页
+// 1. 瀹炵幇鍒嗛〉
 @Get()
 async findAll(@Query('page') page = 1, @Query('limit') limit = 20) {
   const skip = (page - 1) * limit;
   return this.service.findMany({ skip, take: limit });
 }
 
-// 2. 添加缓存 (待实施)
+// 2. 娣诲姞缂撳瓨 (寰呭疄鏂?
 @UseInterceptors(CacheInterceptor)
 @Get()
 async findAll() {
@@ -824,266 +824,267 @@ async findAll() {
 }
 ```
 
-### 9.3 数据库性能优化
+### 9.3 鏁版嵁搴撴€ц兘浼樺寲
 
 ```sql
--- 1. 分析查询性能
+-- 1. 鍒嗘瀽鏌ヨ鎬ц兘
 EXPLAIN ANALYZE SELECT * FROM "User" WHERE email = 'test@example.com';
 
--- 2. 更新统计信息
+-- 2. 鏇存柊缁熻淇℃伅
 ANALYZE;
 
--- 3. 清理死元组
+-- 3. 娓呯悊姝诲厓缁?
 VACUUM;
 
--- 4. 重建索引
+-- 4. 閲嶅缓绱㈠紩
 REINDEX TABLE "User";
 ```
 
-### 9.4 性能监控指标
+### 9.4 鎬ц兘鐩戞帶鎸囨爣
 
-| 指标 | 当前值 | 目标值 | 优化方案 |
+| 鎸囨爣 | 褰撳墠鍊?| 鐩爣鍊?| 浼樺寲鏂规 |
 |------|--------|--------|---------|
-| 首屏加载时间 | - | <2s | 代码分割、CDN |
-| API 响应时间 | - | <500ms | 缓存、索引优化 |
-| 3D 模型加载 | - | <3s | 模型压缩、懒加载 |
-| 数据库查询 | - | <100ms | 索引、查询优化 |
+| 棣栧睆鍔犺浇鏃堕棿 | - | <2s | 浠ｇ爜鍒嗗壊銆丆DN |
+| API 鍝嶅簲鏃堕棿 | - | <500ms | 缂撳瓨銆佺储寮曚紭鍖?|
+| 3D 妯″瀷鍔犺浇 | - | <3s | 妯″瀷鍘嬬缉銆佹噿鍔犺浇 |
+| 鏁版嵁搴撴煡璇?| - | <100ms | 绱㈠紩銆佹煡璇紭鍖?|
 
 ---
 
-## 10. 应急响应
+## 10. 搴旀€ュ搷搴?
 
-### 10.1 应急联系人
+### 10.1 搴旀€ヨ仈绯讳汉
 
-| 角色 | 姓名 | 联系方式 | 响应时间 |
+| 瑙掕壊 | 濮撳悕 | 鑱旂郴鏂瑰紡 | 鍝嶅簲鏃堕棿 |
 |------|------|---------|---------|
-| 技术负责人 | [待填写] | [待填写] | 15 分钟 |
-| 运维负责人 | [待填写] | [待填写] | 30 分钟 |
-| 数据库管理员 | [待填写] | [待填写] | 1 小时 |
-| 项目经理 | [待填写] | [待填写] | 2 小时 |
+| 鎶€鏈礋璐ｄ汉 | [寰呭～鍐橾 | [寰呭～鍐橾 | 15 鍒嗛挓 |
+| 杩愮淮璐熻矗浜?| [寰呭～鍐橾 | [寰呭～鍐橾 | 30 鍒嗛挓 |
+| 鏁版嵁搴撶鐞嗗憳 | [寰呭～鍐橾 | [寰呭～鍐橾 | 1 灏忔椂 |
+| 椤圭洰缁忕悊 | [寰呭～鍐橾 | [寰呭～鍐橾 | 2 灏忔椂 |
 
-### 10.2 应急响应流程
+### 10.2 搴旀€ュ搷搴旀祦绋?
 
 ```mermaid
 graph TD
-    A[发现故障] --> B{严重程度}
-    B -->|P0 严重| C[立即通知技术负责人]
-    B -->|P1 高| D[30分钟内通知]
-    B -->|P2 中| E[工作时间内处理]
+    A[鍙戠幇鏁呴殰] --> B{涓ラ噸绋嬪害}
+    B -->|P0 涓ラ噸| C[绔嬪嵆閫氱煡鎶€鏈礋璐ｄ汉]
+    B -->|P1 楂榺 D[30鍒嗛挓鍐呴€氱煡]
+    B -->|P2 涓瓅 E[宸ヤ綔鏃堕棿鍐呭鐞哴
     
-    C --> F[启动应急预案]
+    C --> F[鍚姩搴旀€ラ妗圿
     D --> F
-    F --> G[定位问题]
-    G --> H[实施修复]
-    H --> I{修复成功?}
-    I -->|是| J[恢复服务]
-    I -->|否| K[执行回滚]
+    F --> G[瀹氫綅闂]
+    G --> H[瀹炴柦淇]
+    H --> I{淇鎴愬姛?}
+    I -->|鏄瘄 J[鎭㈠鏈嶅姟]
+    I -->|鍚 K[鎵ц鍥炴粴]
     K --> J
-    J --> L[事后分析]
+    J --> L[浜嬪悗鍒嗘瀽]
 ```
 
-### 10.3 故障等级定义
+### 10.3 鏁呴殰绛夌骇瀹氫箟
 
-| 等级 | 描述 | 响应时间 | 示例 |
+| 绛夌骇 | 鎻忚堪 | 鍝嶅簲鏃堕棿 | 绀轰緥 |
 |------|------|---------|------|
-| P0 | 服务完全不可用 | 15 分钟 | 数据库崩溃、API 全部 500 |
-| P1 | 核心功能不可用 | 30 分钟 | AI 对话失败、登录失败 |
-| P2 | 部分功能异常 | 2 小时 | 图片上传慢、部分页面错误 |
-| P3 | 轻微问题 | 1 天 | UI 显示问题、非关键功能 |
+| P0 | 鏈嶅姟瀹屽叏涓嶅彲鐢?| 15 鍒嗛挓 | 鏁版嵁搴撳穿婧冦€丄PI 鍏ㄩ儴 500 |
+| P1 | 鏍稿績鍔熻兘涓嶅彲鐢?| 30 鍒嗛挓 | AI 瀵硅瘽澶辫触銆佺櫥褰曞け璐?|
+| P2 | 閮ㄥ垎鍔熻兘寮傚父 | 2 灏忔椂 | 鍥剧墖涓婁紶鎱€侀儴鍒嗛〉闈㈤敊璇?|
+| P3 | 杞诲井闂 | 1 澶?| UI 鏄剧ず闂銆侀潪鍏抽敭鍔熻兘 |
 
-### 10.4 应急操作手册
+### 10.4 搴旀€ユ搷浣滄墜鍐?
 
-#### 场景 1: 数据库崩溃
+#### 鍦烘櫙 1: 鏁版嵁搴撳穿婧?
 
 ```bash
-# 1. 检查数据库状态
+# 1. 妫€鏌ユ暟鎹簱鐘舵€?
 docker ps -a | grep postgres
 
-# 2. 查看日志
+# 2. 鏌ョ湅鏃ュ織
 npm run db:logs
 
-# 3. 尝试重启
+# 3. 灏濊瘯閲嶅惎
 npm run db:down
 npm run db:up
 
-# 4. 如果失败，从备份恢复
+# 4. 濡傛灉澶辫触锛屼粠澶囦唤鎭㈠
 docker exec -i <container_id> psql -U postgres -d rightnow_fitness < backups/latest.sql
 
-# 5. 验证恢复
+# 5. 楠岃瘉鎭㈠
 npm run dev:backend
 ```
 
-#### 场景 2: API 服务崩溃
+#### 鍦烘櫙 2: API 鏈嶅姟宕╂簝
 
 ```bash
-# 1. 检查进程
+# 1. 妫€鏌ヨ繘绋?
 ps aux | grep node
 
-# 2. 查看日志
-# 检查终端输出
+# 2. 鏌ョ湅鏃ュ織
+# 妫€鏌ョ粓绔緭鍑?
 
-# 3. 重启服务
+# 3. 閲嶅惎鏈嶅姟
 npm run dev:backend
 
-# 4. 如果持续失败，回滚代码
+# 4. 濡傛灉鎸佺画澶辫触锛屽洖婊氫唬鐮?
 git log --oneline -5
 git reset --hard <last-stable-commit>
 npm run dev:backend
 ```
 
-#### 场景 3: 磁盘空间不足
+#### 鍦烘櫙 3: 纾佺洏绌洪棿涓嶈冻
 
 ```bash
-# 1. 检查磁盘使用
+# 1. 妫€鏌ョ鐩樹娇鐢?
 df -h
 
-# 2. 查找大文件
+# 2. 鏌ユ壘澶ф枃浠?
 du -sh * | sort -hr | head -10
 
-# 3. 清理日志
+# 3. 娓呯悊鏃ュ織
 find logs/ -name "*.log" -mtime +7 -delete
 
-# 4. 清理 Docker
+# 4. 娓呯悊 Docker
 docker system prune -a
 
-# 5. 清理 node_modules (如果必要)
+# 5. 娓呯悊 node_modules (濡傛灉蹇呰)
 find . -name "node_modules" -type d -prune -exec rm -rf '{}' +
 npm install
 ```
 
 ---
 
-## 11. 运维验收清单
+## 11. 杩愮淮楠屾敹娓呭崟
 
-### 11.1 环境验收
+### 11.1 鐜楠屾敹
 
-- [ ] 所有服务端口正常监听
-- [ ] 数据库连接正常
-- [ ] 环境变量配置正确
-- [ ] 日志目录已创建
-- [ ] 备份目录已创建
-- [ ] 磁盘空间充足 (>50GB)
+- [ ] 鎵€鏈夋湇鍔＄鍙ｆ甯哥洃鍚?
+- [ ] 鏁版嵁搴撹繛鎺ユ甯?
+- [ ] 鐜鍙橀噺閰嶇疆姝ｇ‘
+- [ ] 鏃ュ織鐩綍宸插垱寤?
+- [ ] 澶囦唤鐩綍宸插垱寤?
+- [ ] 纾佺洏绌洪棿鍏呰冻 (>50GB)
 
-### 11.2 服务验收
+### 11.2 鏈嶅姟楠屾敹
 
-- [ ] 前端服务正常启动
-- [ ] 后端服务正常启动
-- [ ] 数据库服务正常启动
-- [ ] RAG 服务正常启动 (可选)
-- [ ] 所有服务健康检查通过
+- [ ] 鍓嶇鏈嶅姟姝ｅ父鍚姩
+- [ ] 鍚庣鏈嶅姟姝ｅ父鍚姩
+- [ ] 鏁版嵁搴撴湇鍔℃甯稿惎鍔?
+- [ ] RAG 鏈嶅姟姝ｅ父鍚姩 (鍙€?
+- [ ] 鎵€鏈夋湇鍔″仴搴锋鏌ラ€氳繃
 
-### 11.3 监控验收
+### 11.3 鐩戞帶楠屾敹
 
-- [ ] 日志收集正常
-- [ ] 监控指标采集正常 (待实施)
-- [ ] 告警规则配置完成 (待实施)
-- [ ] 告警通知渠道测试通过 (待实施)
+- [ ] 鏃ュ織鏀堕泦姝ｅ父
+- [ ] 鐩戞帶鎸囨爣閲囬泦姝ｅ父 (寰呭疄鏂?
+- [ ] 鍛婅瑙勫垯閰嶇疆瀹屾垚 (寰呭疄鏂?
+- [ ] 鍛婅閫氱煡娓犻亾娴嬭瘯閫氳繃 (寰呭疄鏂?
 
-### 11.4 备份验收
+### 11.4 澶囦唤楠屾敹
 
-- [ ] 备份脚本测试通过
-- [ ] 定时备份任务配置完成
-- [ ] 备份文件可正常恢复
-- [ ] 备份存储空间充足
+- [ ] 澶囦唤鑴氭湰娴嬭瘯閫氳繃
+- [ ] 瀹氭椂澶囦唤浠诲姟閰嶇疆瀹屾垚
+- [ ] 澶囦唤鏂囦欢鍙甯告仮澶?
+- [ ] 澶囦唤瀛樺偍绌洪棿鍏呰冻
 
-### 11.5 安全验收
+### 11.5 瀹夊叏楠屾敹
 
-- [ ] JWT Secret 已更换
-- [ ] API 密钥已配置
-- [ ] 数据库密码强度足够
-- [ ] 防火墙规则配置正确
-- [ ] 依赖包安全审计通过
+- [ ] JWT Secret 宸叉洿鎹?
+- [ ] API 瀵嗛挜宸查厤缃?
+- [ ] 鏁版嵁搴撳瘑鐮佸己搴﹁冻澶?
+- [ ] 闃茬伀澧欒鍒欓厤缃纭?
+- [ ] 渚濊禆鍖呭畨鍏ㄥ璁￠€氳繃
 
-### 11.6 文档验收
+### 11.6 鏂囨。楠屾敹
 
-- [ ] 阅读完本运维手册
-- [ ] 理解服务启动流程
-- [ ] 理解故障排查流程
-- [ ] 理解备份恢复流程
-- [ ] 理解应急响应流程
+- [ ] 闃呰瀹屾湰杩愮淮鎵嬪唽
+- [ ] 鐞嗚В鏈嶅姟鍚姩娴佺▼
+- [ ] 鐞嗚В鏁呴殰鎺掓煡娴佺▼
+- [ ] 鐞嗚В澶囦唤鎭㈠娴佺▼
+- [ ] 鐞嗚В搴旀€ュ搷搴旀祦绋?
 
-### 11.7 演练验收
+### 11.7 婕旂粌楠屾敹
 
-- [ ] 服务启动/停止演练
-- [ ] 数据库备份/恢复演练
-- [ ] 故障排查演练
-- [ ] 应急响应演练
+- [ ] 鏈嶅姟鍚姩/鍋滄婕旂粌
+- [ ] 鏁版嵁搴撳浠?鎭㈠婕旂粌
+- [ ] 鏁呴殰鎺掓煡婕旂粌
+- [ ] 搴旀€ュ搷搴旀紨缁?
 
 ---
 
-## 附录
+## 闄勫綍
 
-### A. 工具清单
+### A. 宸ュ叿娓呭崟
 
-| 工具 | 用途 | 访问方式 |
+| 宸ュ叿 | 鐢ㄩ€?| 璁块棶鏂瑰紡 |
 |------|------|---------|
-| Docker Desktop | 容器管理 | 本地安装 |
-| DBeaver/TablePlus | 数据库客户端 | 本地安装 |
-| Postman/Insomnia | API 测试 | 本地安装 |
-| VS Code | 代码编辑 | 本地安装 |
+| Docker Desktop | 瀹瑰櫒绠＄悊 | 鏈湴瀹夎 |
+| DBeaver/TablePlus | 鏁版嵁搴撳鎴风 | 鏈湴瀹夎 |
+| Postman/Insomnia | API 娴嬭瘯 | 鏈湴瀹夎 |
+| VS Code | 浠ｇ爜缂栬緫 | 鏈湴瀹夎 |
 
-### B. 常用运维命令
+### B. 甯哥敤杩愮淮鍛戒护
 
 ```bash
-# 查看服务状态
+# 鏌ョ湅鏈嶅姟鐘舵€?
 docker ps
 ps aux | grep node
 
-# 查看资源使用
+# 鏌ョ湅璧勬簮浣跨敤
 top
 htop
 df -h
 free -h
 
-# 查看网络连接
+# 鏌ョ湅缃戠粶杩炴帴
 netstat -tulpn
 ss -tulpn
 
-# 查看日志
+# 鏌ョ湅鏃ュ織
 tail -f logs/backend.log
 docker logs -f <container_id>
 
-# 数据库操作
+# 鏁版嵁搴撴搷浣?
 docker exec -it <container_id> psql -U postgres -d rightnow_fitness
 ```
 
-### C. 性能基准
+### C. 鎬ц兘鍩哄噯
 
-| 指标 | 基准值 | 测试方法 |
+| 鎸囨爣 | 鍩哄噯鍊?| 娴嬭瘯鏂规硶 |
 |------|--------|---------|
-| API 响应时间 | <500ms | `curl -w "@curl-format.txt" http://localhost:5000/api/users` |
-| 数据库查询 | <100ms | `EXPLAIN ANALYZE SELECT ...` |
-| 并发用户 | 100 | 使用 Apache Bench 或 k6 |
+| API 鍝嶅簲鏃堕棿 | <500ms | `curl -w "@curl-format.txt" http://localhost:5000/api/users` |
+| 鏁版嵁搴撴煡璇?| <100ms | `EXPLAIN ANALYZE SELECT ...` |
+| 骞跺彂鐢ㄦ埛 | 100 | 浣跨敤 Apache Bench 鎴?k6 |
 
-### D. 升级计划
+### D. 鍗囩骇璁″垝
 
-**短期 (1 个月)**:
-- [ ] 实施监控系统 (Prometheus + Grafana)
-- [ ] 实施日志系统 (ELK Stack)
-- [ ] 添加 API 限流
-- [ ] 完成单元测试
+**鐭湡 (1 涓湀)**:
+- [ ] 瀹炴柦鐩戞帶绯荤粺 (Prometheus + Grafana)
+- [ ] 瀹炴柦鏃ュ織绯荤粺 (ELK Stack)
+- [ ] 娣诲姞 API 闄愭祦
+- [ ] 瀹屾垚鍗曞厓娴嬭瘯
 
-**中期 (3 个月)**:
-- [ ] 实施 CI/CD 流水线
-- [ ] 数据库主从复制
-- [ ] Redis 缓存集成
-- [ ] 对象存储集成 (OSS/S3)
+**涓湡 (3 涓湀)**:
+- [ ] 瀹炴柦 CI/CD 娴佹按绾?
+- [ ] 鏁版嵁搴撲富浠庡鍒?
+- [ ] Redis 缂撳瓨闆嗘垚
+- [ ] 瀵硅薄瀛樺偍闆嗘垚 (OSS/S3)
 
-**长期 (6 个月)**:
-- [ ] Kubernetes 容器编排
-- [ ] 微服务拆分
-- [ ] 多区域部署
-- [ ] 自动扩缩容
+**闀挎湡 (6 涓湀)**:
+- [ ] Kubernetes 瀹瑰櫒缂栨帓
+- [ ] 寰湇鍔℃媶鍒?
+- [ ] 澶氬尯鍩熼儴缃?
+- [ ] 鑷姩鎵╃缉瀹?
 
 ---
 
-**文档已优化为真人运维团队使用，可直接打印/分享**
+**鏂囨。宸蹭紭鍖栦负鐪熶汉杩愮淮鍥㈤槦浣跨敤锛屽彲鐩存帴鎵撳嵃/鍒嗕韩**
 
-**PDF 导出建议**: 使用 Markdown 转 PDF 工具 (如 Pandoc, Typora, VS Code Markdown PDF 插件)
+**PDF 瀵煎嚭寤鸿**: 浣跨敤 Markdown 杞?PDF 宸ュ叿 (濡?Pandoc, Typora, VS Code Markdown PDF 鎻掍欢)
 
-**验收签字模板**:
+**楠屾敹绛惧瓧妯℃澘**:
 ```
-交接方签字: ________________  日期: ________
-接收方签字: ________________  日期: ________
+浜ゆ帴鏂圭瀛? ________________  鏃ユ湡: ________
+鎺ユ敹鏂圭瀛? ________________  鏃ユ湡: ________
 ```
+
 

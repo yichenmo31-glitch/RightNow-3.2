@@ -92,6 +92,72 @@ interface CoachIntakeInput {
   extraAnswers?: Prisma.JsonValue;
 }
 
+// ── 完整建档数据结构（Onboarding Profile）──
+
+interface OnboardingProfileInput {
+  trainingExperience?: string | null;
+  injuryHistory?: string | null;
+  weeklyTrainingDays?: number | null;
+  sessionDurationMinutes?: number | null;
+  trainingEnvironment?: string | null;
+  timePreference?: string | null;
+  equipmentList?: string[];
+  strengthAnchors?: Prisma.JsonValue;
+  dietEnvironment?: string | null;
+  typicalBreakfast?: string | null;
+  typicalLunch?: string | null;
+  typicalDinner?: string | null;
+  alcoholFrequency?: string | null;
+  snackFrequency?: string | null;
+  diningOutFrequency?: string | null;
+  sleepHours?: number | null;
+  sleepQuality?: string | null;
+  stressLevel?: string | null;
+  cardioType?: string | null;
+  cardioFrequency?: string | null;
+  stepsPerDay?: number | null;
+  motivationLevel?: string | null;
+  biggestChallenge?: string | null;
+  targetAreas?: string[];
+  goalDirection?: string | null;
+  onboardingCompleted?: boolean;
+  onboardingStep?: number;
+}
+
+interface OnboardingProfileResponse {
+  id: string;
+  userId: string;
+  trainingExperience: string | null;
+  injuryHistory: string | null;
+  weeklyTrainingDays: number | null;
+  sessionDurationMinutes: number | null;
+  trainingEnvironment: string | null;
+  timePreference: string | null;
+  equipmentList: string[];
+  strengthAnchors: Prisma.JsonValue;
+  dietEnvironment: string | null;
+  typicalBreakfast: string | null;
+  typicalLunch: string | null;
+  typicalDinner: string | null;
+  alcoholFrequency: string | null;
+  snackFrequency: string | null;
+  diningOutFrequency: string | null;
+  sleepHours: number | null;
+  sleepQuality: string | null;
+  stressLevel: string | null;
+  cardioType: string | null;
+  cardioFrequency: string | null;
+  stepsPerDay: number | null;
+  motivationLevel: string | null;
+  biggestChallenge: string | null;
+  targetAreas: string[];
+  goalDirection: string | null;
+  onboardingCompleted: boolean;
+  onboardingStep: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface CoachTask {
   id: string;
   title: string;
@@ -953,6 +1019,130 @@ class AiCoachService {
       durationMs: Date.now() - startedAt,
     };
   }
+
+  // ── 完整建档 (Onboarding Profile) ──
+
+  async getOnboardingProfile(userId: string): Promise<OnboardingProfileResponse | null> {
+    const profile = await this.prisma.aiCoachOnboardingProfile.findUnique({
+      where: { userId },
+    });
+    if (!profile) {
+      return null;
+    }
+    return {
+      id: profile.id,
+      userId: profile.userId,
+      trainingExperience: profile.trainingExperience,
+      injuryHistory: profile.injuryHistory,
+      weeklyTrainingDays: profile.weeklyTrainingDays,
+      sessionDurationMinutes: profile.sessionDurationMinutes,
+      trainingEnvironment: profile.trainingEnvironment,
+      timePreference: profile.timePreference,
+      equipmentList: profile.equipmentList,
+      strengthAnchors: profile.strengthAnchors,
+      dietEnvironment: profile.dietEnvironment,
+      typicalBreakfast: profile.typicalBreakfast,
+      typicalLunch: profile.typicalLunch,
+      typicalDinner: profile.typicalDinner,
+      alcoholFrequency: profile.alcoholFrequency,
+      snackFrequency: profile.snackFrequency,
+      diningOutFrequency: profile.diningOutFrequency,
+      sleepHours: profile.sleepHours,
+      sleepQuality: profile.sleepQuality,
+      stressLevel: profile.stressLevel,
+      cardioType: profile.cardioType,
+      cardioFrequency: profile.cardioFrequency,
+      stepsPerDay: profile.stepsPerDay,
+      motivationLevel: profile.motivationLevel,
+      biggestChallenge: profile.biggestChallenge,
+      targetAreas: profile.targetAreas,
+      goalDirection: profile.goalDirection,
+      onboardingCompleted: profile.onboardingCompleted,
+      onboardingStep: profile.onboardingStep,
+      createdAt: profile.createdAt.toISOString(),
+      updatedAt: profile.updatedAt.toISOString(),
+    };
+  }
+
+  async saveOnboardingProfile(
+    userId: string,
+    body: OnboardingProfileInput,
+  ): Promise<OnboardingProfileResponse> {
+    const data = {
+      trainingExperience: body.trainingExperience ?? undefined,
+      injuryHistory: body.injuryHistory ?? undefined,
+      weeklyTrainingDays: body.weeklyTrainingDays ?? undefined,
+      sessionDurationMinutes: body.sessionDurationMinutes ?? undefined,
+      trainingEnvironment: body.trainingEnvironment ?? undefined,
+      timePreference: body.timePreference ?? undefined,
+      equipmentList: body.equipmentList ?? [],
+      strengthAnchors: (body.strengthAnchors as Prisma.InputJsonValue) ?? undefined,
+      dietEnvironment: body.dietEnvironment ?? undefined,
+      typicalBreakfast: body.typicalBreakfast ?? undefined,
+      typicalLunch: body.typicalLunch ?? undefined,
+      typicalDinner: body.typicalDinner ?? undefined,
+      alcoholFrequency: body.alcoholFrequency ?? undefined,
+      snackFrequency: body.snackFrequency ?? undefined,
+      diningOutFrequency: body.diningOutFrequency ?? undefined,
+      sleepHours: body.sleepHours ?? undefined,
+      sleepQuality: body.sleepQuality ?? undefined,
+      stressLevel: body.stressLevel ?? undefined,
+      cardioType: body.cardioType ?? undefined,
+      cardioFrequency: body.cardioFrequency ?? undefined,
+      stepsPerDay: body.stepsPerDay ?? undefined,
+      motivationLevel: body.motivationLevel ?? undefined,
+      biggestChallenge: body.biggestChallenge ?? undefined,
+      targetAreas: body.targetAreas ?? [],
+      goalDirection: body.goalDirection ?? undefined,
+      onboardingCompleted: body.onboardingCompleted ?? undefined,
+      onboardingStep: body.onboardingStep ?? undefined,
+    };
+
+    const profile = await this.prisma.aiCoachOnboardingProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        ...data,
+        onboardingCompleted: data.onboardingCompleted ?? false,
+        onboardingStep: data.onboardingStep ?? 0,
+      },
+      update: data,
+    });
+
+    return {
+      id: profile.id,
+      userId: profile.userId,
+      trainingExperience: profile.trainingExperience,
+      injuryHistory: profile.injuryHistory,
+      weeklyTrainingDays: profile.weeklyTrainingDays,
+      sessionDurationMinutes: profile.sessionDurationMinutes,
+      trainingEnvironment: profile.trainingEnvironment,
+      timePreference: profile.timePreference,
+      equipmentList: profile.equipmentList,
+      strengthAnchors: profile.strengthAnchors,
+      dietEnvironment: profile.dietEnvironment,
+      typicalBreakfast: profile.typicalBreakfast,
+      typicalLunch: profile.typicalLunch,
+      typicalDinner: profile.typicalDinner,
+      alcoholFrequency: profile.alcoholFrequency,
+      snackFrequency: profile.snackFrequency,
+      diningOutFrequency: profile.diningOutFrequency,
+      sleepHours: profile.sleepHours,
+      sleepQuality: profile.sleepQuality,
+      stressLevel: profile.stressLevel,
+      cardioType: profile.cardioType,
+      cardioFrequency: profile.cardioFrequency,
+      stepsPerDay: profile.stepsPerDay,
+      motivationLevel: profile.motivationLevel,
+      biggestChallenge: profile.biggestChallenge,
+      targetAreas: profile.targetAreas,
+      goalDirection: profile.goalDirection,
+      onboardingCompleted: profile.onboardingCompleted,
+      onboardingStep: profile.onboardingStep,
+      createdAt: profile.createdAt.toISOString(),
+      updatedAt: profile.updatedAt.toISOString(),
+    };
+  }
 }
 
 @Injectable()
@@ -1050,6 +1240,21 @@ class AiCoachController {
   @Post('profile/refresh')
   refreshProfile(@CurrentUser() user: { sub: string }) {
     return this.service.refreshProfile(user.sub, 'manual');
+  }
+
+  // ── 完整建档 (Onboarding Profile) ──
+
+  @Get('onboarding')
+  getOnboardingProfile(@CurrentUser() user: { sub: string }) {
+    return this.service.getOnboardingProfile(user.sub);
+  }
+
+  @Post('onboarding')
+  saveOnboardingProfile(
+    @CurrentUser() user: { sub: string },
+    @Body() body: OnboardingProfileInput,
+  ) {
+    return this.service.saveOnboardingProfile(user.sub, body);
   }
 }
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export type QuestionType = 'single' | 'multi' | 'multi-with-text' | 'frequency';
+export type QuestionType = 'single' | 'multi' | 'multi-with-text' | 'frequency' | 'text';
 
 export interface IntakeQuestionProps {
     question: string;
@@ -39,6 +39,8 @@ const IntakeQuestion: React.FC<IntakeQuestionProps> = ({ question, type, options
     const handleSubmit = () => {
         if (type === 'single' || type === 'frequency') {
             onAnswer(selected[0]);
+        } else if (type === 'text') {
+            onAnswer(otherText.trim() || selected[0] || '');
         } else {
             const finalAnswer = [...selected];
             if (otherText.trim()) {
@@ -57,10 +59,7 @@ const IntakeQuestion: React.FC<IntakeQuestionProps> = ({ question, type, options
     return (
         <div className={`w-full max-w-sm bg-[#1A1A1A]/90 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-2xl transition-all duration-500 animate-slide-up ${isAnswered ? 'opacity-70 scale-95 pointer-events-none' : ''}`}>
             <div className="p-5">
-                <div className="flex flex-col items-center justify-center gap-3 mb-6 text-center mt-2">
-                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 shadow-[0_0_15px_rgba(184,255,0,0.15)]">
-                        <span className="material-icons-round text-primary text-xl">psychology</span>
-                    </div>
+                <div className="mb-6 text-center mt-2">
                     <p className="text-white text-base leading-relaxed font-bold tracking-wide">{question}</p>
                 </div>
 
@@ -83,6 +82,26 @@ const IntakeQuestion: React.FC<IntakeQuestionProps> = ({ question, type, options
                             </button>
                         );
                     })}
+
+                    {/* Free Text Input for 'text' type */}
+                    {type === 'text' && (
+                        <div className="mt-2">
+                            <textarea
+                                placeholder={otherPlaceholder || '请输入...'}
+                                value={otherText}
+                                onChange={(e) => {
+                                    setOtherText(e.target.value);
+                                    if (e.target.value.trim()) {
+                                        setSelected([e.target.value.trim()]);
+                                    } else {
+                                        setSelected([]);
+                                    }
+                                }}
+                                rows={3}
+                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-primary/50 focus:outline-none placeholder-gray-600 transition-colors resize-none"
+                            />
+                        </div>
+                    )}
 
                     {/* Text Input for 'multi-with-text' */}
                     {type === 'multi-with-text' && (

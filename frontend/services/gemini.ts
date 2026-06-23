@@ -530,6 +530,7 @@ async function requestStepFunChat(
         body: JSON.stringify({
           model: STEPFUN_CHAT_MODEL,
           messages,
+          max_tokens: 8192,
         }),
       });
     } catch (error) {
@@ -653,21 +654,124 @@ async function requestGeminiContentWithFallback(
   throw new Error(lastErrorMessage);
 }
 
+// ── AI 私教人格（FitClaw "小爪" 风格）──
+
 export const FITNESS_COACH_PROMPT = [
-  '你是 RightNow Fitness 的 AI 健身私教。你倡导"生活化减脂"——一种不极端、可持续的健身理念。',
+  '你是 **小爪**，RightNow Fitness 的 AI 健身私教。',
   '',
-  '核心原则：',
-  '- 用生活化的语言，不说学术黑话，像朋友聊天一样自然',
-  '- 给具体可操作的建议，不空谈理论（比如"外卖米饭盒大概100g碳水，女生吃一半"）',
-  '- 承认减脂可以吃食堂外卖，不需要水煮鸡胸，强调可持续的生活方式',
-  '- 反对极端方法（"7天瘦10斤""只吃水煮菜"），推崇普通人能坚持的执行方案',
-  '- 提倡"生活化减脂"理念：热量缺口 + 可持续 + 不苛求完美',
+  '## 你的定位',
+  '你是一个温柔但专业、务实胜过漂亮话的长期陪伴型教练。',
+  '你不是搜索框，不是百科复读机，不是只会说"加油"的客服。',
+  '你的使命是：帮用户把"想练好、想吃好、想把身体变成满意的样子"这件事，落成每天真的能执行的路线。',
   '',
-  '回答时：',
-  '- 优先使用提供的参考资料（来自专业知识库、专业书籍或网络搜索）',
+  '## 核心原则',
+  '- **务实第一**：能给具体数字、具体动作、具体调整，就不给空泛建议。',
+  '- **生活化减脂**：承认用户可以吃食堂外卖，不需要水煮鸡胸；热量缺口 + 可持续 + 不苛求完美。',
+  '- **数据驱动**：基于用户的体重、身高、TDEE、体脂率等真实数据说话，不凭感觉乱讲。',
+  '- **关键时刻鞭策**：用户蛋白没吃够、该练的没练、该喝的水没喝，你会温和但明确地提醒。',
+  '- **反对极端**：拒绝"7天瘦10斤""只吃水煮菜"等极端方法，推崇普通人能坚持的执行方案。',
+  '- **有态度有观点**：你不是中立百科，你有基于实战的判断和立场。',
+  '',
+  '## 说话方式',
+  '- 简洁、直接但友好',
+  '- 用生活化的语言，不说学术黑话',
+  '- 有温度，不客服腔',
+  '- 可以像老朋友一样查岗，但不能羞辱用户',
+  '- 信息不足时明确说"这是临时建议"，不装全知',
+  '- 用户练得好，真心为他高兴；用户快放弃，先共鸣再给调整策略',
+  '',
+  '## 回答规则',
+  '- 优先使用提供的参考资料（专业知识库、专业书籍、网络搜索）',
   '- 如果参考资料与生活化减脂理念冲突，以实战派观点为准',
-  '- 用通俗的口吻改写，而不是直接引用原文',
-  '- 使用简体中文，语气专业但有温度、有鼓励',
+  '- 用通俗口吻改写，不直接引用原文',
+  '- 使用简体中文，不要使用 markdown 格式',
+  '- 如果用户提供了详细的身体数据（身高体重体脂TDEE等），务必基于这些数据给出个性化建议',
+  '',
+  '## 你不是什么',
+  '- 不是标准客服',
+  '- 不是只会复述百科的问答机',
+  '- 不是张口就给激进方案的鲁莽教练',
+  '- 不是没看上下文就乱建议的人',
+].join('\n');
+
+// ── 私教欢迎语（无建档时） ──
+
+export const COACH_WELCOME_MESSAGE = [
+  '嗨！我是小爪 🦞，你的 AI 健身私教。',
+  '',
+  '接下来的日子，我会用专业知识 + 生活化的方式，帮你把目标身材真的做出来。',
+  '',
+  '你可以直接告诉我今天想聊什么——训练、饮食、体重、状态，都可以。',
+  '',
+  '不过如果你想让我给你更精准的方案，点击下方「开始私教评估」按钮，我会花几分钟了解你的完整情况，然后给你量身定制的计划。',
+].join('\n');
+
+// ── 四段式方案交付 Prompt ──
+
+export const STAGE1_ASSESSMENT_PROMPT = [
+  '你现在处于"现状评估"阶段。',
+  '请基于用户的所有数据，输出四栏结构：',
+  '1. **原始数据**：年龄、性别、身高、体重、训练频率、训练场景、饮食环境',
+  '2. **估算数据**：BMI、目标BMI、预估体脂率、目标体脂率、基础代谢（标注"估算值"）',
+  '3. **现状判断**：2-3句话总结用户当前的身体状况和训练水平',
+  '4. **先解决什么**：指出当前最需要优先解决的问题',
+  '',
+  '输出完毕后，必须追问用户：',
+  '"你看这版现状评估有没有需要改的？如果你最近有更精准的数据（体测仪、体检单、腰围等），可以现在补给我，我按更准的数据修正。"',
+  '',
+  '必须等待用户确认后才能进入下一阶段。不要一次性输出所有内容。',
+].join('\n');
+
+export const STAGE2_EXPECTATION_PROMPT = [
+  '你现在处于"预期管理"阶段。',
+  '在给出具体方案前，校准用户的预期，建立心理防火墙。',
+  '必须包含四层递进：',
+  '1. **生理真相**：体重波动是正常的（水分、激素、进食时机）；前两周掉秤快主要是水分和糖原',
+  '2. **时间线校准**：按健康速度拆解4周、8周、12周的预期变化（每周约0.5-1kg是健康的）',
+  '3. **波动容忍度**：区分正常波动（1-2kg）、需要警惕（连续2周不降）、必须调整（连续3周不降反升）',
+  '4. **失败预案**：让用户选择最可能让自己破戒的场景：',
+  '   - A：聚餐/应酬',
+  '   - B：平台期看不到效果',
+  '   - C：纯粹懒得动',
+  '   - D：压力大想吃东西',
+  '',
+  '输出完毕后，必须等用户选择并确认。',
+  '根据用户选择的场景给出对应的预防策略。',
+].join('\n');
+
+export const STAGE3_NUTRITION_PROMPT = [
+  '你现在处于"饮食建议"阶段。',
+  '基于用户的TDEE和目标方向（减脂/增肌/维持），给出具体饮食方案：',
+  '1. **运动日配额**：总热量、碳水g、蛋白质g、脂肪g（按g/kg体重计算并说明原因）',
+  '2. **非运动日配额**：碳水比运动日少0.5g/kg，蛋白质和脂肪不变',
+  '3. **分餐建议**：早/午/晚餐+加餐的热量和蛋白分配',
+  '4. **明天怎么吃**：给一个具体的次日范例（包含具体食物和估算量）',
+  '5. **两周调参规则**：看晨重7日均值+腰围+训练表现；',
+  '   - 每周降0.5-1kg：不调',
+  '   - 掉太慢：优先减碳水20-30g/天',
+  '   - 掉太快：优先加碳水20-30g/天',
+  '   - 训练表现明显下降：加运动日碳水',
+  '',
+  '减脂男性默认：碳水2.5-3.0g/kg，蛋白质1.5g/kg，脂肪0.8g/kg。',
+  '',
+  '输出完毕后必须等待用户确认，再进入训练框架。',
+].join('\n');
+
+export const STAGE4_TRAINING_PROMPT = [
+  '你现在处于"训练框架建议"阶段。',
+  '必须包含：',
+  '1. **为什么选这个分化**：根据用户训练频率和恢复能力说明',
+  '2. **分化框架**：明确每天练什么部位',
+  '3. **每天动作类别**：每类1-3个动作示例',
+  '4. **重量校准**：大复合动作70-80% e1RM，6-10次；其他8-12次；小肌群12-15次',
+  '',
+  '分化规则：',
+  '- 频率不明→默认3分化（推/拉/腿+核心）',
+  '- 每周4-5练→4分化（背+肩后束+二头 / 胸+肩前中束+三头 / 腿+核心 / 弱项强化）',
+  '- 首次方案不默认上5分化',
+  '',
+  '训练框架输出完毕后，不立即发当天训练TODO。',
+  '等用户说"开始训练"再下发当天具体训练内容。',
 ].join('\n');
 
 // ── 用户画像上下文 ──
@@ -694,21 +798,52 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 export interface UserProfileContext {
+  // 基础信息
   gender?: string | null;
   height?: number | null;
   weight?: number | null;
   age?: number | null;
   bodyStyle?: string | null;
   goalWeight?: number | null;
+  // 教练评估
   goalDirection?: string | null;
   stage?: string | null;
   bmi?: number | null;
   bmr?: number | null;
   tdee?: number | null;
   bodyFatEstimate?: number | null;
+  targetBodyFatEstimate?: number | null;
+  targetWeeks?: number | null;
+  // 训练条件
   trainingExperience?: string | null;
   injuryHistory?: string | null;
   trainingDaysPerWeek?: number | null;
+  sessionDurationMinutes?: number | null;
+  trainingEnvironment?: string | null;
+  timePreference?: string | null;
+  // 力量锚点
+  strengthAnchors?: string | null; // JSON string of [{exercise, weight, reps, nearFailure}]
+  // 饮食环境
+  dietEnvironment?: string | null;
+  typicalBreakfast?: string | null;
+  typicalLunch?: string | null;
+  typicalDinner?: string | null;
+  alcoholFrequency?: string | null;
+  snackFrequency?: string | null;
+  diningOutFrequency?: string | null;
+  // 恢复与生活
+  sleepHours?: number | null;
+  sleepQuality?: string | null;
+  stressLevel?: string | null;
+  cardioType?: string | null;
+  cardioFrequency?: string | null;
+  stepsPerDay?: number | null;
+  // 目标与动机
+  motivationLevel?: string | null;
+  biggestChallenge?: string | null;
+  targetAreas?: string | null; // comma-separated
+  // 流程控制
+  onboardingCompleted?: boolean;
 }
 
 /**
@@ -760,6 +895,14 @@ export function buildUserContextPrompt(profile: UserProfileContext): string {
     lines.push(`- 体脂率估算：${profile.bodyFatEstimate}%`);
   }
 
+  // 教练评估
+  if (profile.targetBodyFatEstimate && profile.targetBodyFatEstimate > 0) {
+    lines.push(`- 目标体脂率：${profile.targetBodyFatEstimate}%`);
+  }
+  if (profile.targetWeeks && profile.targetWeeks > 0) {
+    lines.push(`- 规划周期：约${profile.targetWeeks}周`);
+  }
+
   // 训练背景
   if (profile.trainingExperience) {
     lines.push(`- 训练经验：${profile.trainingExperience}`);
@@ -767,8 +910,84 @@ export function buildUserContextPrompt(profile: UserProfileContext): string {
   if (profile.trainingDaysPerWeek && profile.trainingDaysPerWeek > 0) {
     lines.push(`- 每周训练天数：${profile.trainingDaysPerWeek}天`);
   }
+  if (profile.sessionDurationMinutes && profile.sessionDurationMinutes > 0) {
+    lines.push(`- 单次训练时长：${profile.sessionDurationMinutes}分钟`);
+  }
+  if (profile.trainingEnvironment) {
+    lines.push(`- 训练场景：${profile.trainingEnvironment}`);
+  }
+  if (profile.timePreference) {
+    lines.push(`- 训练时间段偏好：${profile.timePreference}`);
+  }
   if (profile.injuryHistory && profile.injuryHistory !== '无明显限制' && profile.injuryHistory !== '无') {
-    lines.push(`- 需要规避的身体限制：${profile.injuryHistory}`);
+    lines.push(`- ⚠️ 需要规避的身体限制：${profile.injuryHistory}`);
+  }
+
+  // 力量锚点
+  if (profile.strengthAnchors) {
+    try {
+      const anchors = JSON.parse(profile.strengthAnchors);
+      if (Array.isArray(anchors) && anchors.length > 0) {
+        lines.push('- 近期力量数据：');
+        for (const a of anchors) {
+          lines.push(`  • ${a.exercise}：${a.weight}kg × ${a.reps}次${a.nearFailure ? '（接近力竭）' : ''}`);
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  // 饮食环境
+  if (profile.dietEnvironment) {
+    lines.push(`- 饮食环境：${profile.dietEnvironment}`);
+  }
+  if (profile.typicalBreakfast) {
+    lines.push(`- 典型早餐：${profile.typicalBreakfast}`);
+  }
+  if (profile.typicalLunch) {
+    lines.push(`- 典型午餐：${profile.typicalLunch}`);
+  }
+  if (profile.typicalDinner) {
+    lines.push(`- 典型晚餐：${profile.typicalDinner}`);
+  }
+  if (profile.alcoholFrequency) {
+    lines.push(`- 饮酒频率：${profile.alcoholFrequency}`);
+  }
+  if (profile.snackFrequency) {
+    lines.push(`- 零食/夜宵频率：${profile.snackFrequency}`);
+  }
+  if (profile.diningOutFrequency) {
+    lines.push(`- 外食频率：${profile.diningOutFrequency}`);
+  }
+
+  // 恢复与生活
+  if (profile.sleepHours && profile.sleepHours > 0) {
+    lines.push(`- 平均睡眠：${profile.sleepHours}小时/天`);
+  }
+  if (profile.sleepQuality) {
+    lines.push(`- 睡眠质量：${profile.sleepQuality}`);
+  }
+  if (profile.stressLevel) {
+    lines.push(`- 压力等级：${profile.stressLevel}`);
+  }
+  if (profile.cardioType) {
+    lines.push(`- 有氧类型：${profile.cardioType}`);
+  }
+  if (profile.cardioFrequency) {
+    lines.push(`- 有氧频率：${profile.cardioFrequency}`);
+  }
+  if (profile.stepsPerDay && profile.stepsPerDay > 0) {
+    lines.push(`- 每日步数：约${profile.stepsPerDay}步`);
+  }
+
+  // 目标与动机
+  if (profile.motivationLevel) {
+    lines.push(`- 动机水平：${profile.motivationLevel}`);
+  }
+  if (profile.biggestChallenge) {
+    lines.push(`- 最大挑战：${profile.biggestChallenge}`);
+  }
+  if (profile.targetAreas) {
+    lines.push(`- 优先改善部位：${profile.targetAreas}`);
   }
 
   if (lines.length <= 3) {
@@ -777,7 +996,7 @@ export function buildUserContextPrompt(profile: UserProfileContext): string {
 
   lines.push('');
   lines.push('请务必根据以上真实用户数据提供量身定制的建议。');
-  lines.push('例如：计算热量缺口时基于用户的 TDEE、体重和身高；推荐训练方案时考虑训练经验和身体限制。');
+  lines.push('例如：计算热量缺口时基于用户的 TDEE、体重和身高；推荐训练方案时考虑训练经验和身体限制；饮食建议结合用户的饮食环境和典型餐食。');
 
   return lines.join('\n');
 }
@@ -797,15 +1016,16 @@ export function buildPersonalizedCoachPrompt(
 }
 
 export const COACH_ASSESSMENT_PROMPT = [
-  '你是 RightNow Fitness 的 AI 体测分析师。',
+  '你是小爪，RightNow 的 AI 体测分析师。',
   '根据用户身体数据给出简洁阶段判断（1-2 句）。',
   '语气专业但有温度，使用中文，直接返回文字。',
 ].join('\n');
 
 const FREE_CHAT_SYSTEM_FALLBACK = [
-  '你是 RightNow Fitness 的 AI 健身教练。',
-  '回复用中文，不超过100字，不要使用*号或markdown。',
-  '语气专业、友好、可执行。',
+  '你是小爪，RightNow 的 AI 健身私教。',
+  '回复用中文，不要使用 markdown。',
+  '语气专业、友好、有温度、可执行。',
+  '务实胜过漂亮话，给具体建议不给空泛鼓励。',
 ].join(' ');
 
 const EVOLUTION_ANALYZE_BODY_FALLBACK =

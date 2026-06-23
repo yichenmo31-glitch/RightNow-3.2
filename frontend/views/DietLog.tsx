@@ -126,15 +126,6 @@ const DietLog: React.FC = () => {
         }
     };
 
-    // Mock recent photos from device gallery
-    const mockGalleryImages = [
-        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=400&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1484723091791-cdd515f0b2d1?w=400&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1493770348161-369560ae357d?w=400&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=400&h=400&fit=crop",
-    ];
 
     return (
         <div className="min-h-screen bg-bg-dark text-white pb-24 px-6 pt-12">
@@ -269,32 +260,6 @@ const DietLog: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Recent Photos Grid */}
-                <div className="px-2 pb-8 max-h-[40vh] overflow-y-auto">
-                    <div className="flex justify-between items-center px-2 mb-2">
-                        <span className="text-white font-bold text-sm">最近的照片</span>
-                        <span className="text-[#B8FF00] text-xs font-bold">图库</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1">
-                        {/* Live Camera Preview Mock */}
-                        <div
-                            className="aspect-square bg-gray-800 rounded relative overflow-hidden flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            <span className="material-icons-round text-white/50 text-4xl">photo_camera</span>
-                        </div>
-
-                        {/* Gallery Images */}
-                        {mockGalleryImages.map((src, idx) => (
-                            <div key={idx} className="aspect-square bg-gray-800 rounded relative overflow-hidden cursor-pointer group">
-                                <img src={src} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={`Recent ${idx}`} />
-                                <div className="absolute top-1 right-1 w-5 h-5 rounded-full border border-white/80 bg-black/20 flex items-center justify-center text-transparent hover:text-white transition-colors">
-                                    <div className="w-4 h-4 rounded-full border border-current"></div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
             </div>
 
             {/* Hidden Input for Photo Upload */}

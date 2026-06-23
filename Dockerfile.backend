@@ -1,8 +1,10 @@
-FROM rightnow-backend
+FROM node:20
+RUN apt-get update && apt-get install -y build-essential python3 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY backend/prisma ./prisma
+COPY backend/package.json backend/package-lock.json ./
+RUN npm install
 COPY backend/ ./
-RUN npx prisma generate
 RUN npm run build
 EXPOSE 5000
 CMD ["node", "dist/main.js"]

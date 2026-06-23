@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { View } from './types';
-import { authApi, TOKEN_KEY, aiCoachApi } from './api';
+import { authApi, TOKEN_KEY, aiCoachApi, userApi } from './api';
 import type { AuthUser } from './api';
 import { assessBodyFatFromImages } from './services/gemini';
 import Login from './views/Login';
@@ -67,6 +67,15 @@ const App: React.FC = () => {
   const syncAuthUserState = (user: AuthUser | null) => {
     setAuthUser(user);
     setIsProfileComplete(user?.isProfileComplete ?? false);
+    if (user?.userImage) {
+      setUserImage(user.userImage);
+    }
+    if (user?.userFaceImage) {
+      setUserFaceImage(user.userFaceImage);
+    }
+    if (user?.idealBodyImage) {
+      setIdealBodyImage(user.idealBodyImage);
+    }
 
     if (user?.gender === 'male' || user?.gender === 'female') {
       setGender(user.gender);
@@ -101,26 +110,44 @@ const App: React.FC = () => {
   useEffect(() => {
     if (userImage) {
       localStorage.setItem(USER_IMAGE_KEY, userImage);
+      if (authUser && authUser.userImage !== userImage) {
+        userApi.updateProfile({ userImage }).catch(() => {
+          // Backend persistence is best-effort; local preview should not regress.
+        });
+        setAuthUser((prev) => prev ? { ...prev, userImage } : prev);
+      }
     } else {
       localStorage.removeItem(USER_IMAGE_KEY);
     }
-  }, [userImage]);
+  }, [userImage, authUser?.id, authUser?.userImage]);
 
   useEffect(() => {
     if (userFaceImage) {
       localStorage.setItem(USER_FACE_IMAGE_KEY, userFaceImage);
+      if (authUser && authUser.userFaceImage !== userFaceImage) {
+        userApi.updateProfile({ userFaceImage }).catch(() => {
+          // Backend persistence is best-effort; local preview should not regress.
+        });
+        setAuthUser((prev) => prev ? { ...prev, userFaceImage } : prev);
+      }
     } else {
       localStorage.removeItem(USER_FACE_IMAGE_KEY);
     }
-  }, [userFaceImage]);
+  }, [userFaceImage, authUser?.id, authUser?.userFaceImage]);
 
   useEffect(() => {
     if (idealBodyImage) {
       localStorage.setItem(IDEAL_BODY_IMAGE_KEY, idealBodyImage);
+      if (authUser && authUser.idealBodyImage !== idealBodyImage) {
+        userApi.updateProfile({ idealBodyImage }).catch(() => {
+          // Backend persistence is best-effort; local preview should not regress.
+        });
+        setAuthUser((prev) => prev ? { ...prev, idealBodyImage } : prev);
+      }
     } else {
       localStorage.removeItem(IDEAL_BODY_IMAGE_KEY);
     }
-  }, [idealBodyImage]);
+  }, [idealBodyImage, authUser?.id, authUser?.idealBodyImage]);
 
   useEffect(() => {
     if (!pendingVisualAssessment || isRunningVisualAssessment) {

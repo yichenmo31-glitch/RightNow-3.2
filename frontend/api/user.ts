@@ -10,6 +10,9 @@ export interface UserProfile {
   weight?: number;
   age?: number;
   bodyStyle?: string;
+  userImage?: string;
+  userFaceImage?: string;
+  idealBodyImage?: string;
   currentPhase?: string;
   goalWeight?: number;
   activityLevel?: string;

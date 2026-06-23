@@ -20,6 +20,15 @@ export interface AssessmentResponse {
   isGeminiCalibrated: boolean;
 }
 
+export interface PredictionResponse {
+  days: number;
+  predictedDate: string;
+  targetStageIndex: number;
+  targetBodyFat: number;
+  currentBodyFat: number;
+  scenario: string;
+}
+
 function toNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -73,7 +82,7 @@ function normalizeStageListResponse(payload: unknown): StageListResponse {
 
 function normalizeAssessmentResponse(payload: unknown): AssessmentResponse {
   if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid evolution-stage assessment response payload.');
+    throw new Error('Invalid evolution-stage assessment response payload');
   }
 
   const value = payload as Record<string, unknown>;
@@ -82,6 +91,22 @@ function normalizeAssessmentResponse(payload: unknown): AssessmentResponse {
   return {
     bodyFat,
     isGeminiCalibrated: Boolean(value.isGeminiCalibrated),
+  };
+}
+
+function normalizePredictionResponse(payload: unknown): PredictionResponse {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid evolution-stage prediction response payload');
+  }
+
+  const value = payload as Record<string, unknown>;
+  return {
+    days: toNumber(value.days) ?? 0,
+    predictedDate: typeof value.predictedDate === 'string' ? value.predictedDate : '--',
+    targetStageIndex: toNumber(value.targetStageIndex) ?? 1,
+    targetBodyFat: toNumber(value.targetBodyFat) ?? 0,
+    currentBodyFat: toNumber(value.currentBodyFat) ?? 0,
+    scenario: typeof value.scenario === 'string' ? value.scenario : '当前轨迹',
   };
 }
 
@@ -94,5 +119,12 @@ export const evolutionStageApi = {
   async assess(recordId: string): Promise<AssessmentResponse> {
     const { data } = await client.post<unknown>(`/evolution-stage/assess/${recordId}`);
     return normalizeAssessmentResponse(data);
-  }
+  },
+
+  async predict(proteinChangePercent = 0.1): Promise<PredictionResponse> {
+    const { data } = await client.get<unknown>('/evolution-stage/prediction', {
+      params: { proteinChangePercent },
+    });
+    return normalizePredictionResponse(data);
+  },
 };

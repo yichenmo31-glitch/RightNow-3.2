@@ -173,3 +173,84 @@ export const aiCoachApi = {
   refreshProfile: () =>
     apiClient.post<CoachProfile>('/ai-coach/profile/refresh').then((r) => r.data),
 };
+
+// ── 完整建档 (Onboarding Profile) ──
+
+export interface StrengthAnchor {
+  exercise: string;
+  weight: number;  // kg
+  reps: number;
+  nearFailure: boolean;
+}
+
+export interface OnboardingProfile {
+  id: string;
+  userId: string;
+  trainingExperience: string | null;
+  injuryHistory: string | null;
+  weeklyTrainingDays: number | null;
+  sessionDurationMinutes: number | null;
+  trainingEnvironment: string | null;
+  timePreference: string | null;
+  equipmentList: string[];
+  strengthAnchors: StrengthAnchor[] | null;
+  dietEnvironment: string | null;
+  typicalBreakfast: string | null;
+  typicalLunch: string | null;
+  typicalDinner: string | null;
+  alcoholFrequency: string | null;
+  snackFrequency: string | null;
+  diningOutFrequency: string | null;
+  sleepHours: number | null;
+  sleepQuality: string | null;
+  stressLevel: string | null;
+  cardioType: string | null;
+  cardioFrequency: string | null;
+  stepsPerDay: number | null;
+  motivationLevel: string | null;
+  biggestChallenge: string | null;
+  targetAreas: string[];
+  goalDirection: string | null;
+  onboardingCompleted: boolean;
+  onboardingStep: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingProfileInput {
+  trainingExperience?: string | null;
+  injuryHistory?: string | null;
+  weeklyTrainingDays?: number | null;
+  sessionDurationMinutes?: number | null;
+  trainingEnvironment?: string | null;
+  timePreference?: string | null;
+  equipmentList?: string[];
+  strengthAnchors?: StrengthAnchor[] | null;
+  dietEnvironment?: string | null;
+  typicalBreakfast?: string | null;
+  typicalLunch?: string | null;
+  typicalDinner?: string | null;
+  alcoholFrequency?: string | null;
+  snackFrequency?: string | null;
+  diningOutFrequency?: string | null;
+  sleepHours?: number | null;
+  sleepQuality?: string | null;
+  stressLevel?: string | null;
+  cardioType?: string | null;
+  cardioFrequency?: string | null;
+  stepsPerDay?: number | null;
+  motivationLevel?: string | null;
+  biggestChallenge?: string | null;
+  targetAreas?: string[];
+  goalDirection?: string | null;
+  onboardingCompleted?: boolean;
+  onboardingStep?: number;
+}
+
+export const onboardingApi = {
+  getProfile: () =>
+    apiClient.get<OnboardingProfile | null>('/ai-coach/onboarding').then((r) => r.data),
+
+  saveProfile: (data: OnboardingProfileInput) =>
+    apiClient.post<OnboardingProfile>('/ai-coach/onboarding', data).then((r) => r.data),
+};

@@ -86,6 +86,9 @@ export class AuthService {
           ? user.gender
           : undefined,
       bodyStyle: user.bodyStyle ?? undefined,
+      userImage: user.userImage ?? undefined,
+      userFaceImage: user.userFaceImage ?? undefined,
+      idealBodyImage: user.idealBodyImage ?? undefined,
       currentPhase: user.currentPhase ?? undefined,
       isProfileComplete: user.isProfileComplete,
       height: user.height ?? undefined,

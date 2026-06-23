@@ -18,6 +18,9 @@ model User {
   weight            Float?
   age               Int?
   bodyStyle         String?
+  userImage         String?
+  userFaceImage     String?
+  idealBodyImage    String?
   currentPhase      String?
   goalWeight        Float?
   activityLevel     String?
@@ -44,6 +47,7 @@ model User {
   aiCoachProgress   AiCoachProgress?
   aiCoachProfile    AiCoachProfile?
   aiCoachProfileSnapshots AiCoachProfileSnapshot[]
+  aiCoachOnboardingProfile AiCoachOnboardingProfile?
   feedbackCards     AiFeedbackCard[]
   trainingSessions  TrainingSession[]
   evolutionStages      EvolutionStage[]
@@ -404,6 +408,55 @@ model AiCoachProfileSnapshot {
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model AiCoachOnboardingProfile {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+
+  // ── 训练条件 ──
+  trainingExperience      String?  // 训练经验
+  injuryHistory           String?  // 伤病与限制
+  weeklyTrainingDays      Int?     // 每周训练天数
+  sessionDurationMinutes  Int?     // 单次训练时长
+  trainingEnvironment     String?  // 健身房 / 居家 / 混合
+  timePreference          String?  // 训练时间段偏好
+  equipmentList           String[] @default([])
+
+  // ── 力量锚点 ──
+  strengthAnchors         Json?    // [{exercise, weight, reps, nearFailure}]
+
+  // ── 饮食环境 ──
+  dietEnvironment         String?  // 食堂 / 外卖 / 家做 占比描述
+  typicalBreakfast        String?  // 典型早餐
+  typicalLunch            String?  // 典型午餐
+  typicalDinner           String?  // 典型晚餐
+  alcoholFrequency        String?  // 饮酒频率
+  snackFrequency          String?  // 零食/夜宵频率
+  diningOutFrequency      String?  // 外食频率
+
+  // ── 恢复与生活 ──
+  sleepHours              Float?   // 平均睡眠时长
+  sleepQuality            String?  // 睡眠质量描述
+  stressLevel             String?  // 压力等级
+  cardioType              String?  // 有氧类型
+  cardioFrequency         String?  // 有氧频率
+  stepsPerDay             Int?     // 每日步数
+
+  // ── 目标与动机 ──
+  motivationLevel         String?  // 动机水平
+  biggestChallenge        String?  // 最大挑战
+  targetAreas             String[] @default([]) // 优先改善部位
+  goalDirection           String?  // 减脂 / 增肌 / 体态重塑
+
+  // ── 流程控制 ──
+  onboardingCompleted     Boolean  @default(false)
+  onboardingStep          Int      @default(0)
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model TrainingSetDetail {

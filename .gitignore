@@ -6,11 +6,16 @@ __pycache__/
 # Environment
 .env
 .env.local
+.env.production
+.env.*.local
+!.env.example
 
 # Build outputs
 dist/
 build/
 *.log
+*.tar.gz
+*.zip
 
 # IDE
 .vscode/
@@ -27,3 +32,17 @@ chroma_db/
 
 # Uploads
 uploads/
+
+# Runtime and operational artifacts
+backups/
+letsencrypt/
+letsencrypt-staging/
+certbot-var/
+certbot-www/
+AGENT_HANDOFF_*.md
+*.bak
+*.bak2
+
+# Large source-data artifacts that should not be committed by default
+frontend/data/bilibili-videos/
+*.m4a

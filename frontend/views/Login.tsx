@@ -14,8 +14,8 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onGoRegister }) => {
 
   const handleUseDemoAccount = () => {
     setError('');
-    setEmail('demo@rightnow.fit');
-    setPassword('password123');
+    setEmail(import.meta.env.VITE_DEMO_EMAIL || 'demo@example.com');
+    setPassword('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

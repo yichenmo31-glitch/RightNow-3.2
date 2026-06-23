@@ -13,7 +13,7 @@ export { uploadApi } from './upload';
 export { userApi } from './user';
 export { imageGenApi } from './image-gen';
 export { fitnessPlanApi } from './fitness-plan';
-export { aiCoachApi } from './ai-coach';
+export { aiCoachApi, onboardingApi } from './ai-coach';
 export { groupsApi } from './groups';
 export { trainingSessionApi } from './training-session';
 
@@ -48,6 +48,9 @@ export type {
   FirstDayPlan,
   FirstDayPlanContext,
   FirstPlanSaveResult,
+  OnboardingProfile,
+  OnboardingProfileInput,
+  StrengthAnchor,
 } from './ai-coach';
 export type { Group, GroupMember, GroupMessage, PaginatedMessages } from './groups';
 export type { TrainingSession } from './training-session';

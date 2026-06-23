@@ -31,7 +31,7 @@ interface ImageProviderConfig {
 }
 
 @Injectable()
-class ImageGenService {
+export class ImageGenService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
@@ -117,7 +117,7 @@ class ImageGenService {
     const baseUrl = (
       this.configService.get<string>('IMAGE_GEN_BASE_URL')
       || this.configService.get<string>('CODEX_BASE_URL')
-      || 'https://code.newcli.com/codex/v1'
+      || 'https://api.openai.com/v1'
     ).trim().replace(/\/+$/, '');
 
     const model = (
@@ -356,5 +356,6 @@ class ImageGenController {
 @Module({
   controllers: [ImageGenController],
   providers: [ImageGenService],
+  exports: [ImageGenService],
 })
 export class ImageGenModule {}

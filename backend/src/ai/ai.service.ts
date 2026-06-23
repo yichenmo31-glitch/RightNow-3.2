@@ -1,5 +1,7 @@
-﻿import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { readFileSync } from 'fs';
+import { extname, join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { getModelPromptBinding, ModelPromptCode } from '../prompts/prompt-catalog';
 
@@ -147,16 +149,58 @@ export class AiService {
   }
 
   async estimateBodyFatFromImage(imageUrl: string): Promise<number> {
-    const prompt = `Estimate body fat percentage from this photo URL: ${imageUrl}. Return a number only, for example 15.5`;
-    const text = await this.requestGemini(prompt, {
+    const dataUrl = await this.imageUrlToDataUrl(imageUrl);
+    const systemPrompt =
+      'You are a body composition estimation assistant. Analyze the visible physique in the photo and estimate the body fat percentage. Return only a JSON object in the format {"bodyFat": 18.5}. Do not include explanation, markdown, or any other fields.';
+    const userPrompt =
+      'Estimate this person\'s body fat percentage from the uploaded photo. Return JSON only.';
+
+    const text = await this.requestVision(userPrompt, dataUrl, {
       temperature: 0.2,
-      maxOutputTokens: 50,
-    });
-    const parsed = Number.parseFloat(text.trim());
-    if (!Number.isFinite(parsed)) {
+      maxOutputTokens: 128,
+    }, systemPrompt);
+
+    const parsed = this.parseJsonResponse<{ bodyFat?: number }>(text);
+    const value = Number(parsed?.bodyFat);
+    if (!Number.isFinite(value)) {
       throw new Error('Model returned invalid body fat percentage');
     }
-    return parsed;
+    return value;
+  }
+
+  private async imageUrlToDataUrl(imageUrl: string): Promise<string> {
+    if (imageUrl.startsWith('data:')) {
+      return imageUrl;
+    }
+
+    let buffer: Buffer;
+    let mime = 'image/jpeg';
+
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${imageUrl}`);
+      }
+      buffer = Buffer.from(await response.arrayBuffer());
+      const pathname = new URL(imageUrl).pathname;
+      mime = this.mimeFromExtension(extname(pathname));
+    } else {
+      const localPath = imageUrl.startsWith('/uploads/')
+        ? join(process.cwd(), 'uploads', imageUrl.replace('/uploads/', ''))
+        : join(process.cwd(), imageUrl);
+      buffer = readFileSync(localPath);
+      mime = this.mimeFromExtension(extname(localPath));
+    }
+
+    return `data:${mime};base64,${buffer.toString('base64')}`;
+  }
+
+  private mimeFromExtension(extension: string): string {
+    const ext = extension.toLowerCase();
+    if (ext === '.png') return 'image/png';
+    if (ext === '.webp') return 'image/webp';
+    if (ext === '.gif') return 'image/gif';
+    return 'image/jpeg';
   }
 
   private async resolvePrompt(
@@ -213,6 +257,93 @@ export class AiService {
         return String(value);
       }
     });
+  }
+
+  private async requestVision(
+    prompt: string,
+    imageDataUrl: string,
+    generationConfig: GeminiGenerationConfig,
+    systemPrompt?: string,
+  ): Promise<string> {
+    const apiKey =
+      this.configService.get<string>('STEPFUN_API_KEY')?.trim() ||
+      this.configService.get<string>('DIET_VISION_API_KEY')?.trim() ||
+      '';
+
+    if (apiKey) {
+      const baseUrl = (
+        this.configService.get<string>('STEPFUN_BASE_URL') ||
+        this.configService.get<string>('DIET_VISION_BASE_URL') ||
+        'https://api.stepfun.com/v1'
+      )
+        .trim()
+        .replace(/\/+$/, '');
+
+      const model = (
+        this.configService.get<string>('BODY_FAT_VISION_MODEL') ||
+        this.configService.get<string>('DIET_VISION_MODEL') ||
+        'step-1o-turbo-vision'
+      ).trim();
+
+      const messages: Array<{
+        role: string;
+        content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+      }> = [];
+
+      if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
+      }
+
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: imageDataUrl } },
+        ],
+      });
+
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          response_format: { type: 'json_object' },
+          temperature: generationConfig.temperature ?? 0.2,
+          max_tokens: generationConfig.maxOutputTokens ?? 128,
+        }),
+      });
+
+      let payload: any = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        const remoteMessage = payload?.error?.message || `HTTP ${response.status}`;
+        throw new Error(`Vision model request failed: ${remoteMessage}`);
+      }
+
+      const content = payload?.choices?.[0]?.message?.content;
+      if (typeof content !== 'string' || !content.trim()) {
+        throw new Error('Vision model returned empty response text');
+      }
+
+      return content;
+    }
+
+    // Fallback to Gemini text-only when no vision API key is configured.
+    const text = await this.requestGemini(
+      `${prompt}\nImage URL: ${imageDataUrl}`,
+      generationConfig,
+      systemPrompt,
+    );
+    return text;
   }
 
   private async requestGemini(

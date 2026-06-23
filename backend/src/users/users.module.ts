@@ -27,6 +27,9 @@ class UsersService {
       weight?: number;
       age?: number;
       bodyStyle?: string;
+      userImage?: string | null;
+      userFaceImage?: string | null;
+      idealBodyImage?: string | null;
       currentPhase?: string;
       goalWeight?: number;
       activityLevel?: string;
@@ -43,6 +46,9 @@ class UsersService {
         weight: this.toOptionalNumber(body.weight),
         age: this.toOptionalInteger(body.age),
         bodyStyle: body.bodyStyle ?? undefined,
+        userImage: this.toOptionalStringOrNull(body.userImage),
+        userFaceImage: this.toOptionalStringOrNull(body.userFaceImage),
+        idealBodyImage: this.toOptionalStringOrNull(body.idealBodyImage),
         currentPhase: body.currentPhase ?? undefined,
         goalWeight: this.toOptionalNumber(body.goalWeight),
         activityLevel: body.activityLevel ?? undefined,
@@ -89,9 +95,12 @@ class UsersService {
     weight: number | null;
     age: number | null;
     bodyStyle: string | null;
+    userImage: string | null;
+    userFaceImage: string | null;
     currentPhase: string | null;
     goalWeight: number | null;
     activityLevel: string | null;
+    idealBodyImage: string | null;
     isProfileComplete: boolean;
   }) {
     return {
@@ -104,11 +113,28 @@ class UsersService {
       weight: user.weight ?? undefined,
       age: user.age ?? undefined,
       bodyStyle: user.bodyStyle ?? undefined,
+      userImage: user.userImage ?? undefined,
+      userFaceImage: user.userFaceImage ?? undefined,
       currentPhase: user.currentPhase ?? undefined,
       goalWeight: user.goalWeight ?? undefined,
       activityLevel: user.activityLevel ?? undefined,
+      idealBodyImage: user.idealBodyImage ?? undefined,
       isProfileComplete: user.isProfileComplete,
     };
+  }
+
+  private toOptionalStringOrNull(value: unknown): string | null | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    if (value === null) {
+      return null;
+    }
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
   }
 }
 
@@ -129,6 +155,9 @@ class UsersController {
       weight?: number;
       age?: number;
       bodyStyle?: string;
+      userImage?: string | null;
+      userFaceImage?: string | null;
+      idealBodyImage?: string | null;
       currentPhase?: string;
       goalWeight?: number;
       activityLevel?: string;
@@ -149,6 +178,9 @@ class UsersController {
       weight?: number;
       age?: number;
       bodyStyle?: string;
+      userImage?: string | null;
+      userFaceImage?: string | null;
+      idealBodyImage?: string | null;
       currentPhase?: string;
       goalWeight?: number;
       activityLevel?: string;

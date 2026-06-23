@@ -1,4 +1,4 @@
-# RightNow Fitness Local Startup Guide
+ï»¿# RightNow Fitness Local Startup Guide
 
 Last updated: 2026-03-06
 
@@ -48,12 +48,12 @@ The scripts run the same confirmed order:
 
 ## Seed Accounts
 
-- User demo account: `demo@rightnow.fit` / `password123`
-- Admin account: `admin@admin.com` / `123456`
+- User demo account: `demo@rightnow.fit` / `<demo-password>`
+- Admin account: `admin@example.com` / `<admin-password>`
 
 ## Training Start Flow (Synced)
 
-- In Action Center, click `¿ªÊ¼ÑµÁ·`.
+- In Action Center, click `å¼€å§‹è®­ç»ƒ`.
 - Frontend sends `POST /api/training-sessions`.
 - After success, app navigates to AI Coach in training mode and injects training context prompt.
 - If request fails, page should stay in Action Center and show a Chinese error tip.
@@ -80,7 +80,7 @@ VITE_API_BASE_URL=http://localhost:5000/api npm run dev:frontend
 ## Quick Health Checks
 
 ```powershell
-$body = @{ email='admin@admin.com'; password='123456' } | ConvertTo-Json
+$body = @{ email='admin@example.com'; password='<admin-password>' } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri 'http://localhost:5000/api/admin/auth/login' -ContentType 'application/json' -Body $body
 ```
 
@@ -95,3 +95,4 @@ curl.exe -i -X POST http://localhost:5000/api/training-sessions
 - If request URL is `http://localhost:5000/api/training-sessions` and returns 404: backend not started or not using current branch.
 - `cdn.tailwindcss.com should not be used in production` is a warning and not the root cause for this issue.
 - Browser plugin logs like `Immersive Translate ERROR` can be ignored for this flow.
+

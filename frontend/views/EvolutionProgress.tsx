@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from '../types';
-import { evolutionStageApi, EvolutionStage } from '../api/evolution-stage';
+import { evolutionStageApi, EvolutionStage, PredictionResponse } from '../api/evolution-stage';
 import { evolutionApi } from '../api/evolution';
 import type { EvolutionRecord as EvolutionRecordItem } from '../api/evolution';
 
@@ -12,13 +12,13 @@ interface Props {
 }
 
 const STAGES_CONFIG = [
-  { id: 6, top: 120, left: 200, align: 'center' },
-  { id: 5, top: 380, left: 100, align: 'left' },
-  { id: 4, top: 620, left: 300, align: 'right' },
-  { id: 3, top: 880, left: 300, align: 'right' },
-  { id: 2, top: 1140, left: 100, align: 'left' },
-  { id: 1, top: 1400, left: 100, align: 'left' },
-  { id: 0, top: 1650, left: 200, align: 'center' },
+  { id: 6, top: 100, left: 200, align: 'center' },
+  { id: 5, top: 400, left: 100, align: 'left' },
+  { id: 4, top: 700, left: 300, align: 'right' },
+  { id: 3, top: 1000, left: 300, align: 'right' },
+  { id: 2, top: 1300, left: 100, align: 'left' },
+  { id: 1, top: 1600, left: 100, align: 'left' },
+  { id: 0, top: 1900, left: 200, align: 'center' },
 ] as const;
 
 const FALLBACK_STAGE_TITLES = [
@@ -268,6 +268,8 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
   const [loadIssue, setLoadIssue] = useState('');
   const [currentFat, setCurrentFat] = useState(fallbackCurrentFat);
   const [targetFat, setTargetFat] = useState(fallbackTargetFat);
+  const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
 
   const displayBodyFatByStage = useMemo(
     () => buildDisplayBodyFatByStage(stages, currentFat, targetFat),
@@ -330,8 +332,10 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
       setTargetFat(goalStage?.targetBodyFat || fallbackTargetFat);
 
       if (!hasUserPhoto) {
-        setLoadIssue('暂未检测到你的进化照片，请先在“进化记录”里上传。');
+        setLoadIssue('暂未检测到你的进化照片，请先在"进化记录"里上传。');
       }
+
+      void loadPrediction();
     } catch (err) {
       console.error('Failed to load evolution stages:', err);
       setStages(buildFallbackStages(fallbackCurrentFat, fallbackTargetFat, imageContext));
@@ -340,10 +344,23 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
       setLoadIssue(
         hasUserPhoto
           ? '进度阶段服务暂不可用，已回退到你的照片路径。'
-          : '暂未检测到你的进化照片，请先在“进化记录”里上传。',
+          : '暂未检测到你的进化照片，请先在"进化记录"里上传。',
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPrediction = async () => {
+    setPredictionLoading(true);
+    try {
+      const result = await evolutionStageApi.predict(0.1);
+      setPrediction(result);
+    } catch (err) {
+      console.error('Failed to load evolution prediction:', err);
+      setPrediction(null);
+    } finally {
+      setPredictionLoading(false);
     }
   };
 
@@ -373,6 +390,25 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
     </>
   );
 
+  const renderPrediction = () => {
+    if (predictionLoading || !prediction) {
+      return (
+        <span className="text-gray-400 text-[10px] leading-relaxed">
+          基于你当前的轨迹，AI 预测将在数据充足后自动为你解锁节点时间。
+        </span>
+      );
+    }
+
+    return (
+      <span className="text-gray-400 text-[10px] leading-relaxed">
+        基于你当前的轨迹，如果{prediction.scenario}，你将在{' '}
+        <span className="text-white/70">{prediction.predictedDate}</span>{' '}
+        解锁{' '}
+        <strong className="text-[#B8FF00]">{prediction.targetBodyFat}% 节点</strong>。
+      </span>
+    );
+  };
+
   return (
     <div
       className="h-screen bg-[#050505] overflow-y-auto overflow-x-hidden font-sans select-none scroll-smooth relative"
@@ -390,23 +426,23 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
         </button>
       </div>
 
-      <div className="relative w-full max-w-[400px] h-[1900px] mx-auto mt-32 pb-40">
+      <div className="relative w-full max-w-[400px] h-[2200px] mx-auto mt-32 pb-40">
         {loadIssue && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-[90%] max-w-[340px] z-20 rounded-xl border border-[#B8FF00]/30 bg-black/70 backdrop-blur-md px-3 py-2 text-center text-[11px] text-[#D5FF73]">
             {loadIssue}
           </div>
         )}
 
-        <svg className="absolute inset-0 w-full h-[1900px] z-0 pointer-events-none" viewBox="0 0 400 1900" preserveAspectRatio="xMidYMid slice">
+        <svg className="absolute inset-0 w-full h-[2200px] z-0 pointer-events-none" viewBox="0 0 400 2200" preserveAspectRatio="xMidYMid slice">
           <path
-            d="M 200,120
-               C 200,280 100,280 100,380
-               C 100,520 300,520 300,620
-               C 300,760 300,760 300,880
-               C 300,1020 100,1020 100,1140
-               C 100,1280 100,1280 100,1400
-               C 100,1540 200,1540 200,1650
-               L 200,1800"
+            d="M 200,100
+               C 200,250 100,250 100,400
+               C 100,550 300,550 300,700
+               C 300,850 300,850 300,1000
+               C 300,1150 100,1150 100,1300
+               C 100,1450 100,1450 100,1600
+               C 100,1750 200,1750 200,1900
+               L 200,2100"
             stroke="#B8FF00"
             strokeWidth="1.5"
             strokeDasharray="6 6"
@@ -444,7 +480,7 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
 
                     <div className="w-[150px] h-[190px] rounded-[1.8rem] bg-black border-[2.5px] border-[#FFD700] flex items-center justify-center shadow-[0_0_50px_rgba(255,215,0,0.4),inset_0_0_20px_rgba(255,215,0,0.3)] relative overflow-hidden group">
                       <div className="absolute inset-0 bg-gradient-to-t from-[#FFD700]/20 to-transparent opacity-80 z-20 pointer-events-none mix-blend-screen"></div>
-                      {renderStageImage(imageUrl, 'Goal', 'w-full h-full object-cover object-top relative z-10 brightness-[1.15] contrast-[1.2] saturate-150')}
+                      {renderStageImage(imageUrl, 'Goal', 'w-full h-full object-contain relative z-10 brightness-[1.15] contrast-[1.2] saturate-150')}
                       <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-[#FFF]/40 to-transparent -translate-x-full animate-[shimmer_3s_ease-out_infinite] z-20 mix-blend-overlay"></div>
                       <div className="absolute bottom-0 inset-x-0 h-1/2 bg-gradient-to-t from-black via-black/40 to-transparent z-10"></div>
                     </div>
@@ -468,14 +504,16 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
             if (isCurrent) {
               return (
                 <div key={conf.id} className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10" style={{ top: conf.top, left: conf.left }}>
-                  <div className="w-[170px] h-[210px] rounded-[1.5rem] bg-black border-[1.5px] border-[#B8FF00] overflow-hidden flex flex-col relative shadow-[0_0_40px_rgba(184,255,0,0.15)] glow-neon">
-                    {renderStageImage(imageUrl, 'Current', 'w-full h-full object-cover object-top opacity-90')}
-                    <div className="absolute top-0 w-full h-1 bg-[#B8FF00]/60"></div>
-                    <div className="absolute bottom-0 w-full bg-gradient-to-t from-black via-black/90 to-transparent pt-12 pb-4 text-center">
-                      <h3 className="text-[#B8FF00] font-black italic text-4xl drop-shadow-md tracking-tighter">
+                  <div className="flex flex-col items-center">
+                    <div className="w-[170px] h-[200px] rounded-[1.5rem] bg-black border-[1.5px] border-[#B8FF00] overflow-hidden relative shadow-[0_0_40px_rgba(184,255,0,0.15)] glow-neon">
+                      {renderStageImage(imageUrl, 'Current', 'w-full h-full object-contain opacity-90')}
+                      <div className="absolute top-0 w-full h-1 bg-[#B8FF00]/60"></div>
+                    </div>
+                    <div className="mt-2 text-center">
+                      <h3 className="text-[#B8FF00] font-black italic text-3xl drop-shadow-md tracking-tighter">
                         {bodyFat}%<span className="text-[12px] not-italic ml-1 opacity-80">体脂</span>
                       </h3>
-                      <p className="text-white/80 text-[10px] uppercase font-bold tracking-[0.2em] mt-1">{stage.title}</p>
+                      <p className="text-white/80 text-[10px] uppercase font-bold tracking-[0.2em] mt-0.5">{stage.title}</p>
                     </div>
                   </div>
                   <div className="absolute -bottom-10 w-2 h-2 rounded-full bg-[#B8FF00] shadow-[0_0_15px_#B8FF00] border-2 border-[#B8FF00]"></div>
@@ -491,11 +529,13 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
             if (stage.isUnlocked) {
               return (
                 <div key={conf.id} className="absolute -translate-x-1/2 -translate-y-1/2 z-10" style={{ top: conf.top, left: conf.left }}>
-                  <div className="w-[170px] h-[210px] rounded-[1.5rem] bg-black border border-[#B8FF00]/60 overflow-hidden relative shadow-[0_0_30px_rgba(184,255,0,0.2)]">
-                    {renderStageImage(stage.actualImageUrl || imageUrl, `Unlocked ${conf.id}`, 'w-full h-full object-cover object-top opacity-90')}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-12 pb-3 flex flex-col items-center">
+                  <div className="flex flex-col items-center">
+                    <div className="w-[170px] h-[200px] rounded-[1.5rem] bg-black border border-[#B8FF00]/60 overflow-hidden relative shadow-[0_0_30px_rgba(184,255,0,0.2)]">
+                      {renderStageImage(stage.actualImageUrl || imageUrl, `Unlocked ${conf.id}`, 'w-full h-full object-contain opacity-90')}
+                    </div>
+                    <div className="mt-2 text-center">
                       <span className="text-[#B8FF00] font-black text-2xl italic tracking-tighter drop-shadow-md">{bodyFat}%</span>
-                      <div className="flex items-center gap-1 mt-1 opacity-90 bg-[#B8FF00]/20 px-2.5 py-0.5 rounded-full border border-[#B8FF00]/40">
+                      <div className="flex items-center justify-center gap-1 mt-1 opacity-90 bg-[#B8FF00]/20 px-2.5 py-0.5 rounded-full border border-[#B8FF00]/40">
                         <span className="material-icons-round text-[10px] text-[#B8FF00]">check_circle</span>
                         <span className="text-[9px] text-[#B8FF00] font-bold tracking-widest">已解锁</span>
                       </div>
@@ -508,11 +548,13 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
             if (isNextStage) {
               return (
                 <div key={conf.id} className="absolute -translate-x-1/2 -translate-y-1/2 z-10" style={{ top: conf.top, left: conf.left }}>
-                  <div className="w-[170px] h-[210px] rounded-[1.5rem] bg-black border border-[#B8FF00]/40 overflow-hidden relative shadow-[0_0_20px_rgba(184,255,0,0.15)]">
-                    {renderStageImage(imageUrl, `Next Stage ${conf.id}`, 'w-full h-full object-cover object-top opacity-90')}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-12 pb-3 flex flex-col items-center">
+                  <div className="flex flex-col items-center">
+                    <div className="w-[170px] h-[200px] rounded-[1.5rem] bg-black border border-[#B8FF00]/40 overflow-hidden relative shadow-[0_0_20px_rgba(184,255,0,0.15)]">
+                      {renderStageImage(imageUrl, `Next Stage ${conf.id}`, 'w-full h-full object-contain opacity-90')}
+                    </div>
+                    <div className="mt-2 text-center">
                       <span className="text-[#B8FF00] font-black text-2xl italic tracking-tighter drop-shadow-md">{bodyFat}%</span>
-                      <div className="flex items-center gap-1 mt-1 opacity-90 bg-[#B8FF00]/10 px-2.5 py-0.5 rounded-full border border-[#B8FF00]/30">
+                      <div className="flex items-center justify-center gap-1 mt-1 opacity-90 bg-[#B8FF00]/10 px-2.5 py-0.5 rounded-full border border-[#B8FF00]/30">
                         <span className="material-icons-round text-[10px] text-[#B8FF00]">lock_open</span>
                         <span className="text-[9px] text-[#B8FF00] font-bold tracking-widest">下阶段目标 {stage.qualifiedCount}/2</span>
                       </div>
@@ -524,13 +566,15 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
 
             return (
               <div key={conf.id} className="absolute -translate-x-1/2 -translate-y-1/2 z-10" style={{ top: conf.top, left: conf.left }}>
-                <div className="w-[170px] h-[210px] rounded-[1.5rem] bg-[#0a0a0a] border-[1px] border-white/5 flex flex-col items-center justify-center relative shadow-[0_10px_30px_rgba(0,0,0,0.5)] overflow-hidden">
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[length:10px_10px] pointer-events-none opacity-20"></div>
-                  <div className="relative z-20 flex flex-col items-center">
-                    <span className="text-gray-600 font-black text-4xl italic tracking-tighter drop-shadow-md">{bodyFat}%</span>
-                    <div className="flex items-center gap-1 mt-3 opacity-60 bg-black/60 px-3 py-1 rounded-full border border-white/5">
-                      <span className="material-icons-round text-[12px] text-gray-500">lock</span>
-                      <span className="text-[10px] text-gray-500 font-bold tracking-widest">待解锁</span>
+                <div className="flex flex-col items-center">
+                  <div className="w-[170px] h-[200px] rounded-[1.5rem] bg-[#0a0a0a] border-[1px] border-white/5 flex flex-col items-center justify-center relative shadow-[0_10px_30px_rgba(0,0,0,0.5)] overflow-hidden">
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[length:10px_10px] pointer-events-none opacity-20"></div>
+                    <div className="relative z-20 flex flex-col items-center">
+                      <span className="text-gray-600 font-black text-4xl italic tracking-tighter drop-shadow-md">{bodyFat}%</span>
+                      <div className="flex items-center gap-1 mt-3 opacity-60 bg-black/60 px-3 py-1 rounded-full border border-white/5">
+                        <span className="material-icons-round text-[12px] text-gray-500">lock</span>
+                        <span className="text-[10px] text-gray-500 font-bold tracking-widest">待解锁</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -548,11 +592,11 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
           <div className="flex-1">
             <div className="flex justify-between items-center mb-1">
               <h4 className="text-white font-bold text-[13px] tracking-widest">AI 预测</h4>
-              <span className="text-[9px] px-2 py-0.5 bg-white/10 rounded uppercase text-gray-400 font-mono tracking-widest">180 天</span>
+              <span className="text-[9px] px-2 py-0.5 bg-white/10 rounded uppercase text-gray-400 font-mono tracking-widest">
+                {prediction && !predictionLoading ? `${prediction.days} 天` : '--'}
+              </span>
             </div>
-            <p className="text-gray-400 text-[10px] leading-relaxed">
-              基于你当前的轨迹，如果蛋白质摄入量增加 10%，你将在 11 月中旬解锁 <strong className="text-[#B8FF00]">22% 节点</strong>。
-            </p>
+            {renderPrediction()}
           </div>
           <button
             onClick={() => setShowBanner(false)}

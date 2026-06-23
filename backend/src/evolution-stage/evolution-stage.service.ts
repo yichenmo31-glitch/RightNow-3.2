@@ -1,7 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { readFileSync, writeFileSync } from 'fs';
+import { extname, join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { ImageGenService } from '../image-gen/image-gen.module';
+import { UPLOADS_DIR, buildUploadUrl } from '../common/upload.util';
 
 export interface StageItem {
   stageIndex: number;
@@ -11,6 +15,15 @@ export interface StageItem {
   isUnlocked: boolean;
   actualImageUrl?: string;
   qualifiedCount: number;
+}
+
+export interface PredictionResult {
+  days: number;
+  predictedDate: string;
+  targetStageIndex: number;
+  targetBodyFat: number;
+  currentBodyFat: number;
+  scenario: string;
 }
 
 type UserSnapshot = {
@@ -25,13 +38,13 @@ const QUALIFIED_REQUIRED = 2;
 const QUALIFIED_INTERVAL_HOURS = 24;
 
 const STAGE_TITLES = [
-  '\u5f53\u524d\u72b6\u6001',
-  '\u521d\u59cb\u8fdb\u5c55',
-  '\u6301\u7eed\u8fdb\u6b65',
-  '\u53d8\u5316\u53ef\u89c1',
-  '\u63a5\u8fd1\u76ee\u6807',
-  '\u51b2\u523a\u9636\u6bb5',
-  '\u76ee\u6807\u8eab\u6750',
+  '当前状态',
+  '初始进展',
+  '持续进步',
+  '变化可见',
+  '接近目标',
+  '冲刺阶段',
+  '目标身材',
 ] as const;
 
 @Injectable()
@@ -41,6 +54,7 @@ export class EvolutionStageService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly imageGenService?: ImageGenService,
   ) {}
 
   async getStages(userId: string) {
@@ -136,23 +150,21 @@ export class EvolutionStageService {
     const assessmentCount =
       (await this.prisma.evolutionAssessment.count({ where: { userId } })) + 1;
 
+    // Try real AI vision estimation first, fall back to BMI-based formula.
     let bodyFat = this.calculateBodyFatFromUser(user);
-    let geminiBodyFat: number | null = null;
+    let aiBodyFat: number | null = null;
     let isGeminiCalibrated = false;
 
-    const shouldCalibrate = assessmentCount % 5 === 0;
-    if (shouldCalibrate) {
-      try {
-        const estimated = await this.aiService.estimateBodyFatFromImage(record.imageUrl);
-        if (Number.isFinite(estimated)) {
-          geminiBodyFat = this.normalizeBodyFat(estimated);
-          bodyFat = geminiBodyFat;
-          isGeminiCalibrated = true;
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'unknown error';
-        this.logger.warn(`Gemini calibration failed for ${record.id}: ${message}`);
+    try {
+      const estimated = await this.aiService.estimateBodyFatFromImage(record.imageUrl);
+      if (Number.isFinite(estimated)) {
+        aiBodyFat = this.normalizeBodyFat(estimated);
+        bodyFat = aiBodyFat;
+        isGeminiCalibrated = true;
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      this.logger.warn(`AI body-fat estimation failed for ${record.id}: ${message}`);
     }
 
     const normalizedBodyFat = this.normalizeBodyFat(bodyFat);
@@ -163,7 +175,7 @@ export class EvolutionStageService {
           userId,
           recordId: record.id,
           bodyFatEstimate: normalizedBodyFat,
-          geminiBodyFat,
+          geminiBodyFat: aiBodyFat,
           isGeminiCalibrated,
           assessmentCount,
         },
@@ -173,6 +185,12 @@ export class EvolutionStageService {
       });
 
       await this.checkUnlock(userId, normalizedBodyFat, record.imageUrl, assessment.createdAt);
+
+      // Generate next-stage preview image asynchronously (fire-and-forget).
+      this.generateNextStagePreview(userId, record.imageUrl).catch((error) => {
+        const message = error instanceof Error ? error.message : 'unknown error';
+        this.logger.warn(`Stage preview generation failed for record ${record.id}: ${message}`);
+      });
 
       return { bodyFat: normalizedBodyFat, isGeminiCalibrated };
     } catch (error) {
@@ -200,8 +218,201 @@ export class EvolutionStageService {
     }
   }
 
+  async getPrediction(
+    userId: string,
+    scenario: { proteinChangePercent?: number } = {},
+  ): Promise<PredictionResult> {
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+
+    const [assessments, stages, user, dietRecords] = await Promise.all([
+      this.prisma.evolutionAssessment.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        select: { bodyFatEstimate: true, createdAt: true },
+      }),
+      this.prisma.evolutionStage.findMany({
+        where: { userId },
+        orderBy: { stageIndex: 'asc' },
+        select: { stageIndex: true, targetBodyFat: true, isUnlocked: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { gender: true, weight: true, height: true, age: true },
+      }),
+      this.prisma.dietRecord.findMany({
+        where: {
+          userId,
+          createdAt: { gte: since },
+        },
+        select: { protein: true, createdAt: true },
+      }),
+    ]);
+
+    const currentBodyFat = assessments.length
+      ? assessments[assessments.length - 1].bodyFatEstimate
+      : this.calculateBodyFatFromUser(user);
+
+    const nextLockedStage = stages.find((s) => s.stageIndex > 0 && !s.isUnlocked);
+    const targetStage = nextLockedStage ?? stages.find((s) => s.stageIndex === 6);
+    const targetBodyFat =
+      targetStage?.targetBodyFat ?? this.calculateTargetBodyFat(user?.gender ?? null);
+
+    // Compute real body-fat change slope (% per day) from the most recent assessments.
+    let slopePerDay = -0.04;
+    if (assessments.length >= 2) {
+      const recent = assessments.slice(-7);
+      const first = recent[0];
+      const last = recent[recent.length - 1];
+      const days = Math.max(
+        1,
+        (last.createdAt.getTime() - first.createdAt.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      slopePerDay = (last.bodyFatEstimate - first.bodyFatEstimate) / days;
+    }
+
+    // Adjust speed based on the requested protein change scenario.
+    const proteinChangePercent = scenario.proteinChangePercent ?? 0;
+    const avgProtein =
+      dietRecords.reduce((sum, record) => sum + (record.protein ?? 0), 0) /
+      Math.max(1, dietRecords.length || 1);
+    const proteinFactor =
+      proteinChangePercent && avgProtein > 0 ? 1 + proteinChangePercent * 1.5 : 1;
+
+    let adjustedSlope = slopePerDay * proteinFactor;
+    if (adjustedSlope >= 0 || Math.abs(adjustedSlope) < 0.001) {
+      adjustedSlope = -0.04 * proteinFactor;
+    }
+
+    const diff = currentBodyFat - targetBodyFat;
+    const daysNeeded = diff > 0 ? Math.ceil(diff / Math.abs(adjustedSlope)) : 0;
+    const predictedDate = new Date();
+    predictedDate.setDate(predictedDate.getDate() + daysNeeded);
+    const predictedDateStr = `${predictedDate.getMonth() + 1}月${predictedDate.getDate()}日`;
+
+    return {
+      days: daysNeeded,
+      predictedDate: predictedDateStr,
+      targetStageIndex: targetStage?.stageIndex ?? 1,
+      targetBodyFat: Number(targetBodyFat.toFixed(1)),
+      currentBodyFat: Number(currentBodyFat.toFixed(1)),
+      scenario:
+        proteinChangePercent > 0
+          ? `蛋白质摄入 +${Math.round(proteinChangePercent * 100)}%`
+          : '当前轨迹',
+    };
+  }
+
+  private async generateNextStagePreview(userId: string, recordImageUrl: string) {
+    if (!this.imageGenService) {
+      return;
+    }
+
+    try {
+      const nextStage = await this.prisma.evolutionStage.findFirst({
+        where: { userId, isUnlocked: false },
+        orderBy: { stageIndex: 'asc' },
+      });
+
+      if (!nextStage) {
+        return;
+      }
+
+      // Don't regenerate if a user photo preview already exists for this stage.
+      if (nextStage.previewImageUrl && this.isGenStageUrl(nextStage.previewImageUrl)) {
+        return;
+      }
+
+      const dataUrl = await this.imageUrlToDataUrl(recordImageUrl);
+
+      const prompt = [
+        'Transform this fitness progress photo to show the same person at exactly',
+        `${nextStage.targetBodyFat}% body fat.`,
+        'Keep everything else identical: face, skin tone, hair, clothing, posture,',
+        'background, and lighting.',
+        'The only change is body composition — reduce body fat to',
+        `${nextStage.targetBodyFat}%.`,
+        'Photorealistic. No face distortion. No background changes.',
+      ].join(' ');
+
+      const result = await this.imageGenService.generateIdealBody(userId, {
+        prompt,
+        currentImageBase64: dataUrl,
+      });
+
+      if (!result.image) {
+        return;
+      }
+
+      const savedUrl = this.saveBase64Image(result.image);
+
+      await this.prisma.evolutionStage.update({
+        where: { id: nextStage.id },
+        data: { previewImageUrl: savedUrl },
+      });
+
+      this.logger.log(
+        `Generated stage preview for stage ${nextStage.stageIndex} (user ${userId})`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown';
+      this.logger.warn(`Stage preview generation failed: ${message}`);
+    }
+  }
+
+  private async imageUrlToDataUrl(imageUrl: string): Promise<string> {
+    if (imageUrl.startsWith('data:')) {
+      return imageUrl;
+    }
+
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${imageUrl}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const pathname = new URL(imageUrl).pathname;
+      const mime = this.mimeFromExt(extname(pathname));
+      return `data:${mime};base64,${buffer.toString('base64')}`;
+    }
+
+    const localPath = imageUrl.startsWith('/uploads/')
+      ? join(process.cwd(), 'uploads', imageUrl.replace('/uploads/', ''))
+      : join(process.cwd(), imageUrl);
+
+    const buffer = readFileSync(localPath);
+    const mime = this.mimeFromExt(extname(localPath));
+    return `data:${mime};base64,${buffer.toString('base64')}`;
+  }
+
+  private mimeFromExt(extension: string): string {
+    const ext = extension.toLowerCase();
+    if (ext === '.png') return 'image/png';
+    if (ext === '.webp') return 'image/webp';
+    if (ext === '.gif') return 'image/gif';
+    return 'image/jpeg';
+  }
+
+  private saveBase64Image(dataUrl: string): string {
+    let base64Data = dataUrl;
+    if (dataUrl.startsWith('data:')) {
+      const commaIndex = dataUrl.indexOf(',');
+      base64Data = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+    }
+
+    const filename = `gen-stage-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
+    const filepath = join(UPLOADS_DIR, filename);
+    writeFileSync(filepath, Buffer.from(base64Data.replace(/\s/g, ''), 'base64'));
+    return buildUploadUrl(filename);
+  }
+
+  private isGenStageUrl(url: string): boolean {
+    return url.includes('/gen-stage-');
+  }
+
   private async initializeStages(userId: string, gender: string | null) {
-    const targets = this.buildStageTargets(gender);
+    const { start, target } = await this.resolveStageEndpoints(userId, gender);
+    const targets = this.buildStageTargets(gender, start, target);
     const stageZeroPreviewImage = await this.getLatestGeneratedIdealImage(userId);
 
     await Promise.all(
@@ -264,6 +475,34 @@ export class EvolutionStageService {
         },
       });
     }
+  }
+
+  private async resolveStageEndpoints(
+    userId: string,
+    gender: string | null,
+  ): Promise<{ start: number; target: number }> {
+    const latestAssessment = await this.prisma.evolutionAssessment.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { bodyFatEstimate: true },
+    });
+
+    const start = latestAssessment?.bodyFatEstimate
+      ? this.normalizeBodyFat(latestAssessment.bodyFatEstimate)
+      : gender === 'female'
+        ? 35
+        : 25;
+
+    const coachGoal = await this.prisma.aiCoachAssessment.findUnique({
+      where: { userId },
+      select: { targetBodyFatEstimate: true },
+    });
+
+    const target = coachGoal?.targetBodyFatEstimate
+      ? this.normalizeBodyFat(coachGoal.targetBodyFatEstimate)
+      : this.calculateTargetBodyFat(gender);
+
+    return { start: Math.max(start, target), target };
   }
 
   private async checkUnlock(
@@ -348,21 +587,25 @@ export class EvolutionStageService {
     });
   }
 
-  private buildStageTargets(gender: string | null): number[] {
-    const start = gender === 'female' ? 35 : 25;
-    const target = this.calculateTargetBodyFat(gender);
+  private buildStageTargets(
+    gender: string | null,
+    start?: number,
+    target?: number,
+  ): number[] {
+    const safeStart = start ?? (gender === 'female' ? 35 : 25);
+    const safeTarget = target ?? this.calculateTargetBodyFat(gender);
 
     return Array.from({ length: STAGE_COUNT }, (_, index) => {
       if (index === 0) {
-        return Number(start.toFixed(1));
+        return Number(safeStart.toFixed(1));
       }
 
       if (index === STAGE_COUNT - 1) {
-        return Number(target.toFixed(1));
+        return Number(safeTarget.toFixed(1));
       }
 
-      const interval = (start - target) / (STAGE_COUNT - 1);
-      return Number((start - interval * index).toFixed(1));
+      const interval = (safeStart - safeTarget) / (STAGE_COUNT - 1);
+      return Number((safeStart - interval * index).toFixed(1));
     });
   }
 
