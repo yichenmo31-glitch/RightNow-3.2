@@ -141,6 +141,7 @@ class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
     domain: str = None
+    collection: str = None
     fast_path: bool = True  # 默认走新快路
 
 
@@ -154,6 +155,33 @@ class FaqImportRequest(BaseModel):
     force: bool = False
 
 
+def _resolve_collection_layer(collection: str) -> int | None:
+    if not collection:
+        return None
+
+    value = collection.strip().lower()
+    aliases = {
+        "l1": 1,
+        "faq": 1,
+        "search_faq": 1,
+        config.L1_COLLECTION.lower(): 1,
+        "l2": 2,
+        "core": 2,
+        "core_theory": 2,
+        "search_core": 2,
+        "search_core_theory": 2,
+        config.L2_COLLECTION.lower(): 2,
+        "l3": 3,
+        "books": 3,
+        "book": 3,
+        "search_books": 3,
+        config.L3_COLLECTION.lower(): 3,
+        "l4": 4,
+        "web": 4,
+    }
+    return aliases.get(value)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # 路由 — 检索
 # ═══════════════════════════════════════════════════════════════════════
@@ -164,6 +192,23 @@ async def search_knowledge(request: SearchRequest):
     默认走 FastMultiLayerRetriever（并行+L1短路）；
     fast_path=false 时回退旧顺序逻辑（需 USE_LEGACY=true）。
     """
+    layer = _resolve_collection_layer(request.collection)
+    if request.collection and layer is None:
+        return {
+            "status": "error",
+            "message": f"Unknown collection: {request.collection}",
+            "allowed_collections": [
+                config.L1_COLLECTION,
+                config.L2_COLLECTION,
+                config.L3_COLLECTION,
+                "web",
+            ],
+        }
+    if layer is not None:
+        return fast_retriever.search_layer(
+            layer, request.query, request.top_k, request.domain,
+        )
+
     if not request.fast_path and _legacy_retriever:
         return _legacy_retriever.search(request.query, request.top_k, request.domain)
     return fast_retriever.search(
@@ -319,6 +364,7 @@ async def health_check():
         "enabled": bool(_retriever_l2),
         "vector_count": fast_retriever.count_l2(),
         "chunk_size": config.CHUNK_SIZE,
+        "chunk_overlap": config.CHUNK_OVERLAP,
     }
 
     h["layer3"] = {
@@ -327,6 +373,7 @@ async def health_check():
         "enabled": bool(_retriever_l3),
         "vector_count": fast_retriever.count_l3(),
         "chunk_size": config.CHUNK_SIZE,
+        "chunk_overlap": config.CHUNK_OVERLAP,
     }
 
     h["layer4"] = {

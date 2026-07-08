@@ -58,6 +58,48 @@ class FastMultiLayerRetriever:
         except RuntimeError:
             return asyncio.run(self._search_async(query, top_k, domain))
 
+    def search_layer(self, layer: int, query: str, top_k: int = 5,
+                     domain: str = None) -> dict:
+        """只查指定层，供工具显式选择 collection 时使用。"""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(
+                        asyncio.run,
+                        self._search_layer_async(layer, query, top_k, domain),
+                    )
+                    return future.result(timeout=10)
+            return asyncio.run(self._search_layer_async(layer, query, top_k, domain))
+        except RuntimeError:
+            return asyncio.run(self._search_layer_async(layer, query, top_k, domain))
+
+    async def _search_layer_async(self, layer: int, query: str, top_k: int,
+                                  domain: str = None) -> dict:
+        """异步指定层检索实现。"""
+        if layer == 1:
+            docs, _ = await self._query_l1(query, top_k)
+            return self._format(docs[:top_k], layer=1, fast_path_hit=False)
+
+        if layer == 2:
+            docs, _ = await self._query_l2(query, top_k, domain)
+            return self._format(docs[:top_k], layer=2, fast_path_hit=False)
+
+        if layer == 3:
+            docs, _ = await self._query_l3(query, top_k, domain)
+            return self._format(docs[:top_k], layer=3, fast_path_hit=False)
+
+        if layer == 4 and self.web and config.USE_WEB_SEARCH:
+            try:
+                docs = self.web.search(query, top_k=top_k)
+            except Exception as exc:
+                print(f"[FastMulti] L4 web error: {exc}")
+                docs = []
+            return self._format(docs[:top_k], layer=4, fast_path_hit=False)
+
+        return self._format([], layer=layer, fast_path_hit=False)
+
     # ── 异步核心 ──
 
     async def _search_async(self, query: str, top_k: int, domain: str) -> dict:

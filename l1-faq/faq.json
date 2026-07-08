@@ -1,0 +1,272 @@
+[
+  {
+    "id": "faq-cutting-plateau-001",
+    "question": "减脂平台期怎么突破？",
+    "answer": "先确认最近 2 到 3 周是否真的维持了热量缺口，再检查活动量、蛋白质摄入、睡眠和压力。如果体重停滞但围度仍在变化，可以先继续观察；如果体重和围度都停滞，再小幅调整饮食、增加步数或优化训练表现。",
+    "tags": ["减脂", "平台期"],
+    "goal": "减脂",
+    "source_doc": "首批种子内容草稿",
+    "source_section": "平台期排查"
+  },
+  {
+    "id": "faq-takeout-cutting-002",
+    "question": "外卖减脂应该怎么点？",
+    "answer": "优先选择蛋白质明确、烹饪方式简单、蔬菜占比高的组合，例如鸡胸肉、牛肉、鱼类、鸡蛋配米饭和蔬菜。先保证蛋白质，再控制油炸、重酱和额外饮料甜品，尽量建立几套可重复使用的低风险菜单。",
+    "tags": ["减脂", "外卖", "饮食"],
+    "goal": "减脂",
+    "source_doc": "首批种子内容草稿",
+    "source_section": "外卖选择"
+  },
+  {
+    "id": "faq-beginner-frequency-003",
+    "question": "新手一周练几次比较合适？",
+    "answer": "多数新手每周训练 3 到 4 次更容易坚持，也更容易兼顾恢复。先把动作标准、训练习惯和恢复节奏建立起来，再逐步增加训练量，不建议一开始就追求高频高强度。",
+    "tags": ["新手", "训练频率"],
+    "goal": "增肌",
+    "source_doc": "首批种子内容草稿",
+    "source_section": "新手训练频率"
+  },
+  {
+    "id": "faq-protein-intake-004",
+    "question": "蛋白质一天吃多少比较合适？",
+    "answer": "多数规律训练的人可以先按体重每公斤 1.6 到 2.2 克作为常见参考区间，再结合总热量、训练目标和日常执行难度做调整。对大多数人来说，每日总量比纠结某一餐或某一个时间点更重要。",
+    "tags": ["蛋白质", "饮食", "增肌", "减脂"],
+    "goal": "通用",
+    "source_doc": "首批种子内容草稿",
+    "source_section": "蛋白质每日摄入"
+  },
+  {
+    "id": "faq-weight-stall-waist-change-005",
+    "question": "体重不下降但围度变了，算有效吗？",
+    "answer": "通常算有效。体重只是结果指标之一，围度、镜子变化、训练表现和主观状态也很重要。如果腰围下降、衣服更松或力量保持得更好，往往说明身体成分在往好的方向变化，不需要只盯体重数字。",
+    "tags": ["体重", "围度", "减脂评估"],
+    "goal": "减脂",
+    "source_doc": "首批种子内容草稿",
+    "source_section": "减脂效果评估"
+  },
+  {
+    "id": "faq-bmi-006",
+    "question": "BMI 是怎么计算的？",
+    "answer": "BMI 的常见计算方式是体重千克数除以身高米数的平方。它适合做初步筛查，但不能代替围度、体脂率和实际体型判断，尤其不适合单独拿来评价训练人群的身体成分。",
+    "tags": ["BMI", "体型评估"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/body-metrics.md",
+    "source_section": "BMI"
+  },
+  {
+    "id": "faq-bmr-tdee-007",
+    "question": "基础代谢和 TDEE 有什么区别？",
+    "answer": "基础代谢是身体在静息状态下维持生命活动的大致能量消耗，TDEE 则是在基础代谢之上，再乘上日常活动和训练后的总消耗。做饮食计划时，通常先估算 BMR，再结合活动水平推算 TDEE。",
+    "tags": ["BMR", "TDEE", "热量"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/body-metrics.md",
+    "source_section": "BMR and TDEE"
+  },
+  {
+    "id": "faq-fat-loss-calories-008",
+    "question": "减脂期热量应该怎么定？",
+    "answer": "可以先按 TDEE 减去 300 到 500 千卡作为常见起步范围，再根据每周平均体重、围度和执行感受微调。重点是形成稳定缺口，而不是一开始就把热量压得很低。",
+    "tags": ["减脂", "热量缺口", "TDEE"],
+    "goal": "减脂",
+    "source_doc": "frontend/knowledge/nutrition.md",
+    "source_section": "Energy Strategy"
+  },
+  {
+    "id": "faq-muscle-gain-calories-009",
+    "question": "增肌期热量应该加多少？",
+    "answer": "多数人可以先从维持热量以上 150 到 300 千卡开始，再观察体重、围度和训练表现。热量加得太猛虽然会更快增重，但也更容易带来不必要的脂肪增长。",
+    "tags": ["增肌", "热量盈余"],
+    "goal": "增肌",
+    "source_doc": "frontend/knowledge/nutrition.md",
+    "source_section": "Energy Strategy"
+  },
+  {
+    "id": "faq-recovery-010",
+    "question": "训练后一直很累，是不是该减量了？",
+    "answer": "如果持续疲劳、训练表现下降、睡眠变差或恢复明显跟不上，通常说明应该先调整训练量、强度或安排一次减量周，而不是硬顶。长期进步更依赖可恢复的训练，而不是每次都练到极限。",
+    "tags": ["恢复", "减量周", "疲劳"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/exercise-science.md",
+    "source_section": "Recovery"
+  },
+  {
+    "id": "faq-beginner-template-011",
+    "question": "新手应该用什么训练模板开始？",
+    "answer": "对大多数新手来说，每周 3 次全身训练是很稳妥的起点。单次控制在 40 到 60 分钟、5 到 7 个动作，更容易兼顾恢复、动作质量和长期坚持。",
+    "tags": ["新手训练", "训练模板"],
+    "goal": "增肌",
+    "source_doc": "frontend/knowledge/training-templates.md",
+    "source_section": "Beginner"
+  },
+  {
+    "id": "faq-cardio-fat-loss-012",
+    "question": "减脂期有氧一周做几次比较合适？",
+    "answer": "常见起步范围是一周 2 到 4 次低到中等强度有氧，具体还要看总步数、力量训练安排和恢复情况。有氧是辅助工具，核心仍然是热量缺口和整体执行质量。",
+    "tags": ["有氧", "减脂", "训练安排"],
+    "goal": "减脂",
+    "source_doc": "frontend/knowledge/training-templates.md",
+    "source_section": "Cardio Integration"
+  },
+  {
+    "id": "faq-home-training-013",
+    "question": "只有在家徒手训练，也能先开始减脂吗？",
+    "answer": "可以。在家徒手和简单器械完全能作为起点，重点是建立固定频率、控制单次时长、逐步提高动作质量和活动量。对新手来说，可执行性往往比器械豪华更重要。",
+    "tags": ["居家训练", "徒手", "减脂"],
+    "goal": "减脂",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "home bodyweight novice"
+  },
+  {
+    "id": "faq-travel-training-014",
+    "question": "经常出差的人，训练计划应该怎么安排？",
+    "answer": "高频出差的人更适合用短时、低器械依赖、可替换性强的模板，比如酒店房间徒手加弹力带训练。计划重点应放在稳定执行、动作替代和饮食下限管理，而不是追求完美训练条件。",
+    "tags": ["出差", "训练安排", "酒店训练"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "frequent travel"
+  },
+  {
+    "id": "faq-shift-work-015",
+    "question": "轮班或夜班人群怎么安排减脂？",
+    "answer": "轮班或夜班更需要把计划做简单，优先固定餐次结构、补水节奏和训练时段下限。相比追求理想作息，更重要的是在不规律作息里保持稳定的热量管理、睡眠保护和低风险训练。",
+    "tags": ["夜班", "轮班", "减脂"],
+    "goal": "减脂",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "shift worker"
+  },
+  {
+    "id": "faq-vegetarian-protein-016",
+    "question": "素食为主的人，蛋白质怎么更容易吃够？",
+    "answer": "可以优先围绕豆制品、奶制品、鸡蛋、酸奶、豆浆和高蛋白零食去规划每餐，让蛋白质来源先明确，再安排主食和蔬菜。重点是提前设计固定组合，而不是临时凑。",
+    "tags": ["素食", "蛋白质", "饮食规划"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "vegetarian"
+  },
+  {
+    "id": "faq-old-injury-017",
+    "question": "有旧伤的人还能正常训练吗？",
+    "answer": "多数情况下可以训练，但需要把安全边界放在首位，优先做低风险变式、缩小动作范围、控制强度，并持续观察疼痛和恢复情况。如果疼痛持续、加重或影响日常生活，应及时交给医生或康复专业人士处理。",
+    "tags": ["旧伤", "训练调整", "安全边界"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "old injury"
+  },
+  {
+    "id": "faq-chronic-condition-018",
+    "question": "有慢性病管理需求的人，训练时最重要的是什么？",
+    "answer": "最重要的是先明确禁忌和风险边界，再选择更稳定、可监测、低冲击的训练形式。对这类人群，稳定执行和安全监测通常比追求训练刺激更重要。",
+    "tags": ["慢性病", "训练安全", "特殊人群"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "chronic condition"
+  },
+  {
+    "id": "faq-short-session-019",
+    "question": "每天只有 15 到 20 分钟，还值得训练吗？",
+    "answer": "值得。对很多忙碌用户来说，短时高执行率的训练比偶尔做一次大训练更现实。关键是把动作数量、节奏和恢复控制在可持续范围内，让训练成为稳定习惯。",
+    "tags": ["碎片时间", "短时训练", "习惯建立"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "short session"
+  },
+  {
+    "id": "faq-water-reminder-020",
+    "question": "喝水提醒应该怎么做才更容易坚持？",
+    "answer": "比起一个大目标，更有效的方式通常是把喝水拆成几个固定时点，例如早上、午间、傍晚和睡前前置提醒，并根据训练日和休息日做轻微调整。提醒策略要服务于生活节奏，而不是反过来打乱节奏。",
+    "tags": ["喝水", "提醒", "执行策略"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "hydration prompts"
+  },
+  {
+    "id": "faq-weekly-trend-021",
+    "question": "减脂时应该看每天体重，还是看每周平均？",
+    "answer": "更建议看每周平均趋势。单日体重很容易受到水分、盐分、睡眠和排便影响，而周平均更能反映真实变化。判断计划是否有效时，也要把围度、照片和训练状态一起看。",
+    "tags": ["减脂", "体重趋势", "评估"],
+    "goal": "减脂",
+    "source_doc": "l2-core/减脂评估-体重不降围度变化.md",
+    "source_section": "应该看哪些指标"
+  },
+  {
+    "id": "faq-skip-dinner-022",
+    "question": "减脂是不是不吃晚饭更有效？",
+    "answer": "不一定。减脂关键是总热量和长期执行，不是单纯删掉某一餐。如果不吃晚饭让你更容易暴食、恢复变差或训练状态下滑，整体效果反而可能更差。",
+    "tags": ["减脂", "晚饭", "饮食策略"],
+    "goal": "减脂",
+    "source_doc": "l2-core/营养基线-热量与宏量营养.md",
+    "source_section": "核心原则"
+  },
+  {
+    "id": "faq-heavy-weight-023",
+    "question": "增肌是不是一定要上很大重量？",
+    "answer": "不是。增肌的关键是让目标肌群获得足够、可恢复的训练刺激，而不是单纯追求最大重量。动作质量、总训练量、接近力竭程度和长期渐进都很重要。",
+    "tags": ["增肌", "重量", "训练刺激"],
+    "goal": "增肌",
+    "source_doc": "l2-core/训练科学-基础原则与恢复.md",
+    "source_section": "渐进超负荷"
+  },
+  {
+    "id": "faq-cardio-muscle-loss-024",
+    "question": "做有氧会不会掉肌肉？",
+    "answer": "合理安排通常不会。真正更容易导致肌肉流失的往往是热量缺口过大、蛋白质不足、恢复太差，或者有氧量大到明显干扰力量训练。关键是控制总量并保住力量训练质量。",
+    "tags": ["有氧", "肌肉流失", "恢复"],
+    "goal": "通用",
+    "source_doc": "l2-core/训练模板-新手到进阶.md",
+    "source_section": "有氧整合"
+  },
+  {
+    "id": "faq-exercise-order-025",
+    "question": "一节训练里，动作顺序应该怎么排？",
+    "answer": "通常把技术要求高、负荷更重、对精力要求更高的动作放在前面，再安排辅助动作和低风险补充训练。这样更利于动作质量，也更容易控制疲劳。",
+    "tags": ["动作顺序", "训练安排"],
+    "goal": "通用",
+    "source_doc": "l2-core/训练科学-基础原则与恢复.md",
+    "source_section": "训练优先级"
+  },
+  {
+    "id": "faq-warmup-time-026",
+    "question": "热身一般做多久比较合适？",
+    "answer": "常见起点是 8 到 12 分钟，重点放在活动度、激活和为当天主动作做准备。热身不是越长越好，而是要让身体进入可训练状态，同时不过度消耗精力。",
+    "tags": ["热身", "训练准备"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/exercise-science.md",
+    "source_section": "Injury Risk Control"
+  },
+  {
+    "id": "faq-soreness-027",
+    "question": "训练后酸痛越强，是不是说明练得越好？",
+    "answer": "不是。酸痛只能说明你受到了某种刺激，不能直接代表训练质量。真正更值得看的是动作完成度、训练表现、恢复情况和长期进步趋势。",
+    "tags": ["酸痛", "训练效果", "恢复"],
+    "goal": "通用",
+    "source_doc": "l2-core/训练科学-基础原则与恢复.md",
+    "source_section": "恢复原则"
+  },
+  {
+    "id": "faq-rest-day-eating-028",
+    "question": "休息日饮食需要和训练日完全一样吗？",
+    "answer": "不一定需要完全一样，但核心结构通常应保持稳定。训练日和休息日可以在总热量、碳水分配或加餐上做轻微调整，不过蛋白质和整体饮食质量不建议大幅波动。",
+    "tags": ["休息日", "饮食安排", "碳水"],
+    "goal": "通用",
+    "source_doc": "l2-core/营养基线-热量与宏量营养.md",
+    "source_section": "餐次与守则"
+  },
+  {
+    "id": "faq-bad-sleep-training-029",
+    "question": "前一晚没睡好，第二天训练怎么办？",
+    "answer": "可以先根据精神状态和恢复情况做降级处理，例如减少总训练量、保留主动作、降低强度，或者把高风险动作改成更稳的版本。重点是保住节奏，而不是硬顶完成原计划。",
+    "tags": ["睡眠", "训练调整", "恢复"],
+    "goal": "通用",
+    "source_doc": "l2-core/训练科学-基础原则与恢复.md",
+    "source_section": "恢复原则"
+  },
+  {
+    "id": "faq-program-adjust-030",
+    "question": "训练计划一般多久调整一次？",
+    "answer": "多数人可以先连续执行 4 到 6 周，再根据训练表现、恢复、围度和执行感受决定是否调整。不要因为一两次训练状态波动就频繁换计划，也不要长期不复盘。",
+    "tags": ["训练计划", "周期调整", "复盘"],
+    "goal": "通用",
+    "source_doc": "frontend/knowledge/user_portraits_kb_coach_build.xml",
+    "source_section": "按周复盘调整"
+  }
+]
