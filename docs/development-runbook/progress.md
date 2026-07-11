@@ -395,3 +395,15 @@
 - Evidence: Pydantic validation is defined on `SearchRequest`; FastAPI should return 422 for blank query.
 - Blocker: Steps 3.1 and 3.4.
 - Next: start API and test docs, FAQ/Core/Books queries, and blank-query 422.
+
+## 5.1 Read frontend constraints and establish baseline
+
+- Owner: ROOT
+- Status: completed
+- Started/completed: 2026-07-11
+- Changed files: `frontend/views/AIChat.tsx`
+- Commands: read frontend contributor/memory files, `npm run build:frontend`, Vite dev server, browser reload/DOM/console inspection.
+- Test result: removed a duplicate `chatApi` import that blocked Babel compilation; production build passes, Vite returns 200, and the rendered start screen has no browser console errors.
+- Evidence: browser DOM shows `点击遇见 未来的自己` and `Tap to Start` at `http://127.0.0.1:5173/`.
+- Blocker: none
+- Next: verify the Vite `/api` proxy and authenticated workflows in steps 5.2-5.4.

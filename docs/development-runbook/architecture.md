@@ -102,3 +102,5 @@ PostgreSQL owns current weight, meals, workouts, TODOs, plans, confirmed memory 
 - `rag-service/scripts/ingest_all.py`: canonical local three-layer importer; maps L1/L2/L3 to distinct Chroma collections and accepts an explicit persistence root.
 - `rag-service/main.py`: FastAPI RAG boundary for layer-specific and combined retrieval; request validation rejects blank queries before retrieval.
 - `rag-service/.work/` and `rag-service/chroma_*/`: ignored local preparation and Chroma persistence state; they are rebuildable runtime data, never knowledge-source authority.
+- `frontend/views/AIChat.tsx`: AI coach/chat view state machine; imports the chat runtime API from `frontend/api/chat` and must not redeclare the same binding through the aggregate API barrel.
+- `frontend/vite.config.ts`: local browser-to-backend proxy boundary. The user-facing application runs on port 5173; port 5000 is API-only and intentionally has no root HTML page.

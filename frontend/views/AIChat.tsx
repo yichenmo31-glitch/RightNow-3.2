@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { aiCoachApi, authApi, chatApi, trainingSessionApi } from '../api';
+import { aiCoachApi, authApi, trainingSessionApi } from '../api';
 import type {
   CoachAssessment,
   CoachIntakePayload,
