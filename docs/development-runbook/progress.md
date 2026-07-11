@@ -407,3 +407,15 @@
 - Evidence: browser DOM shows `点击遇见 未来的自己` and `Tap to Start` at `http://127.0.0.1:5173/`.
 - Blocker: none
 - Next: verify the Vite `/api` proxy and authenticated workflows in steps 5.2-5.4.
+
+## 5.2 Verify Vite API proxy
+
+- Owner: ROOT
+- Status: completed
+- Started/completed: 2026-07-11
+- Changed files: `frontend/api/client.ts`, `frontend/vite.config.ts`, `.env.example`, `backend/.env.example`
+- Commands: frontend build, Vite/backend restart, proxied auth probes with explicit Origin, browser demo login.
+- Test result: frontend uses same-origin `/api`; `/api/agent` is proxied; backend accepts both localhost and 127.0.0.1 development origins; demo login reaches the dashboard.
+- Evidence: proxy login returned 201 with `Access-Control-Allow-Origin: http://127.0.0.1:5173`; browser rendered the authenticated RightNow dashboard with no console errors.
+- Blocker: none
+- Next: verify profile/weight and business record workflows in steps 5.3-5.4.

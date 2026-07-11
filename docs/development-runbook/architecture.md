@@ -104,3 +104,4 @@ PostgreSQL owns current weight, meals, workouts, TODOs, plans, confirmed memory 
 - `rag-service/.work/` and `rag-service/chroma_*/`: ignored local preparation and Chroma persistence state; they are rebuildable runtime data, never knowledge-source authority.
 - `frontend/views/AIChat.tsx`: AI coach/chat view state machine; imports the chat runtime API from `frontend/api/chat` and must not redeclare the same binding through the aggregate API barrel.
 - `frontend/vite.config.ts`: local browser-to-backend proxy boundary. The user-facing application runs on port 5173; port 5000 is API-only and intentionally has no root HTML page.
+- Local CORS allows both `localhost` and `127.0.0.1` on frontend ports 5173/5174. Vite proxies preserve the browser Origin, so these loopback spellings are distinct allow-list entries.
