@@ -1,5 +1,6 @@
 ﻿import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildUploadUrl } from '../common/upload.util';
 
 interface UploadListOptions {
   kind?: string;
@@ -25,7 +26,7 @@ export class UploadService {
     return this.prisma.uploadAsset.create({
       data: {
         userId,
-        url: `/uploads/${filename}`,
+        url: buildUploadUrl(filename),
         kind,
       },
     });

@@ -5,7 +5,7 @@ import { extname, join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService, BodyFatEstimateResult } from '../ai/ai.service';
 import { ImageGenService } from '../image-gen/image-gen.module';
-import { UPLOADS_DIR, buildUploadUrl } from '../common/upload.util';
+import { UPLOADS_DIR, buildUploadUrl, resolveLocalUploadPath } from '../common/upload.util';
 
 export interface StageItem {
   stageIndex: number;
@@ -769,9 +769,7 @@ export class EvolutionStageService {
       return `data:${mime};base64,${buffer.toString('base64')}`;
     }
 
-    const localPath = imageUrl.startsWith('/uploads/')
-      ? join(process.cwd(), 'uploads', imageUrl.replace('/uploads/', ''))
-      : join(process.cwd(), imageUrl);
+    const localPath = resolveLocalUploadPath(imageUrl) || join(process.cwd(), imageUrl);
     const buffer = readFileSync(localPath);
     const mime = this.mimeFromExt(extname(localPath));
     return `data:${mime};base64,${buffer.toString('base64')}`;

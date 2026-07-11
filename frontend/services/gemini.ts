@@ -4,7 +4,7 @@
  * 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾惧綊鏌ｉ幋锝呅撻柛濠傛健閺屻劑寮撮悙娴嬪亾閸濄儳涓嶉柡宥庡幗閻撴洘銇勯幇鍓佺ɑ缂佲偓閳ь剛绱掗悙顒€鍔ゆ繛纭风節瀵鏁嶉崟顏呭媰闁荤姴娲﹁ぐ鍐╂叏鎼达絿纾奸柣鎰靛墮閸斻倖绻涚涵椋庣瘈鐎殿喖顭烽幃銏ゆ偂鎼达絿鏆伴梻浣虹帛椤ㄥ懘鎮у鍏炬盯宕熼鐘碉紲闂佸憡鎸嗛崘褍顥氶梺璇叉捣閻熸娊宕惰閻ゅ嫰姊洪棃娑辩劸闁稿孩鐟╅幃銏ゆ偂鎼达紕鈧厼顪冮妶鍡樷拹闁稿骸纾弫顕€宕稿Δ浣叉嫽婵炶揪绲肩拃锕傛倿閻愵兙浜滈柟瀛樼箓閺嗭絿鈧娲樼换鍫ョ嵁鐎ｎ喗鏅濋柍褜鍓熼幏鎴︽偄閸忚偐鍙嗗┑鐘绘涧濡厼危閸濄儳纾兼い鎰╁灮鏁堥梺鍝勬湰缁嬫挻绂掗敂鐐珰婵炴潙顑呮禍鐐繆閵堝懏鍣圭紒鈧径鎰厵闂傚倸顕崝宥夋煃? Gemini 3.1 Flash Lite/Image Preview (fallback)
  */
 
-import apiClient from '../api/client';
+import apiClient, { apiUrl } from '../api/client';
 
 const API_KEY = () => import.meta.env.VITE_GEMINI_API_KEY || '';
 
@@ -1554,7 +1554,7 @@ export async function buildCoachKnowledgePrompt(
   }
 
   try {
-    const response = await fetch('/api/chat/search', {
+    const response = await fetch(apiUrl('/chat/search'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('rightnow_token') || '') },
       body: JSON.stringify({

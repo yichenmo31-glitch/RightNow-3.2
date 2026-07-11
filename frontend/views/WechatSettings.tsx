@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { chatApi, wechatApi } from '../api/chat';
 import type { WechatBindingInfo } from '../api/chat';
+import { apiUrl } from '../api/client';
 
 interface Props {
   onBack: () => void;
@@ -51,7 +52,7 @@ const WechatSettings: React.FC<Props> = ({ onBack }) => {
     setError(null);
     try {
       const token = localStorage.getItem('rightnow_token');
-      const res = await fetch('/api/wechat/bot/login/start', {
+      const res = await fetch(apiUrl('/wechat/bot/login/start'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
@@ -73,7 +74,7 @@ const WechatSettings: React.FC<Props> = ({ onBack }) => {
       stopPoll();
       pollRef.current = setInterval(async () => {
         try {
-          const sr = await fetch('/api/wechat/bot/login/status', {
+          const sr = await fetch(apiUrl('/wechat/bot/login/status'), {
             headers: { Authorization: `Bearer ${token}` },
           });
           const sd = await sr.json();

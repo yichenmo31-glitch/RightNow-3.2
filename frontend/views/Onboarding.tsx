@@ -18,16 +18,18 @@ type BodyStyleOption = {
   image: string;
 };
 
+const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
+
 const BODY_STYLE_OPTIONS: Record<'male' | 'female', BodyStyleOption[]> = {
   male: [
-    { id: 'slim', label: '薄肌型', description: '线条分明，精瘦有型', image: '/man-models/薄肌型.png' },
-    { id: 'athletic', label: '力量型', description: '均衡发展，注重运动表现', image: '/man-models/力量型.png' },
-    { id: 'muscular', label: '健美型', description: '大框架，追求肌肉量', image: '/man-models/健美型.png' },
+    { id: 'slim', label: '薄肌型', description: '线条分明，精瘦有型', image: assetUrl('/man-models/薄肌型.png') },
+    { id: 'athletic', label: '力量型', description: '均衡发展，注重运动表现', image: assetUrl('/man-models/力量型.png') },
+    { id: 'muscular', label: '健美型', description: '大框架，追求肌肉量', image: assetUrl('/man-models/健美型.png') },
   ],
   female: [
-    { id: 'comic', label: '漫画型', description: '轻盈纤细，线条柔和', image: '/woman-models/漫画型.png' },
-    { id: 'athletic', label: '力量型', description: '强壮均衡，运动感', image: '/woman-models/力量型.png' },
-    { id: 'muscular', label: '健美型', description: '力量优先，肌肉轮廓', image: '/woman-models/健美型.png' },
+    { id: 'comic', label: '漫画型', description: '轻盈纤细，线条柔和', image: assetUrl('/woman-models/漫画型.png') },
+    { id: 'athletic', label: '力量型', description: '强壮均衡，运动感', image: assetUrl('/woman-models/力量型.png') },
+    { id: 'muscular', label: '健美型', description: '力量优先，肌肉轮廓', image: assetUrl('/woman-models/健美型.png') },
   ],
 };
 

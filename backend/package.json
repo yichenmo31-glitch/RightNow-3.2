@@ -8,6 +8,7 @@
     "test:intent": "npm run build && node scripts/test-intent-classifier.cjs",
     "test:openclaw-identity": "npm run build && node scripts/test-openclaw-identity.cjs",
     "test:agent-memory": "npm run build && node scripts/test-agent-memory.cjs",
+    "test:upload-prefix": "npm run build && node scripts/test-upload-prefix.cjs",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",

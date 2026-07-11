@@ -1,0 +1,26 @@
+[Unit]
+Description=RightNow FastAPI RAG service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rightnow
+Group=rightnow
+WorkingDirectory=/opt/rightnow/current
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/etc/rightnow/rag.env
+ExecStart=/opt/rightnow/venv-rag/bin/python -m uvicorn main:app --app-dir /opt/rightnow/current/rag-service --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/rightnow/rag
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
+

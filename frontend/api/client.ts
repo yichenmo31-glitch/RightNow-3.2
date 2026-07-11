@@ -1,7 +1,11 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 const TOKEN_KEY = 'rightnow_token';
+
+export function apiUrl(path: string): string {
+  return `${API_BASE_URL}/${path.replace(/^\//, '')}`;
+}
 
 const client = axios.create({
   baseURL: API_BASE_URL,

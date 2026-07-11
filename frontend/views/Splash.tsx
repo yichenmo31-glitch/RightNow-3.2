@@ -17,7 +17,7 @@ const Splash: React.FC<Props> = ({ onComplete }) => {
            例如: src="/assets/splash_tree.jpg" 
         */}
         <img
-          src="/assets/splash_bg.jpg"
+          src={`${import.meta.env.BASE_URL}assets/splash_bg.jpg`}
           alt="Future Path"
           className="w-full h-full object-cover animate-[zoom_25s_ease-out_infinite] opacity-80 group-active:scale-105 transition-transform duration-700"
         />

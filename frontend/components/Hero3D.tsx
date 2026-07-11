@@ -2,12 +2,14 @@ import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment, useGLTF } from '@react-three/drei';
 
+const modelUrl = `${import.meta.env.BASE_URL}assets/model.glb`;
+
 // ------------------------------------------------------------------
 // Custom GLB Model Component
 // ------------------------------------------------------------------
 const Model = () => {
     // Load the model from the public folder
-    const { scene } = useGLTF('/assets/model.glb');
+    const { scene } = useGLTF(modelUrl);
 
     return (
         <primitive
@@ -19,7 +21,7 @@ const Model = () => {
 };
 
 // Preload the model to avoid pop-in
-useGLTF.preload('/assets/model.glb');
+useGLTF.preload(modelUrl);
 
 // ------------------------------------------------------------------
 // Main Scene Component

@@ -27,6 +27,7 @@ import type { GeminiMessage, UserProfileContext } from '../services/gemini';
 import type { ChatMessage, WechatBindingInfo } from '../api/chat';
 import { chatApi, wechatApi } from '../api/chat';
 import { dietApi } from '../api/diet';
+import { apiUrl } from '../api/client';
 import { View } from '../types';
 
 const FREE_CHAT_PROMPT_SUFFIX = '\n回答要求：中文、简洁、可执行。';
@@ -612,7 +613,7 @@ const AIChat: React.FC<Props> = ({
     const token = localStorage.getItem('rightnow_token');
     // Check if bridge is already logged in — skip QR if so.
     try {
-      const bs = await fetch('/api/wechat/bot/status', { headers: { Authorization: `Bearer ${token}` } });
+      const bs = await fetch(apiUrl('/wechat/bot/status'), { headers: { Authorization: `Bearer ${token}` } });
       const bd = await bs.json();
       if (bd?.data?.loggedIn || bd?.loggedIn) {
         setWechatAccountId(bd?.data?.accountId || bd?.accountId || null);
@@ -623,7 +624,7 @@ const AIChat: React.FC<Props> = ({
 
     setWechatShow('qrcode');
     try {
-      const res = await fetch('/api/wechat/bot/login/start', {
+      const res = await fetch(apiUrl('/wechat/bot/login/start'), {
         method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
       const data = await res.json();
@@ -637,7 +638,7 @@ const AIChat: React.FC<Props> = ({
       wechatStopPoll();
       wechatPollRef.current = setInterval(async () => {
         try {
-          const sr = await fetch('/api/wechat/bot/login/status', { headers: { Authorization: `Bearer ${token}` } });
+          const sr = await fetch(apiUrl('/wechat/bot/login/status'), { headers: { Authorization: `Bearer ${token}` } });
           const sd = await sr.json();
           const status = sd?.data?.status || sd?.status;
           if (status === 'confirmed') { wechatStopPoll(); setWechatAccountId(sd?.data?.accountId || sd?.accountId || null); setWechatShow('logged-in'); }

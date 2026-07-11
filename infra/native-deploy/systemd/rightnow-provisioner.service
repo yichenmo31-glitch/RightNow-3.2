@@ -1,0 +1,25 @@
+[Unit]
+Description=RightNow OpenClaw provisioner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/rightnow/current/infra/provisioner
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/rightnow/provisioner.env
+ExecStart=/usr/local/bin/node /opt/rightnow/current/infra/provisioner/src/index.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/root/.openclaw
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

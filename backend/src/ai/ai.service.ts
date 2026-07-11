@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { extname, join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { getModelPromptBinding, ModelPromptCode } from '../prompts/prompt-catalog';
+import { resolveLocalUploadPath } from '../common/upload.util';
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -300,9 +301,7 @@ export class AiService {
       const pathname = new URL(imageUrl).pathname;
       mime = this.mimeFromExtension(extname(pathname));
     } else {
-      const localPath = imageUrl.startsWith('/uploads/')
-        ? join(process.cwd(), 'uploads', imageUrl.replace('/uploads/', ''))
-        : join(process.cwd(), imageUrl);
+      const localPath = resolveLocalUploadPath(imageUrl) || join(process.cwd(), imageUrl);
       buffer = readFileSync(localPath);
       mime = this.mimeFromExtension(extname(localPath));
     }

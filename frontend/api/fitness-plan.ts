@@ -15,8 +15,8 @@ export interface FitnessPlan {
 
 export const fitnessPlanApi = {
   upsert: (data: Partial<FitnessPlan>) =>
-    apiClient.post<FitnessPlan>('/api/fitness-plan', data).then(r => r.data),
+    apiClient.post<FitnessPlan>('/fitness-plan', data).then(r => r.data),
 
   latest: () =>
-    apiClient.get<FitnessPlan>('/api/fitness-plan').then(r => r.data),
+    apiClient.get<FitnessPlan>('/fitness-plan').then(r => r.data),
 };
