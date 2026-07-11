@@ -624,6 +624,7 @@ model AgentAuditLog {
   ok            Boolean
   errorCode     String?
   argsDigest    String?
+  durationMs    Int?
   createdAt     DateTime @default(now())
 
   @@index([userId, createdAt])

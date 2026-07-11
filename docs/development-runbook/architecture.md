@@ -69,6 +69,10 @@ PostgreSQL owns current weight, meals, workouts, TODOs, plans, confirmed memory 
 - `backend/src/openclaw/openclaw.client.ts`: sole backend gateway client and canonical Agent/Session ID conversion.
 - `backend/scripts/test-openclaw-identity.cjs`: executable regression test for identity normalization and prefix idempotence.
 - `backend/prisma/schema.prisma`: authoritative relational schema, including business facts, audit records, and durable Memory lifecycle records.
+- `AgentAuditLog`: minimal tool audit containing scoped identity, tool, success/error status, argument digest, and `durationMs`; it must not store tokens or complete private memory.
+- `backend/src/agent/agent-rpc.service.ts`: authenticated tool dispatcher; owns per-request duration measurement and passes only sanitized audit inputs.
+- `backend/src/agent/agent-audit.service.ts`: sole persistence boundary for minimal Agent tool audit records.
+- `C:\Program Files\PostgreSQL\16\data`: machine-local native PostgreSQL data/configuration, outside Git. The `postgresql-x64-16` service owns it; repository code must not edit it directly.
 - `backend/src/agent-memory/agent-memory.module.ts`: Memory provider/export boundary; `AppModule` owns application-level wiring.
 - `backend/src/agent-memory/dto/memory.dto.ts`: lifecycle/category/source vocabulary and service input contracts matching Prisma enum values.
 - `backend/src/agent-memory/memory-candidate.service.ts`: deterministic first-stage candidate filtering; excludes transient weight, meal, and workout facts and never confirms candidates.

@@ -63,26 +63,74 @@
 ## 1.1 Start isolated PostgreSQL
 
 - Owner: ROOT
-- Status: blocked
-- Started: 2026-07-11
+- Status: completed
+- Started/completed: 2026-07-11
 - Changed files: none
 - Commands: Docker Desktop start/status, `npm run db:up`, `wsl --status`, native PostgreSQL discovery, PostgreSQL 16 `winget` install attempts, PostgreSQL 9.5 read-only version/auth probe.
-- Test result: Docker cannot start without WSL 2. Native PostgreSQL is an approved equivalent, but the PostgreSQL 16 installer was interrupted and left an incomplete installation; the existing PostgreSQL 9.5 service is unsupported and its password probe failed without changing it.
-- Evidence: Docker reports `unable to start`; PostgreSQL 9.5.4 listens on `5432`; no PostgreSQL 16 service or complete `bin` directory exists; RightNow remains configured for isolated `localhost:15433`.
-- Blocker: repair/remove the incomplete PostgreSQL 16 installation with Windows administrator access and reinstall it on `15433`, or enable WSL 2 and use Docker. Do not reuse the unrelated PostgreSQL 9.5 instance.
-- Next: complete either PostgreSQL 16 runtime, verify `select version()`, then create `rightnow_fitness` and continue step 1.2.
+- Test result: native PostgreSQL 16.14 is installed as `postgresql-x64-16`, runs independently from the legacy 9.5 service, and accepts authenticated connections on `localhost:15433`.
+- Evidence: `select version()` returned PostgreSQL 16.14; the service is automatic and runs under NetworkService. The superuser password was rotated and exists only in ignored local environment files.
+- Blocker: none. Docker remains unavailable without WSL 2 but is no longer required for local database development.
+- Next: keep the legacy PostgreSQL 9.5 service out of RightNow configuration.
 
 ## 2.2 Implement and apply Memory Schema
 
 - Owner: ROOT
-- Status: blocked (static validation completed)
+- Status: completed
 - Started/completed: 2026-07-11
 - Changed files: `backend/prisma/schema.prisma`
 - Commands: `prisma format`, `prisma validate`, `prisma generate`, backend build.
-- Test result: schema formatting/validation, Prisma Client generation, and NestJS compilation pass. Database push and legacy-data verification were not run.
-- Evidence: generated Prisma delegates compile with the Memory services; no PostgreSQL 16 runtime is currently reachable at `localhost:15433`.
-- Blocker: step 1.1.
-- Next: after PostgreSQL starts, create a pre-change dump when applicable, run `prisma push`, and verify old business tables/data remain.
+- Test result: schema formatting/validation, Prisma Client generation, database push, seed, and NestJS compilation pass.
+- Evidence: `AgentMemoryFact` and `AgentMemoryProfile` exist alongside `User` and `ChatMessage`. This was a new empty RightNow database, so no pre-change dump or legacy rows existed.
+- Blocker: none
+- Next: add database-backed Memory integration cases when extending the module.
+
+## 1.2 Generate and validate Prisma Schema
+
+- Owner: ROOT
+- Status: completed
+- Started/completed: 2026-07-11
+- Changed files: ignored local database and environment files only
+- Commands: `prisma generate`, `prisma db push`, seed, `prisma validate`, PostgreSQL catalog queries.
+- Test result: all commands passed; demo, buddy, and admin seed users were created.
+- Evidence: core and Memory tables are present in PostgreSQL 16 on port 15433.
+- Blocker: none
+- Next: verify protected HTTP APIs.
+
+## 1.3 Verify authentication and business API baseline
+
+- Owner: ROOT
+- Status: completed
+- Started/completed: 2026-07-11
+- Changed files: none
+- Commands: start built NestJS app; register/login/history HTTP smoke requests.
+- Test result: unauthenticated chat history returns 401; registration succeeds; login returns JWT; authenticated history returns 200.
+- Evidence: backend started successfully on `127.0.0.1:5000` and served database-backed requests.
+- Blocker: none
+- Next: retain generated test users as disposable local-only data.
+
+## 1.4 Verify intent classification baseline
+
+- Owner: ROOT
+- Status: completed
+- Started/completed: 2026-07-11
+- Changed files: none
+- Commands: `npm --workspace backend run test:intent`
+- Test result: 32 cases and 224/224 field checks passed.
+- Evidence: coverage includes logging, advice, high risk, mixed intent, and `out_of_domain`.
+- Blocker: none
+- Next: rerun after classifier changes.
+
+## 1.5 Verify Agent RPC authentication and audit
+
+- Owner: ROOT
+- Status: completed
+- Started/completed: 2026-07-11
+- Changed files: `backend/prisma/schema.prisma`, `backend/src/agent/agent-audit.service.ts`, `backend/src/agent/agent-rpc.service.ts`
+- Commands: three authenticated HTTP variants, `memory.context.assemble`, direct audit verification.
+- Test result: missing/wrong tokens return 401; correct token succeeds; audit stores userId, tool, status, duration, and sanitized argument digest.
+- Evidence: smoke audit recorded `memory.context.assemble`, success, 269ms, and `{}` without any token or private Memory content.
+- Blocker: none
+- Next: add an automated HTTP integration suite around these assertions.
 
 ## 2.1 Design Memory Schema
 

@@ -9,6 +9,7 @@ export interface AuditEntry {
   ok: boolean;
   write?: boolean;
   errorCode?: string;
+  durationMs?: number;
   args?: Record<string, unknown>;
 }
 
@@ -29,6 +30,7 @@ export class AgentAuditService {
         tool: entry.tool,
         ok: entry.ok,
         errorCode: entry.errorCode ?? null,
+        durationMs: entry.durationMs ?? null,
         argsDigest,
       },
     });

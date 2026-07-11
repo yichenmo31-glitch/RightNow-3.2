@@ -27,6 +27,7 @@ export class AgentRpcService {
   ) {}
 
   async dispatch(req: AgentRpcRequest): Promise<AgentRpcResponse> {
+    const startedAt = Date.now();
     const { channel, channelUserId, channelChatId, tool, args = {} } = req ?? {};
 
     if (!channel || !channelUserId || !tool) {
@@ -39,7 +40,7 @@ export class AgentRpcService {
     // 1. Tool must be registered
     const handler = this.registry.get(tool);
     if (!handler) {
-      await this.audit.log({ channel, channelUserId, tool, ok: false, errorCode: 'UNKNOWN_TOOL' });
+      await this.audit.log({ channel, channelUserId, tool, ok: false, errorCode: 'UNKNOWN_TOOL', durationMs: Date.now() - startedAt });
       return { ok: false, error: { code: 'UNKNOWN_TOOL', message: `未知工具 ${tool}` } };
     }
 
@@ -51,10 +52,10 @@ export class AgentRpcService {
           channel, channelUserId, a.code,
           a.displayName, channelChatId ?? a.channelChatId,
         );
-        await this.audit.log({ channel, channelUserId, tool, ok: true });
+        await this.audit.log({ channel, channelUserId, tool, ok: true, durationMs: Date.now() - startedAt });
         return { ok: true, user: data.user, data };
       } catch (e: any) {
-        await this.audit.log({ channel, channelUserId, tool, ok: false, errorCode: 'BIND_FAILED' });
+        await this.audit.log({ channel, channelUserId, tool, ok: false, errorCode: 'BIND_FAILED', durationMs: Date.now() - startedAt });
         return { ok: false, error: { code: 'BIND_FAILED', message: e?.message ?? '绑定失败' } };
       }
     }
@@ -62,7 +63,7 @@ export class AgentRpcService {
     // 3. All other tools: resolve user first
     const user = await this.binding.resolveUser(channel, channelUserId);
     if (!user) {
-      await this.audit.log({ channel, channelUserId, tool, ok: false, errorCode: 'NOT_BOUND' });
+      await this.audit.log({ channel, channelUserId, tool, ok: false, errorCode: 'NOT_BOUND', durationMs: Date.now() - startedAt });
       return {
         ok: false,
         error: { code: 'NOT_BOUND', message: '尚未绑定，请先在 Web 生成绑定码并在小爪发送绑定码完成绑定' },
@@ -80,6 +81,7 @@ export class AgentRpcService {
         tool,
         ok: true,
         write: handler.write,
+        durationMs: Date.now() - startedAt,
         args,
       });
       return { ok: true, user, data };
@@ -91,6 +93,7 @@ export class AgentRpcService {
         tool,
         ok: false,
         errorCode: e?.code ?? 'TOOL_ERROR',
+        durationMs: Date.now() - startedAt,
         args,
       });
       return {
