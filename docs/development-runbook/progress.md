@@ -207,14 +207,14 @@
 ## 4.1 云端只读审计
 
 - 负责人：AGENT-OC
-- 状态：blocked
+- 状态：completed
 - 开始/完成日期：2026-07-11
 - 修改文件：无
-- 执行命令：`ssh -o BatchMode=yes -o ConnectTimeout=8 root@106.54.16.31 "openclaw --version; openclaw gateway status; ..."`
-- 测试结果：在运行任何远程命令之前身份验证失败；没有更改远程状态，也没有显示令牌。
-- 证据摘要：SSH 返回 `Permission denied (publickey,gssapi-keyex,gssapi-with-mic,password)`。
-- 阻塞项：需要可用的 SSH 私钥或在服务器上安装该工作站的公钥。
-- 下一步：重复只读审计，并记录脱敏后的 OpenClaw 版本、Gateway 状态、配置结构、插件路径和 Personal 工作区路径。
+- 执行命令：使用 `C:\Users\maggie mo\.ssh\id_ed25519` 登录后，检查系统资源、版本、服务、端口、Nginx、PostgreSQL、OpenClaw 配置结构和项目目录；所有输出均脱敏。
+- 测试结果：SSH 成功；OpenCloudOS 9.4、2 vCPU、3.6 GiB RAM、36 GiB 可用磁盘；Python 3.11.6、PostgreSQL 15.18、Nginx 1.26.3、OpenClaw 2026.3.24 可用。
+- 证据摘要：Personal workspace 为 `/root/.openclaw/workspace`；Agent 为 `main/knowledge/health`；Gateway 仅监听回环地址。已有 `/root/rightnow`、`rightnow-backend.service` 和 `rightnow_fitness` 数据库。
+- 阻塞项：正式迁移前需确认现有 Personal OpenClaw 公网入口是否保留，以及旧 RightNow 数据库是否迁移；Backend 当前错误监听 `0.0.0.0:5000`。
+- 下一步：先备份现有数据库、Nginx、systemd、OpenClaw 配置和 `/root/rightnow`，再按确认后的入口与数据策略部署。
 
 ## 4.2 建立 Provisioner 骨架
 
@@ -225,7 +225,7 @@
 - 执行命令：`cd infra/provisioner`、`npm test`
 - 测试结果：缺少配置或使用通配符绑定时服务会安全失败；缺少或使用错误 Bearer token 时返回 401；有效请求成功。
 - 证据摘要：Provisioner 测试套件在 Node 24 上通过 6/6，与声明的 Node >=22 运行环境兼容。
-- 阻塞项：SSH 公钥尚未获得服务器授权，云部署仍不可用。
+- 阻塞项：SSH 已恢复；等待确认 Nginx 入口和旧数据库迁移策略。
 - 下一步：Prod 同机部署时绑定 `127.0.0.1`，并由 systemd 管理服务。
 
 ## 4.3 验证 Agent ID
