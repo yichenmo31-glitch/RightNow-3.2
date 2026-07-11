@@ -28,6 +28,8 @@ export default definePluginEntry({
     registerRightNowTools(api, config);
     registerKnowledgeTools(api, config);
 
+    if (typeof api.registerMemoryPromptSupplement !== "function") return;
+
     api.registerMemoryPromptSupplement(({ availableTools }) => {
       const lines = [];
       const dataTools = [...availableTools].filter((t) =>
