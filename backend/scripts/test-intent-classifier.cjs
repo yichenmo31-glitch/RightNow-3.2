@@ -36,7 +36,7 @@ for (const test of cases) {
   });
   const expected = {
     intent: test.expected_intent,
-    subIntent: test.expected_sub_intent,
+    subIntent: test.expected_sub_intent || null,
     riskLevel: test.expected_risk,
     requiresContext: test.requires_context === 'true',
     requiresKnowledge: test.requires_knowledge === 'true',

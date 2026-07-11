@@ -1,6 +1,6 @@
 export const INTENTS = [
   'diet_log', 'training_log', 'body_data_update', 'fitness_advice',
-  'plan_adjustment', 'social_chat', 'unknown_mixed',
+  'plan_adjustment', 'social_chat', 'unknown_mixed', 'out_of_domain',
 ] as const;
 
 export const RISK_LEVELS = ['low', 'medium', 'high'] as const;

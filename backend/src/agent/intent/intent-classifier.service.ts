@@ -24,7 +24,7 @@ export class IntentClassifierService {
 
   private async classifyWithModel(input: IntentClassifierInput): Promise<IntentDecision> {
     const { reply } = await callChatLlm([
-      { role: 'system', content: '你是 RightNow 意图分类器。只返回 JSON，不能编造输入中不存在的事实。意图只能是 diet_log, training_log, body_data_update, fitness_advice, plan_adjustment, social_chat, unknown_mixed。疼痛、伤病、头晕、极端节食必须为 high risk；不确定时选择 unknown_mixed。输出字段：intent, subIntent, confidence, riskLevel, requiresContext, requiresKnowledge, requiresWriteTool, suggestedTools, responseMode, entities, clarifyingQuestion。' },
+      { role: 'system', content: '你是 RightNow 意图分类器。只返回 JSON，不能编造输入中不存在的事实。意图只能是 diet_log, training_log, body_data_update, fitness_advice, plan_adjustment, social_chat, unknown_mixed, out_of_domain。代码、文档、旅行、财务等非健身任务必须选择 out_of_domain，且不读取上下文、不检索知识、不调用写工具。疼痛、伤病、头晕、极端节食必须为 high risk；健身领域内不确定时选择 unknown_mixed。输出字段：intent, subIntent, confidence, riskLevel, requiresContext, requiresKnowledge, requiresWriteTool, suggestedTools, responseMode, entities, clarifyingQuestion。' },
       { role: 'user', content: JSON.stringify(input) },
     ], {
       stepfunBaseUrl: this.config.get('STEPFUN_BASE_URL'), stepfunApiKey: this.config.get('STEPFUN_API_KEY'), stepfunModel: this.config.get('STEPFUN_CHAT_MODEL'),

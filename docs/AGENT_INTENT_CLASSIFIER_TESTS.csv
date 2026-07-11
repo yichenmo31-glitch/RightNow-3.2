@@ -29,3 +29,5 @@ IC027,帮我创建一个明天喝水提醒,false,,有TODO功能,unknown_mixed,to
 IC028,今天早餐燕麦牛奶鸡蛋，蛋白够吗？,false,,目标减脂,diet_log,food_text_log,low,true,false,false,short_confirm,记录+轻分析
 IC029,我刚练完，感觉状态很好，下次可以加重量吗？,false,,有训练历史,fitness_advice,training_advice,low,true,true,false,medium_advice,训练反馈转建议
 IC030,把饮食计划也调一下，最近外卖比较多,false,,已有饮食计划,plan_adjustment,adjust_diet_plan,low,true,true,false,plan_adjustment,饮食计划调整
+IC031,帮我总结一下这个 TypeScript 文件,false,,,out_of_domain,,low,false,false,false,clarify,代码文档不应调用 RightNow 工具
+IC032,帮我查一下上海明天的天气,false,,,out_of_domain,,low,false,false,false,clarify,通用任务不应读取健身上下文
