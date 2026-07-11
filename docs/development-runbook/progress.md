@@ -443,3 +443,122 @@
 - 证据摘要：目标拓扑已冻结为 Nginx、systemd、PostgreSQL 16、Backend、RAG、OpenClaw Gateway 和 Provisioner 全部云端原生运行。
 - 阻塞项：`C:\Users\maggie mo\.ssh\id_ed25519` 对 `root@106.54.16.31` 仍返回 `Permission denied`；公钥尚未安装到服务器。
 - 下一步：通过云控制台将 `id_ed25519.pub` 加入 `/root/.ssh/authorized_keys`，再执行只读审计和部署前检查。
+
+## 接下来待做清单（2026-07-11 更新）
+
+### 当前真实基线
+
+- [x] SSH 已恢复：使用 `C:\Users\maggie mo\.ssh\id_ed25519` 可登录 `root@106.54.16.31`。
+- [x] 已创建并校验完整备份 `/root/backups/rightnow-pre-native-20260711-230719`；旧 PostgreSQL 15 数据目录仍保留。
+- [x] PostgreSQL 已升级到 16.12，`rightnow_fitness_prod` 已恢复 31 张旧业务表和 3 个用户。
+- [x] release `468941a` 已上传并构建到 `/opt/rightnow/releases/468941a`，前端已复制到 `/var/www/rightnow`。
+- [x] `/etc/rightnow/{backend,provisioner,rag}.env` 已在服务器生成，权限为 `600 root:root`；密钥未回显、未进入 Git。
+- [x] PostgreSQL 本机应用连接已由 `ident` 调整为 `scram-sha-256`，并保留修改前的 `pg_hba.conf` 备份。
+- [!] Schema SQL 首次应用只创建了 3 个尚未被表引用的 Memory 枚举，随后因旧表所有者仍为 `rightnow` 而停止；尚未修改现有表，也尚未创建 Memory 表。
+
+### P0：完成生产数据库收口（ROOT，必须串行）
+
+- [x] 记录现有表、序列和类型所有者；确认旧角色 `rightnow` 仅用于迁移兼容。
+- [x] 在 `rightnow_fitness_prod` 中执行 `REASSIGN OWNED BY rightnow TO rightnow_app`，并验证 `rightnow_app` 为非超级用户、不可建库、不可建角色。
+- [x] 删除本次半完成且未被引用的 3 个 Memory 枚举，再重新运行 `prisma migrate diff --from-url ... --to-schema-datamodel ... --script`。
+- [x] 人工确认新差异仅包含 Memory 枚举/表/索引/外键和 `AgentAuditLog.durationMs`，不得包含 `DROP TABLE` 或旧数据重写。
+- [x] 应用差异；运行第二次 diff，必须为空；验证旧 3 个用户、31 张旧表数据仍存在，新增 Memory 表可由 `rightnow_app` 读写。
+- [x] 使用 release 根目录的 `@prisma/client` 做最小连接测试，确认 `current_user=rightnow_app`、`current_database=rightnow_fitness_prod`。
+
+### P1：RAG 云端环境与数据（可交给 `AGENT-RAG`）
+
+- [x] 创建 `/opt/rightnow/venv-rag`，用 Python 3.11 安装 `rag-service/requirements.txt`；验证 `import fastapi, chromadb`。
+- [x] 运行 `structure_check.py`，确认 L1=30 条 FAQ、L2=11 个文件、L3=8 个文件且无空文件。
+- [x] 导入到 `/var/lib/rightnow/rag/{l1,l2,l3}`，记录三层 collection 数量；新进程重新打开后数量必须一致。
+- [x] 对“新手频率、平台期、力量与有氧、腰伤恢复、严重睡眠不足”执行检索；风险问题必须优先返回 L3 来源。
+- [x] 启动 loopback RAG API，验证 `/health`、三层查询和空 query 返回 422；现由 systemd 接管。
+
+### P1：OpenClaw/Provisioner 云端验收（可交给 `AGENT-OC`）
+
+- [x] 在变更前记录 Personal workspace `/root/.openclaw/workspace` 的 hash/mtime 哨兵。
+- [x] 安装并启动 Provisioner unit，仅绑定 `127.0.0.1:8787`；无 Token/错误 Token 均返回 401。
+- [x] 创建一次性 `rightnow-deploy-smoke` 测试 Agent；重复 provision 均返回 200，且 Personal workspace 未改变。
+- [x] 安装/验证 RightNow 插件，Gateway 2026.3.24 日志显示 RightNow 插件加载成功。
+- [x] 本地 session/agent/伪造 userId/空身份/Personal 身份回归测试 5/5 通过；云端 Agent RPC 错误/正确 Token 为 401/201。
+- [ ] 执行 `openclaw memory status/index/search`；只有 provider 确实支持 embedding 时才标记完成，否则记录明确阻塞，不伪造召回结果。
+
+### P2：systemd 与 Nginx 上线（ROOT，数据库和 RAG 完成后）
+
+- [x] 建立 `/opt/rightnow/current -> /opt/rightnow/releases/1039a8b`，校验 release 文件完整性。
+- [x] 安装 `rightnow-backend.service`、`rightnow-rag.service`、`rightnow-provisioner.service`，执行 `daemon-reload` 并 enable。
+- [x] 启动三个服务；逐一检查 `systemctl status` 和脱敏 journal，未输出 Token、数据库密码或完整私密内容。
+- [x] 将 `rightnow.locations.conf` include 到现有 Nginx public server；Personal OpenClaw 的 `location /` 保持原样。
+- [x] 运行 `nginx -t` 后 reload；验证 `/`=200、`/rightnow/`=200、未认证 `/rightnow-api/auth/me`=401、缺失 upload=404。
+- [x] 用仓库 `validate-host.sh` 确认 5000、8000、8787、18789、5432 仅绑定回环；脚本输出 `native host validation: OK`。
+
+### P3：业务与浏览器验收（可交给 `AGENT-FE` 做只读/测试操作）
+
+- [x] 浏览器打开 `http://106.54.16.31/rightnow/`，确认无白屏、资源路径均带 `/rightnow/`，控制台无阻断错误。
+- [ ] 完成 demo 登录、档案读取、体重、TODO、饮食、训练各一次创建/刷新验证；仅使用虚构测试数据。
+- [ ] 验证聊天建议调用 RAG、训练/饮食记录写 PostgreSQL、高风险走保守路径、领域外请求不调用 RightNow 工具。
+- [ ] 验证首次聊天创建隔离 Agent/Session/workspace；用户 A/B 数据、Memory 和审计零串读。
+- [x] 确认 Personal OpenClaw 根路径上线后为 200，Personal workspace hash/mtime 哨兵未变化。
+
+### P4：恢复、文档和提交（ROOT）
+
+- [ ] 执行服务重启验收；如获准安排主机重启，再验证 PostgreSQL、Nginx、Backend、RAG、Gateway、Provisioner 自动恢复。
+- [ ] 补做备份恢复演练、账户删除幂等、Agent 重建和日志隐私检查。
+- [ ] 每完成一个板块，立即在本文件新增命令、结果、证据和阻塞项；把稳定文件职责与架构洞察同步到 `architecture.md`。
+- [x] 运行 backend/frontend build、Memory、intent 224/224、Provisioner 6/6、RAG smoke、Prisma validate、`git diff --check`。
+- [x] 删除所有临时远程执行脚本，确认 `.env`、dump、Chroma、workspace、Token 均未进入 Git。
+- [ ] 审查 `git diff` 后按独立目标提交；推送远端需单独确认远端和分支状态。
+
+### 子代理并发安排
+
+- Wave A：`ROOT` 独占生产数据库；`AGENT-RAG` 可并行安装/导入 RAG；`AGENT-OC` 只做 OpenClaw 只读检查和 Personal workspace 哨兵。
+- Wave B：数据库和 RAG 门禁通过后，`ROOT` 安装 systemd/Nginx；`AGENT-OC` 验证 Provisioner/插件，不能同时修改 Nginx 或数据库。
+- Wave C：服务全部 active 后，`AGENT-FE` 执行浏览器工作流；`ROOT` 负责跨服务审计、网络边界和最终合并。
+- 子代理不得提交 Git、不得查看或回显 secret、不得修改 Personal workspace；所有生产写操作先由 `ROOT` 明确分配并记录验证结果。
+
+## 4.11-P0 生产数据库收口
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成时间：2026-07-11
+- 修改文件：云端 `/var/lib/pgsql/data/pg_hba.conf`、`rightnow_fitness_prod` schema；本地 `docs/development-runbook/progress.md`、`architecture.md`
+- 执行命令：PostgreSQL `REASSIGN OWNED`；Prisma `migrate diff --script`；`psql -f`；第二次 schema diff；Prisma Client 最小查询。
+- 测试结果：应用前 31 张旧表均归 `rightnow`；迁移后 33 张 public 表均归 `rightnow_app`。旧用户数仍为 3，Memory 表数为 2；第二次 diff 输出 `This is an empty migration`。
+- 证据摘要：`rightnow_app` 为 `super=false/createdb=false/createrole=false`；数据库连接返回 `rightnow_app|rightnow_fitness_prod`，Prisma Client 返回相同身份。应用 SQL 仅增加 3 个 Memory 枚举、2 张表、3 个索引、2 个外键和可空的 `AgentAuditLog.durationMs`。
+- 阻塞项：无。
+- 下一步：等待 RAG 与 OpenClaw Wave A 验证完成，然后安装 systemd 服务并接入 Nginx。
+
+## 4.11-P1 云端 RAG 与 OpenClaw
+
+- 负责人：ROOT（子代理因额度 403 未能执行）
+- 状态：completed；OpenClaw Memory embedding provider blocked
+- 开始/完成时间：2026-07-11 / 2026-07-12
+- 修改文件：云端 `/opt/rightnow/venv-rag`、`/var/lib/rightnow/rag`、`/var/lib/rightnow/models/hf`、`/root/.openclaw/extensions/rightnow`；仓库 OpenClaw 插件依赖与兼容代码。
+- 执行命令：Python import/structure check/ingest；HF mirror `hf download`；持久化复开和五组检索；RAG HTTP 三层/空 query；Provisioner 401/200/幂等测试；Gateway restart 和日志检查；Agent RPC 401/201。
+- 测试结果：FastAPI 0.115.9、ChromaDB 1.0.9；L1/L2/L3 持久数量为 30/16/14，风险问题命中 L3 安全与恢复文档；三层 HTTP 均 200，空 query 为 422。Provisioner 为 `401,401,200,200`，Personal workspace hash/mtime 未改变。
+- 证据摘要：云主机无法访问 huggingface.co，改用 `hf-mirror.com` 一次性下载同一 `BAAI/bge-small-zh-v1.5` 模型；运行时设置 `HF_HUB_OFFLINE=1`。修复 `typebox` 错误 import 和 Gateway 2026.3.24 缺少可选 Prompt API 两项生产兼容问题，Gateway 日志最终显示 RightNow 插件 loaded。
+- 阻塞项：OpenClaw `memory status` 明确显示 provider `none`，因此未执行或伪造 memory index/search；需要后续选定真实 embedding provider。
+- 下一步：执行剩余业务写入、聊天路由、用户隔离和生命周期 E2E。
+
+## 4.11-P2 systemd 与 Nginx 上线
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成时间：2026-07-11 / 2026-07-12
+- 修改文件：云端 `/etc/systemd/system/rightnow-*.service`、`/etc/nginx/conf.d/openclaw.conf`、`/etc/nginx/rightnow.locations.conf`、`/opt/rightnow/current`。
+- 执行命令：systemd enable/restart/status；`nginx -t`/reload；`ss -lntp`；`validate-host.sh`；公网 HTTP 和真实浏览器测试。
+- 测试结果：PostgreSQL、Nginx、Backend、RAG、Provisioner、Gateway 均 active；原生主机验证通过。Personal `/`=200，RightNow `/rightnow/`=200，未认证 API=401；真实浏览器演示登录进入仪表板且控制台无错误。
+- 证据摘要：5000、8000、8787、18789、5432 均只监听回环。一次 Gateway 重启因备份目录放入插件自动发现路径而短暂返回 502；将备份移至 `/root/backups/rightnow-pre-native-20260711-230719` 后立即恢复 200，并形成禁止在 extensions 内留插件备份的部署规则。
+- 阻塞项：尚无域名和 TLS；当前仅通过 `http://106.54.16.31/rightnow/` 提供服务。
+- 下一步：完成 P3/P4 业务 E2E、安全/恢复演练和最终验收。
+
+## 4.11-P2 最终自动化门禁
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成时间：2026-07-12
+- 修改文件：无额外运行时代码；仅更新本进度记录。
+- 执行命令：`npm run build:backend`、`npm run build:frontend`、`test:agent-memory`、`test:intent`、`test:upload-prefix`、显式 schema 的 Prisma validate、Provisioner/Plugin tests、native template validation、`git diff --check`。
+- 测试结果：Backend/Frontend build 成功；Memory 规则通过；intent 32 cases/224 assertions；upload 6 assertions；Prisma schema valid；Provisioner 6/6；OpenClaw identity 5/5；native template OK；diff check 通过。
+- 证据摘要：最初误用不存在的 `test:memory` 和错误 cwd 的 Prisma 命令，两者均为命令名/路径问题；改用仓库真实 `test:agent-memory` 与 `npx prisma validate --schema backend/prisma/schema.prisma` 后通过。
+- 阻塞项：深度 P3/P4 E2E 尚未执行，具体保持在上方未勾选清单中。
+- 下一步：使用隔离测试用户完成 CRUD、聊天六流程、用户隔离、Agent 重建、账户删除与恢复演练。
