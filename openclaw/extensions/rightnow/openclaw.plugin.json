@@ -7,6 +7,7 @@
   "contracts": {
     "tools": [
       "rightnow_bind_email",
+      "rightnow_classify_intent",
       "rightnow_get_context",
       "rightnow_get_profile",
       "rightnow_get_onboarding",

@@ -7,7 +7,7 @@ export interface OpenClawChatMessage {
 }
 
 export interface OpenClawChatParams {
-  /** RightNow userId (will be lowercased to form the agentId). */
+  /** RightNow userId (will be namespaced and lowercased to form the agentId). */
   userId: string;
   /** Stable session key (same key => continues same OpenClaw session). */
   sessionKey: string;
@@ -35,9 +35,15 @@ export class OpenClawClient {
 
   constructor(private readonly config: ConfigService) {}
 
-  /** agentId = RightNow userId, forced lowercase (OpenClaw lowercases it anyway). */
+  /** Keep RightNow agents isolated from personal agents in the shared gateway. */
   toAgentId(userId: string): string {
-    return String(userId).trim().toLowerCase();
+    const normalized = String(userId).trim().toLowerCase();
+    return normalized.startsWith('rightnow-') ? normalized : `rightnow-${normalized}`;
+  }
+
+  toSessionKey(userId: string): string {
+    const normalized = String(userId).trim().toLowerCase();
+    return normalized.startsWith('rightnow:') ? normalized : `rightnow:${normalized}`;
   }
 
   private baseUrl(): string {

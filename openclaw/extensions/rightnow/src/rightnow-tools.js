@@ -17,7 +17,16 @@ function isAgentSessionKey(value) {
 function normalizeUserId(value) {
   const raw = cleanString(value);
   if (!raw || isAgentSessionKey(raw)) return "";
-  return raw.startsWith("openclaw/") ? raw.slice("openclaw/".length) : raw;
+  const withoutModelPrefix = raw.startsWith("openclaw/")
+    ? raw.slice("openclaw/".length)
+    : raw;
+  if (withoutModelPrefix.startsWith("rightnow:")) {
+    return withoutModelPrefix.slice("rightnow:".length);
+  }
+  if (withoutModelPrefix.startsWith("rightnow-")) {
+    return withoutModelPrefix.slice("rightnow-".length);
+  }
+  return withoutModelPrefix;
 }
 
 function resolveRpcIdentity(ctx) {

@@ -80,7 +80,11 @@ export class ChatService {
 
     await this.provisioningService.ensureAgent(userId);
     // Forward to OpenClaw Gateway instead of bare LLM
-    const out = await this.openclawClient.chat({ userId, sessionKey: userId, messages });
+    const out = await this.openclawClient.chat({
+      userId,
+      sessionKey: this.openclawClient.toSessionKey(userId),
+      messages,
+    });
 
     const reply = await this.prisma.chatMessage.create({
       data: {

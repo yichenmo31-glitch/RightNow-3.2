@@ -58,6 +58,7 @@ export default definePluginEntry({
         lines.push("3. requiresWriteTool=true 只表示可能需要写入；饮食估算须先展示并确认，明确训练/体重记录可直接写入");
         lines.push("4. riskLevel=high 时使用保守措辞，禁止激进训练或节食建议，并优先检索深层安全知识");
         lines.push("5. 最终回复遵循 responseMode；unknown_mixed 最多问一个关键澄清问题");
+        lines.push("6. intent=out_of_domain 时不调用任何 RightNow 数据或知识工具，将任务交回通用 Agent");
         lines.push("");
       }
 
