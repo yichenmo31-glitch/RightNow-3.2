@@ -141,8 +141,8 @@
 - 执行命令：根据权限、生命周期、风险、隔离和删除要求进行架构审查。
 - 测试结果：Schema 已体现每个用户一个 Profile、事实索引、生命周期枚举、级联删除，以及由服务强制执行的置信度与风险约束。
 - 证据摘要：已向 Schema 添加 `AgentMemoryProfile`、`AgentMemoryFact` 和三个 Memory 枚举。
-- 阻塞项：设计无阻塞；数据库应用仍受步骤 1.1 阻塞。
-- 下一步：格式化、验证、生成和构建，无需应用于 PostgreSQL。
+- 阻塞项：无；Schema 已应用到原生 PostgreSQL。
+- 下一步：补充针对真实 PostgreSQL 的 Memory Schema 集成测试。
 
 ## 2.3 创建 agent-memory 模块骨架
 
@@ -153,8 +153,8 @@
 - 执行命令：`npm --workspace backend run test:agent-memory`、`npm run build:backend`
 - 测试结果：包含全部 Memory Provider 和导出项的 NestJS TypeScript 构建通过；模块内部不存在循环依赖。
 - 证据摘要：ROOT 已在 `AppModule` 中导入 `AgentMemoryModule`；正式 Memory 测试脚本和仓库后端构建均成功退出。
-- 阻塞项：步骤 1.1 受 WSL/Docker 阻塞期间，仍无法针对 PostgreSQL 启动应用。
-- 下一步：PostgreSQL 可用后运行后端启动冒烟测试。
+- 阻塞项：无；后端启动和数据库连接已在步骤 1.3 验证。
+- 下一步：后续模块接入时继续运行启动冒烟测试。
 
 ## 2.4 实现候选记忆创建
 
@@ -177,8 +177,8 @@
 - 执行命令：`cd backend`、`npm run build`、`node scripts/test-agent-memory.cjs`
 - 测试结果：跨用户事实访问失败；缺少明确用户证据时风险确认失败；有效风险确认成功；非法的 confirmed 到 rejected 反向转换失败。
 - 证据摘要：状态转换同时按 `id` 和 `userId` 查询；失效时间戳和确认证据均会持久化。
-- 阻塞项：数据库支持的集成测试等待 Docker/PostgreSQL 的可用性。
-- 下一步：步骤 1.1 解锁后，针对 PostgreSQL 重新运行相同的案例。
+- 阻塞项：无；原生 PostgreSQL 已可用。
+- 下一步：补充针对真实 PostgreSQL 的状态转换集成测试。
 
 ## 2.6 实现冲突与纠正
 
@@ -189,8 +189,8 @@
 - 执行命令：`cd backend`、`npm run build`、`node scripts/test-agent-memory.cjs`
 - 测试结果：纠正用户 A 的训练偏好后只保留一个有效值，旧事实会关联至替代事实，且不会修改用户 B 的同类事实。
 - 证据摘要：创建替代事实并废止同一用户同类别旧事实的操作在一个 Prisma 事务中执行。
-- 阻塞项：数据库支持的并发测试等待 Docker/PostgreSQL 的可用性。
-- 下一步：添加数据库运行时真实的事务/并发集成案例。
+- 阻塞项：无；原生 PostgreSQL 已可用。
+- 下一步：添加真实事务/并发集成案例。
 
 ## 2.7 实现 Profile 聚合
 
@@ -201,8 +201,8 @@
 - 执行命令：`cd backend`、`npm run build`、`node scripts/test-agent-memory.cjs`、`npx prisma validate`
 - 测试结果：只有已确认事实会进入 Profile；确认候选记忆会增加版本号；事实过期后会从 Profile 移除并再次增加版本号；内容相同的同步不会改变版本号。
 - 证据摘要：确定性排序和字节等效 JSON 比较使重复同步只读且幂等； Prisma 验证已通过。
-- 阻塞项：数据库支持的投影测试等待 Docker/PostgreSQL 的可用性。
-- 下一步：Wave 3 将在 `MemorySyncService` 后添加稳定的 `MEMORY.md` 序列化。
+- 阻塞项：无；原生 PostgreSQL 已可用。
+- 下一步：补充真实数据库投影测试；Wave 3 将在 `MemorySyncService` 后添加稳定的 `MEMORY.md` 序列化。
 
 ## 4.1 云端只读审计
 
@@ -225,8 +225,8 @@
 - 执行命令：`cd infra/provisioner`、`npm test`
 - 测试结果：缺少配置或使用通配符绑定时服务会安全失败；缺少或使用错误 Bearer token 时返回 401；有效请求成功。
 - 证据摘要：Provisioner 测试套件在 Node 24 上通过 6/6，与声明的 Node >=22 运行环境兼容。
-- 阻塞项：在 SSH 访问恢复之前，实际的 Tailscale 地址和云部署仍然不可用。
-- 下一步：使用服务器的特定 Tailscale IP 进行部署，切勿使用通配符或公共绑定。
+- 阻塞项：SSH 公钥尚未获得服务器授权，云部署仍不可用。
+- 下一步：Prod 同机部署时绑定 `127.0.0.1`，并由 systemd 管理服务。
 
 ## 4.3 验证 Agent ID
 
@@ -419,3 +419,27 @@
 - 证据摘要：代理登录返回 201，并包含 `Access-Control-Allow-Origin: http://127.0.0.1:5173`；浏览器成功渲染已认证的 RightNow 仪表板，且无控制台错误。
 - 阻塞项：无
 - 下一步：在步骤 5.3-5.4 中验证个人资料/体重和业务记录工作流程。
+
+## A.1 固化云端 Prod 与本地 Dev 全原生拓扑
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`docs/development-runbook/architecture.md`、`docs/development-runbook/RIGHTNOW_DEVELOPMENT_STEP_BY_STEP.md`
+- 执行命令：审查现有混合部署、Tailscale 和 Docker 相关契约。
+- 测试结果：已确认 Prod 所有服务部署在云端并采用原生 `systemd + Nginx + PostgreSQL 16`；本地仅作为隔离 Dev 环境。
+- 证据摘要：生产运行不依赖开发机在线，不使用 Docker，也不要求 Tailscale；公网仅开放 HTTPS 和受限 SSH。
+- 阻塞项：SSH 公钥尚未安装到服务器，云端部署仍无法开始。
+- 下一步：恢复 SSH 后执行云端只读审计，并按原生服务拓扑生成部署配置。
+
+## 4.11 部署云端全原生 Prod 基线
+
+- 负责人：ROOT + AGENT-OC
+- 状态：blocked
+- 开始/完成日期：2026-07-11 / 未完成
+- 修改文件：待部署阶段确定
+- 执行命令：尚未执行；部署指令与测试门禁已加入开发 runbook。
+- 测试结果：未运行。
+- 证据摘要：目标拓扑已冻结为 Nginx、systemd、PostgreSQL 16、Backend、RAG、OpenClaw Gateway 和 Provisioner 全部云端原生运行。
+- 阻塞项：`C:\Users\maggie mo\.ssh\id_ed25519` 对 `root@106.54.16.31` 仍返回 `Permission denied`；公钥尚未安装到服务器。
+- 下一步：通过云控制台将 `id_ed25519.pub` 加入 `/root/.ssh/authorized_keys`，再执行只读审计和部署前检查。

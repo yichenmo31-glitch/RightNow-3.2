@@ -3,7 +3,7 @@
 版本：1.0
 基线分支：`local-integration`
 依据：`RIGHTNOW_LOCAL_DEVELOPMENT_RUNBOOK.md`、`RIGHTNOW_MEMORY_ARCHITECTURE_RUNBOOK_SUPPLEMENT.md`
-适用架构：Windows 本地 RightNow + PostgreSQL/RAG + Tailscale + 云端共享 OpenClaw Gateway
+适用架构：Windows 本地隔离 Dev + 云端全原生 Prod（Nginx/systemd/PostgreSQL/RAG/OpenClaw/Provisioner）
 
 ## 1. 完成目标
 
@@ -56,8 +56,8 @@ React Web
 3. 不提交真实 Token、密码、用户数据、workspace 或 Chroma 数据。
 4. 每一步完成后立即更新本目录的 `progress.md`，写入命令、结果和阻塞项。
 5. 子代理不得自行提交 Git；由 `ROOT` 审查和提交。
-6. 失败测试不得标记完成，不得用删除数据库 volume 代替普通故障诊断。
-7. 对外 HTTP 流量必须同时使用 Tailscale 网络隔离和应用层 Token。
+6. 失败测试不得标记完成，不得用删除数据库或数据目录代替普通故障诊断。
+7. Prod 内部 HTTP 仅走回环地址或受限私网，并使用应用层 Token；本地 Dev 不得调用 Prod 内部服务。
 
 ## 3. 阶段与并发安排
 
@@ -103,12 +103,12 @@ git fsck --full --no-dangling
 git --version
 node --version
 npm --version
-docker --version
-docker compose version
 py -0p
+& 'C:\Program Files\PostgreSQL\16\bin\psql.exe' --version
+Get-Service postgresql-x64-16
 ```
 
-测试与通过标准：Node.js >= 22；Python 可选版本 >= 3.10；Docker CLI 和 Compose 可执行。
+测试与通过标准：Node.js >= 22；Python 可选版本 >= 3.10；原生 PostgreSQL >= 16 且服务为 running。
 
 ### 步骤 0.3：建立本地密钥文件
 
@@ -166,17 +166,17 @@ node -e "const {OpenClawClient}=require('./dist/openclaw/openclaw.client.js'); c
 
 ## 5. Wave 1A：PostgreSQL 与基础后端
 
-### 步骤 1.1：启动独立 PostgreSQL
+### 步骤 1.1：启动原生 PostgreSQL
 
 负责人：`ROOT`
 
 ```powershell
-docker desktop start
-npm run db:up
-docker ps --filter name=rightnow-fitness-postgres
+Get-Service postgresql-x64-16
+Start-Service postgresql-x64-16
+& 'C:\Program Files\PostgreSQL\16\bin\psql.exe' -h localhost -p 15433 -U postgres -d postgres -c 'select version();'
 ```
 
-测试与通过标准：容器为 running/healthy；宿主机端口与 `DATABASE_URL` 一致。若 compose 映射 `15433:5432`，URL 必须使用 `localhost:15433`。
+测试与通过标准：服务为 running；版本 >= 16；`DATABASE_URL` 使用 `localhost:15433`；`rightnow_fitness` 可连接。
 
 ### 步骤 1.2：生成并验证现有 Prisma Schema
 
@@ -249,7 +249,7 @@ npm run test:intent
 重大变更前：
 
 ```powershell
-docker exec rightnow-fitness-postgres pg_dump -U postgres rightnow_fitness > rightnow-before-memory.sql
+& 'C:\Program Files\PostgreSQL\16\bin\pg_dump.exe' -h localhost -p 15433 -U postgres -d rightnow_fitness -f rightnow-before-memory.sql
 ```
 
 修改 `backend/prisma/schema.prisma` 后执行：
@@ -400,7 +400,7 @@ Invoke-WebRequest http://localhost:8000/docs
 
 在 `infra/provisioner/` 创建 Node.js 22 内部服务、Bearer 鉴权、配置读写和 workspace bootstrap 模块。
 
-测试：无 Token/错误 Token 返回 401；服务只绑定配置的 Tailscale 地址；缺少配置时拒绝启动。
+测试：无 Token/错误 Token 返回 401；Prod 同机部署时服务只绑定 `127.0.0.1`；缺少配置时拒绝启动。
 
 ### 步骤 4.3：实现 Agent ID 校验
 
@@ -471,6 +471,26 @@ openclaw memory search "不喜欢跑步的训练偏好"
 ```
 
 通过标准：索引成功、搜索有来源；未配置 provider 时系统给出明确错误而不是伪造召回。
+
+### 步骤 4.11：部署云端全原生 Prod 基线
+
+负责人：`ROOT` + `AGENT-OC`
+
+指令：在 `106.54.16.31` 原生安装 Node.js 22、Python 3.11、PostgreSQL 16 和 Nginx。创建独立 Linux 用户、目录与 `systemd` unit，分别运行 Backend、RAG、OpenClaw Gateway 和 Provisioner。创建 `rightnow_fitness_prod` 与低权限应用数据库用户；Prod 密钥只写入权限为 `600` 的环境文件，不进入 Git。
+
+网络约束：Nginx 对外提供 80/443；Backend 5000、RAG 8000、Provisioner 8787、Gateway 18789 和 PostgreSQL 5432 仅监听 `127.0.0.1`。本地 Dev 不连接任何 Prod 内部端口。
+
+测试：
+
+```bash
+systemctl is-active postgresql nginx rightnow-backend rightnow-rag rightnow-openclaw rightnow-provisioner
+ss -lntp
+curl -fsS http://127.0.0.1:5000/api/auth/me
+curl -fsS http://127.0.0.1:8000/docs >/dev/null
+sudo -u postgres psql -d rightnow_fitness_prod -c 'select current_database();'
+```
+
+通过标准：六个服务均为 active；内部端口只监听回环地址；数据库应用用户不是超级用户；公网只能访问 Nginx 和受限 SSH；重启服务器后服务自动恢复；日志与环境文件不泄漏 Token。
 
 ## 9. Wave 2：前端与后端集成
 
@@ -649,13 +669,13 @@ npm run dev:frontend
 
 通过标准：在隔离测试环境恢复后，至少一个测试用户完成登录、事实读取、偏好召回和 RAG 查询。
 
-### 步骤 7.5：Tailscale 和防火墙验收
+### 步骤 7.5：生产防火墙和内部端口验收
 
 负责人：`AGENT-OC` + `ROOT`
 
-只允许云服务器 Tailscale IP 访问 Windows TCP 5000/8000，不配置公网端口映射。
+Prod 仅允许公网访问 Nginx 的 80/443 和受限来源的 SSH 22。Backend 5000、RAG 8000、Provisioner 8787、Gateway 18789 和 PostgreSQL 5432 只绑定回环地址或由主机防火墙拒绝公网访问。
 
-通过标准：云端私网请求成功；非允许来源失败；公网扫描不可达；应用层错误 Token 仍返回 401。
+通过标准：Nginx HTTPS 请求成功；内部服务可由同机授权调用；公网扫描无法访问内部端口；应用层错误 Token 仍返回 401。
 
 ### 步骤 7.6：历史注入 feature flag
 
