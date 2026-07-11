@@ -1,421 +1,421 @@
-# RightNow Development Progress
-
-## 0.1 Confirm clean baseline
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: none
-- Commands: `git status --short --branch`, `git remote -v`, `git fsck --full --no-dangling`, `git log -5 --oneline`
-- Test result: branch is `local-integration`; remote is `yichenmo31-glitch/RightNow-3.2`; full fsck passed.
-- Evidence: the only initial uncommitted file was the requested root `AGENTS.md`.
-- Blocker: none
-- Next: verify toolchain.
-
-## 0.2 Confirm tool versions
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: none
-- Commands: `git --version`, `node --version`, `npm --version`, Docker CLI/Compose version checks, `py -0p`
-- Test result: Git 2.52.0, Node 24.13.0, npm 11.6.2, Docker 29.6.1, Compose 5.2.0, Python 3.11.15 available.
-- Evidence: Docker CLI works at `C:\Program Files\Docker\Docker\resources\bin\docker.exe`.
-- Blocker: Docker CLI directory is absent from the current shell PATH; use the absolute path or refresh PATH until corrected.
-- Next: create ignored local configuration.
-
-## 0.3 Establish local secret files
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `.env`, `backend/.env` (ignored, never committed)
-- Commands: copy templates, generate independent random values, `git check-ignore .env backend/.env`, `git status --short`
-- Test result: both files are ignored; five independently generated 256-bit values are unique and at least 64 hexadecimal characters long.
-- Evidence: `git check-ignore` returned `.env` and `backend/.env`; neither appears in `git status`.
-- Blocker: none
-- Next: generate files without exposing values.
-
-## 0.4 Freeze cross-service identity contract
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `architecture.md`, `backend/package.json`, `backend/scripts/test-openclaw-identity.cjs`
-- Commands: `npm run test:openclaw-identity`
-- Test result: backend build passed; 6 identity assertions passed for normalization, casing, whitespace, existing prefixes, and repeated conversion.
-- Evidence: `npm run test:openclaw-identity` completed successfully and the canonical example resolves to `rightnow-user-1 rightnow:user-1`.
-- Blocker: none
-- Next: build and run identity tests.
-
-## 0.5 Freeze data authority and conflict priority
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `docs/development-runbook/architecture.md`
-- Commands: architecture review against the two runbooks.
-- Test result: authority order, memory exclusions, isolation, risk, and out-of-domain boundaries are explicitly documented.
-- Evidence: `Data Authority and Conflict Resolution` and `Security and Isolation Boundaries` sections.
-- Blocker: none
-- Next: finish Wave 0 validation, then begin Wave 1.
-
-## 1.1 Start isolated PostgreSQL
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: none
-- Commands: Docker Desktop start/status, `npm run db:up`, `wsl --status`, native PostgreSQL discovery, PostgreSQL 16 `winget` install attempts, PostgreSQL 9.5 read-only version/auth probe.
-- Test result: native PostgreSQL 16.14 is installed as `postgresql-x64-16`, runs independently from the legacy 9.5 service, and accepts authenticated connections on `localhost:15433`.
-- Evidence: `select version()` returned PostgreSQL 16.14; the service is automatic and runs under NetworkService. The superuser password was rotated and exists only in ignored local environment files.
-- Blocker: none. Docker remains unavailable without WSL 2 but is no longer required for local database development.
-- Next: keep the legacy PostgreSQL 9.5 service out of RightNow configuration.
-
-## 2.2 Implement and apply Memory Schema
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `backend/prisma/schema.prisma`
-- Commands: `prisma format`, `prisma validate`, `prisma generate`, backend build.
-- Test result: schema formatting/validation, Prisma Client generation, database push, seed, and NestJS compilation pass.
-- Evidence: `AgentMemoryFact` and `AgentMemoryProfile` exist alongside `User` and `ChatMessage`. This was a new empty RightNow database, so no pre-change dump or legacy rows existed.
-- Blocker: none
-- Next: add database-backed Memory integration cases when extending the module.
-
-## 1.2 Generate and validate Prisma Schema
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: ignored local database and environment files only
-- Commands: `prisma generate`, `prisma db push`, seed, `prisma validate`, PostgreSQL catalog queries.
-- Test result: all commands passed; demo, buddy, and admin seed users were created.
-- Evidence: core and Memory tables are present in PostgreSQL 16 on port 15433.
-- Blocker: none
-- Next: verify protected HTTP APIs.
-
-## 1.3 Verify authentication and business API baseline
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: none
-- Commands: start built NestJS app; register/login/history HTTP smoke requests.
-- Test result: unauthenticated chat history returns 401; registration succeeds; login returns JWT; authenticated history returns 200.
-- Evidence: backend started successfully on `127.0.0.1:5000` and served database-backed requests.
-- Blocker: none
-- Next: retain generated test users as disposable local-only data.
-
-## 1.4 Verify intent classification baseline
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: none
-- Commands: `npm --workspace backend run test:intent`
-- Test result: 32 cases and 224/224 field checks passed.
-- Evidence: coverage includes logging, advice, high risk, mixed intent, and `out_of_domain`.
-- Blocker: none
-- Next: rerun after classifier changes.
-
-## 1.5 Verify Agent RPC authentication and audit
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `backend/prisma/schema.prisma`, `backend/src/agent/agent-audit.service.ts`, `backend/src/agent/agent-rpc.service.ts`
-- Commands: three authenticated HTTP variants, `memory.context.assemble`, direct audit verification.
-- Test result: missing/wrong tokens return 401; correct token succeeds; audit stores userId, tool, status, duration, and sanitized argument digest.
-- Evidence: smoke audit recorded `memory.context.assemble`, success, 269ms, and `{}` without any token or private Memory content.
-- Blocker: none
-- Next: add an automated HTTP integration suite around these assertions.
-
-## 2.1 Design Memory Schema
-
-- Owner: AGENT-BE (proposal), ROOT (review)
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `backend/prisma/schema.prisma`, `docs/development-runbook/architecture.md`
-- Commands: schema review against authority, lifecycle, risk, isolation, and deletion requirements.
-- Test result: one-per-user profile, indexed facts, lifecycle enums, cascade deletion, and service-enforced confidence/risk constraints are represented.
-- Evidence: `AgentMemoryProfile`, `AgentMemoryFact`, and three Memory enums added to the schema.
-- Blocker: none for design; database application remains blocked by step 1.1.
-- Next: format, validate, generate, and build without applying to PostgreSQL.
-
-## 2.3 Create agent-memory module skeleton
-
-- Owner: AGENT-BE
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `backend/src/agent-memory/agent-memory.module.ts`, `backend/src/agent-memory/memory-sync.service.ts`, DTO and service files in the same directory
-- Commands: `npm --workspace backend run test:agent-memory`, `npm run build:backend`
-- Test result: NestJS TypeScript build passed with all Memory providers and exports; no circular dependency exists inside the module.
-- Evidence: ROOT imported `AgentMemoryModule` in `AppModule`; the formal Memory test script and repository backend build both exit successfully.
-- Blocker: application startup against PostgreSQL remains unavailable while step 1.1 is blocked by WSL/Docker.
-- Next: run backend startup smoke test after PostgreSQL becomes available.
-
-## 2.4 Implement candidate memory creation
-
-- Owner: AGENT-BE
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `backend/src/agent-memory/memory-candidate.service.ts`, `backend/src/agent-memory/agent-memory.service.ts`, `backend/scripts/test-agent-memory.cjs`
-- Commands: `cd backend`, `npm run build`, `node scripts/test-agent-memory.cjs`
-- Test result: direct response-style preference creates a candidate; current weight, one meal, and one workout are excluded; possible knee injury remains a risk-sensitive candidate.
-- Evidence: all four required table-driven cases pass, and candidate persistence validates confidence in `0..1`.
-- Blocker: none
-- Next: integrate extraction invocation only after the chat orchestration contract is assigned.
-
-## 2.5 Implement confirmation, rejection, and expiration
-
-- Owner: AGENT-BE
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `backend/src/agent-memory/agent-memory.service.ts`, `backend/src/agent-memory/dto/memory.dto.ts`, `backend/scripts/test-agent-memory.cjs`
-- Commands: `cd backend`, `npm run build`, `node scripts/test-agent-memory.cjs`
-- Test result: cross-user fact access fails; risk confirmation without explicit user evidence fails; valid risk confirmation succeeds; illegal confirmed-to-rejected reversal fails.
-- Evidence: state transitions query by both `id` and `userId`; invalidation timestamps and confirmation evidence are persisted.
-- Blocker: database-backed integration test awaits Docker/PostgreSQL availability.
-- Next: rerun the same cases against PostgreSQL after step 1.1 is unblocked.
-
-## 2.6 Implement conflict and correction
-
-- Owner: AGENT-BE
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `backend/src/agent-memory/memory-conflict.service.ts`, `backend/scripts/test-agent-memory.cjs`
-- Commands: `cd backend`, `npm run build`, `node scripts/test-agent-memory.cjs`
-- Test result: correcting user A's exercise preference leaves exactly one active value, links the old fact to its replacement, and does not modify user B's matching fact.
-- Evidence: replacement creation and same-user/category supersession execute in one Prisma transaction.
-- Blocker: database-backed concurrency test awaits Docker/PostgreSQL availability.
-- Next: add a real transaction/concurrency integration case when the database is running.
-
-## 2.7 Implement Profile aggregation
-
-- Owner: AGENT-BE
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `backend/src/agent-memory/memory-profile.service.ts`, `backend/scripts/test-agent-memory.cjs`
-- Commands: `cd backend`, `npm run build`, `node scripts/test-agent-memory.cjs`, `npx prisma validate`
-- Test result: only confirmed facts enter Profile; confirming a candidate increments the version; expiring a fact removes it and increments again; identical synchronization keeps the version unchanged.
-- Evidence: deterministic ordering and byte-equivalent JSON comparison make repeated synchronization read-only and idempotent; Prisma validation passed.
-- Blocker: database-backed projection test awaits Docker/PostgreSQL availability.
-- Next: Wave 3 adds stable `MEMORY.md` serialization behind `MemorySyncService`.
-
-## 4.1 Read-only cloud audit
-
-- Owner: AGENT-OC
-- Status: blocked
-- Started/completed: 2026-07-11
-- Changed files: none
-- Commands: `ssh -o BatchMode=yes -o ConnectTimeout=8 root@106.54.16.31 "openclaw --version; openclaw gateway status; ..."`
-- Test result: authentication failed before any remote command ran; no remote state was changed and no token was displayed.
-- Evidence: SSH returned `Permission denied (publickey,gssapi-keyex,gssapi-with-mic,password)`.
-- Blocker: a usable SSH private key or installation of this workstation's public key on the server is required.
-- Next: repeat the read-only audit and record sanitized OpenClaw version, Gateway state, config shape, plugin path, and Personal workspace path.
-
-## 4.2 Establish Provisioner skeleton
-
-- Owner: AGENT-OC
-- Status: completed (local)
-- Started/completed: 2026-07-11
-- Changed files: `infra/provisioner/package.json`, `README.md`, `src/config.js`, `src/server.js`, `src/index.js`
-- Commands: `cd infra/provisioner`, `npm test`
-- Test result: missing configuration and wildcard bind fail closed; no/wrong Bearer token returns 401; valid request succeeds.
-- Evidence: provisioner suite passed 6/6 on Node 24, compatible with the declared Node >=22 engine.
-- Blocker: actual Tailscale address and cloud deployment remain unavailable until SSH access is restored.
-- Next: deploy with the server's specific Tailscale IP, never a wildcard or public bind.
-
-## 4.3 Validate Agent ID
-
-- Owner: AGENT-OC
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `infra/provisioner/src/agent-id.js`, `infra/provisioner/test/provisioner.test.js`
-- Commands: `npm test`
-- Test result: traversal, Personal ID, empty ID, and overlong ID fail; `rightnow-user_123` passes; caller-supplied workspace returns 400.
-- Evidence: workspace is derived exclusively as `<workspaceRoot>/workspace-<agentId>` after strict `rightnow-*` validation.
-- Blocker: none
-- Next: retain this validator as the only provision API entry path.
-
-## 4.4 Implement atomic config update
-
-- Owner: AGENT-OC
-- Status: completed (local)
-- Started/completed: 2026-07-11
-- Changed files: `infra/provisioner/src/config-store.js`, `infra/provisioner/test/provisioner.test.js`
-- Commands: `npm test`
-- Test result: duplicate provision is idempotent; simulated pre-rename failure preserves the original; concurrent agents are both retained.
-- Evidence: exclusive lock file, JSON validation, backup, same-directory temporary write, file fsync, atomic rename, and best-effort directory fsync are implemented.
-- Blocker: Gateway hot-load behavior requires the cloud audit/deployment.
-- Next: verify the live Gateway observes the new agent or add an authenticated reload hook if its installed version requires one.
-
-## 4.5 Create workspace templates
-
-- Owner: AGENT-OC
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `infra/provisioner/src/workspace.js`, `infra/provisioner/test/provisioner.test.js`
-- Commands: `npm test`
-- Test result: `AGENTS.md`, `USER.md`, `MEMORY.md`, `.gitignore`, and `memory/` are created; initial Memory contains only `No durable preferences confirmed yet.`.
-- Evidence: templates contain no token, current business fact, plan body, or Personal workspace path; USER contains only userId and language.
-- Blocker: none
-- Next: cloud smoke-test resulting ownership and mode under the actual OpenClaw account.
-
-## 4.6 Implement workspace bootstrap
-
-- Owner: AGENT-OC
-- Status: completed (local)
-- Started/completed: 2026-07-11
-- Changed files: `infra/provisioner/src/workspace.js`, `infra/provisioner/test/provisioner.test.js`
-- Commands: `npm test`
-- Test result: first bootstrap is complete, second bootstrap preserves edited Memory, invalid paths fail, and a Personal workspace sentinel is byte-identical afterward.
-- Evidence: files use exclusive create; target realpath must remain below the configured root.
-- Blocker: live Personal workspace hash/mtime comparison requires SSH access.
-- Next: repeat isolation checks against a disposable RightNow user on cloud.
-
-## 4.7 Connect NestJS admin-http
-
-- Owner: AGENT-OC (contract), ROOT (backend)
-- Status: completed (contract only)
-- Started/completed: 2026-07-11
-- Changed files: `infra/provisioner/README.md`, `infra/provisioner/src/server.js`
-- Commands: local HTTP tests via `npm test`
-- Test result: contract is `POST /provision`, Bearer auth, body `{agentId, language?}`; arbitrary workspace is rejected and errors never echo tokens.
-- Evidence: valid/unauthorized/invalid HTTP cases pass in the provisioner suite.
-- Blocker: ROOT must verify backend success, 401, 500, timeout, and Gateway hot-load timeout behavior end to end.
-- Next: configure `OPENCLAW_PROVISION_MODE=admin-http`, URL, and distinct admin token after cloud deployment.
-
-## 4.8 Validate Plugin contract
-
-- Owner: AGENT-OC
-- Status: completed locally; cloud load check blocked
-- Started/completed: 2026-07-11
-- Changed files: `openclaw/extensions/rightnow/package.json`
-- Commands: manifest parse, contract membership check, `node --check index.js`, `node --check src/rightnow-tools.js`, `node --check src/identity.js`
-- Test result: manifest parses, declares `rightnow_classify_intent`, and all runtime JS syntax checks pass.
-- Evidence: PowerShell contract lookup returned `True`.
-- Blocker: Gateway loaded/no-legacy-path log evidence requires SSH access.
-- Next: inspect sanitized Gateway logs after deployment.
-
-## 4.9 Validate Plugin identity mapping
-
-- Owner: AGENT-OC
-- Status: completed (local)
-- Started/completed: 2026-07-11
-- Changed files: `openclaw/extensions/rightnow/src/identity.js`, `identity.ts`, `rightnow-tools.js`, `test/identity.test.js`
-- Commands: `cd openclaw/extensions/rightnow`, `npm test`
-- Test result: 5/5 pass for canonical session, canonical agent, forged model identity removal, empty/Personal rejection, and session-agent mismatch rejection.
-- Evidence: web RPC identity is accepted only from RightNow session/agent context; model arguments cannot set user, session, agent, channel-user, or workspace identity.
-- Blocker: live write-tool denial should be repeated through Gateway once cloud access is available.
-- Next: run the five cases against a deployed plugin and correlate backend audit userId.
-
-## 4.10 Configure Memory embedding
-
-- Owner: AGENT-OC
-- Status: blocked
-- Started/completed: 2026-07-11
-- Changed files: none
-- Commands: not run because SSH authentication fails.
-- Test result: no provider capability is assumed and no false recall result was recorded.
-- Evidence: cloud commands `openclaw memory status/index/search` require restored SSH access.
-- Blocker: SSH authentication and a confirmed embedding-capable provider configuration.
-- Next: verify provider support, then run status, forced index, and sourced search without exposing credentials.
-
-## 3.1 Create Python 3.11 virtual environment
-
-- Owner: AGENT-RAG
-- Status: blocked
-- Started/completed: 2026-07-11
-- Changed files: `rag-service/requirements.txt`
-- Commands: `py -V:Astral/CPython3.11.15 -m venv .venv`, `.venv/Scripts/python -m pip install --upgrade pip`, `.venv/Scripts/python -m pip install -r rag-service/requirements.txt`, Python/import checks.
-- Test result: Python 3.11.15 and pip 26.1.2 are present; removed an invalid leading `"""` requirement. Full dependency installation exceeded the 120-second command limit and `import fastapi, chromadb` still fails.
-- Evidence: virtual environment is ignored; import exits with `ModuleNotFoundError: fastapi`.
-- Blocker: finish dependency installation in a longer-lived shell before ingestion/API tests.
-- Next: rerun pip install, then require the documented `ok` import result.
-
-## 3.2 Check knowledge-source structure
-
-- Owner: AGENT-RAG
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `rag-service/scripts/structure_check.py`
-- Commands: `python rag-service/scripts/structure_check.py --help`, `python rag-service/scripts/structure_check.py`.
-- Test result: passed; L1 has 30 valid FAQ entries with unique IDs, L2 has 11 non-empty Markdown files, and L3 has 8 non-empty Markdown files.
-- Evidence: script prints `structure check passed` and exits 0.
-- Blocker: none
-- Next: keep this read-only validation before every import.
-
-## 3.3 Clean and deduplicate
-
-- Owner: AGENT-RAG
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `rag-service/scripts/prepare_sources.py`, `.gitignore`
-- Commands: `python rag-service/scripts/prepare_sources.py --source l2-core --source l3-books --output rag-service/.work/prepared`, file/empty counts, `git check-ignore rag-service/.work/prepared`.
-- Test result: 19 output files, 0 empty files, 0 exact duplicate documents; source directories were not modified.
-- Evidence: output is isolated below ignored `rag-service/.work/`; Chroma runtime directories are also ignored.
-- Blocker: none
-- Next: import original validated sources or prepared copies into the ignored persistent directory.
-
-## 3.4 Import L1/L2/L3
-
-- Owner: AGENT-RAG
-- Status: blocked
-- Started/completed: 2026-07-11
-- Changed files: `rag-service/scripts/ingest_all.py`, `.gitignore`
-- Commands: `python rag-service/scripts/ingest_all.py --help`.
-- Test result: three-layer CLI and explicit persistent directory parameters validate successfully; actual import/count/restart checks were not run because Step 3.1 dependencies are unavailable.
-- Evidence: help exposes `--l1`, `--l2`, `--l3`, `--persist-dir`, and `--force`; output defaults below ignored `rag-service/.work/chroma`.
-- Blocker: incomplete Python dependencies and embedding model availability.
-- Next: run forced import, record all three counts, reopen stores in a second process, and compare counts.
-
-## 3.5 Run retrieval acceptance set
-
-- Owner: AGENT-RAG
-- Status: pending
-- Started/completed: 2026-07-11
-- Changed files: none
-- Commands: not run.
-- Test result: pending successful Step 3.4 ingestion.
-- Evidence: none yet.
-- Blocker: Step 3.4.
-- Next: test plateau, beginner frequency, strength/cardio, back injury recovery, and severe sleep deprivation with source metadata assertions.
-
-## 3.6 Validate RAG API
-
-- Owner: AGENT-RAG
-- Status: pending
-- Started/completed: 2026-07-11
-- Changed files: `rag-service/main.py`
-- Commands: source review only.
-- Test result: request schema now trims query, rejects blank query, and bounds `top_k` to 1..20; HTTP behavior remains unverified until dependencies and collections are ready.
-- Evidence: Pydantic validation is defined on `SearchRequest`; FastAPI should return 422 for blank query.
-- Blocker: Steps 3.1 and 3.4.
-- Next: start API and test docs, FAQ/Core/Books queries, and blank-query 422.
-
-## 5.1 Read frontend constraints and establish baseline
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `frontend/views/AIChat.tsx`
-- Commands: read frontend contributor/memory files, `npm run build:frontend`, Vite dev server, browser reload/DOM/console inspection.
-- Test result: removed a duplicate `chatApi` import that blocked Babel compilation; production build passes, Vite returns 200, and the rendered start screen has no browser console errors.
-- Evidence: browser DOM shows `点击遇见 未来的自己` and `Tap to Start` at `http://127.0.0.1:5173/`.
-- Blocker: none
-- Next: verify the Vite `/api` proxy and authenticated workflows in steps 5.2-5.4.
-
-## 5.2 Verify Vite API proxy
-
-- Owner: ROOT
-- Status: completed
-- Started/completed: 2026-07-11
-- Changed files: `frontend/api/client.ts`, `frontend/vite.config.ts`, `.env.example`, `backend/.env.example`
-- Commands: frontend build, Vite/backend restart, proxied auth probes with explicit Origin, browser demo login.
-- Test result: frontend uses same-origin `/api`; `/api/agent` is proxied; backend accepts both localhost and 127.0.0.1 development origins; demo login reaches the dashboard.
-- Evidence: proxy login returned 201 with `Access-Control-Allow-Origin: http://127.0.0.1:5173`; browser rendered the authenticated RightNow dashboard with no console errors.
-- Blocker: none
-- Next: verify profile/weight and business record workflows in steps 5.3-5.4.
+# RightNow 开发进度
+
+## 0.1 确认干净基线
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：无
+- 执行命令：`git status --short --branch`、`git remote -v`、`git fsck --full --no-dangling`、`git log -5 --oneline`
+- 测试结果：分支为 `local-integration`；远端为 `yichenmo31-glitch/RightNow-3.2`；完整 fsck 检查通过。
+- 证据摘要：初始状态下唯一未提交的文件是按要求放在仓库根目录的 `AGENTS.md`。
+- 阻塞项：无
+- 下一步：验证工具链。
+
+## 0.2 确认工具版本
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：无
+- 执行命令：`git --version`、`node --version`、`npm --version`、Docker CLI/Compose 版本检查、`py -0p`
+- 测试结果：Git 2.52.0、Node 24.13.0、npm 11.6.2、Docker 29.6.1、Compose 5.2.0、Python 3.11.15 可用。
+- 证据摘要：Docker CLI 位于 `C:\Program Files\Docker\Docker\resources\bin\docker.exe`，可正常使用。
+- 阻塞项：当前 shell 的 PATH 中没有 Docker CLI 目录；修复前需使用绝对路径或刷新 PATH。
+- 下一步：创建忽略的本地配置。
+
+## 0.3 建立本地密钥文件
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`.env`、`backend/.env`（已忽略，未提交）
+- 执行命令：复制模板，生成独立随机值，`git check-ignore .env backend/.env`、`git status --short`
+- 测试结果：两个文件均已被忽略；五个独立生成的 256 位值互不相同，且长度均至少为 64 个十六进制字符。
+- 证据摘要：`git check-ignore` 返回 `.env` 和 `backend/.env`；两者均未出现在 `git status` 中。
+- 阻塞项：无
+- 下一步：生成文件而不暴露值。
+
+## 0.4 固化跨服务身份契约
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`architecture.md`、`backend/package.json`、`backend/scripts/test-openclaw-identity.cjs`
+- 执行命令：`npm run test:openclaw-identity`
+- 测试结果：后端构建通过；针对规范化、大小写、空格、已有前缀和重复转换的 6 个身份断言均通过。
+- 证据摘要：`npm run test:openclaw-identity` 执行成功，规范示例解析为 `rightnow-user-1 rightnow:user-1`。
+- 阻塞项：无
+- 下一步：构建并运行身份测试。
+
+## 0.5 固化数据权威性与冲突优先级
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`docs/development-runbook/architecture.md`
+- 执行命令：针对两个运行手册进行架构审查。
+- 测试结果：数据权威顺序、Memory 排除项、隔离、风险和领域外边界均已明确记录。
+- 证据摘要：`Data Authority and Conflict Resolution` 和 `Security and Isolation Boundaries` 部分。
+- 阻塞项：无
+- 下一步：完成 Wave 0 验证，然后开始 Wave 1。
+
+## 1.1 启动隔离的 PostgreSQL
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：无
+- 执行命令：Docker Desktop 启动/状态、`npm run db:up`、`wsl --status`、本机 PostgreSQL 发现、PostgreSQL 16 `winget` 安装尝试、PostgreSQL 9.5 只读版本/身份验证探测。
+- 测试结果：本机 PostgreSQL 16.14 安装为 `postgresql-x64-16`，独立于旧版 9.5 服务运行，并接受 `localhost:15433` 上经过身份验证的连接。
+- 证据摘要：`select version()` 返回 PostgreSQL 16.14；该服务设为自动启动并以 NetworkService 身份运行。超级用户密码已轮换，且仅保存在已忽略的本地环境文件中。
+- 阻塞项：无。如果没有 WSL 2，Docker 仍然不可用，但本地数据库开发不再需要 Docker。
+- 下一步：将旧版 PostgreSQL 9.5 服务排除在 RightNow 配置之外。
+
+## 2.2 实现并应用 Memory Schema
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`backend/prisma/schema.prisma`
+- 执行命令：`prisma format`、`prisma validate`、`prisma generate`，后端构建。
+- 测试结果：Schema 格式化与验证、Prisma Client 生成、数据库推送、种子写入和 NestJS 编译均通过。
+- 证据摘要：`AgentMemoryFact` 和 `AgentMemoryProfile` 与 `User`、`ChatMessage` 表均已存在。该 RightNow 数据库为新建空库，因此没有变更前备份或旧数据行。
+- 阻塞项：无
+- 下一步：扩展模块时添加基于数据库的 Memory 集成测试用例。
+
+## 1.2 生成并验证 Prisma Schema
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：仅涉及已忽略的本地数据库和环境文件
+- 执行命令：`prisma generate`、`prisma db push`、seed、`prisma validate`、PostgreSQL 系统目录查询。
+- 测试结果：所有命令均通过；已创建 demo、buddy 和 admin 种子用户。
+- 证据摘要：core 和 Memory 表存在于 PostgreSQL 16 的端口 15433 上。
+- 阻塞项：无
+- 下一步：验证受保护的 HTTP API。
+
+## 1.3 验证认证与业务 API 基线
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：无
+- 执行命令：启动已构建的 NestJS 应用；执行注册、登录和历史记录 HTTP 冒烟请求。
+- 测试结果：未认证的聊天历史请求返回 401；注册成功；登录返回 JWT；认证后的历史记录请求返回 200。
+- 证据摘要：后端在 `127.0.0.1:5000` 上成功启动并为数据库支持的请求提供服务。
+- 阻塞项：无
+- 下一步：将生成的测试用户保留为一次性本地数据。
+
+## 1.4 验证意图分类基线
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：无
+- 执行命令：`npm --workspace backend run test:intent`
+- 测试结果：32 个用例和 224/224 项字段检查全部通过。
+- 证据摘要：覆盖范围包括日志记录、建议、高风险、混合意图和 `out_of_domain`。
+- 阻塞项：无
+- 下一步：分类器更改后重新运行。
+
+## 1.5 验证 Agent RPC 认证与审计
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`backend/prisma/schema.prisma`、`backend/src/agent/agent-audit.service.ts`、`backend/src/agent/agent-rpc.service.ts`
+- 执行命令：三种认证 HTTP 请求、`memory.context.assemble`、直接审计验证。
+- 测试结果：丢失/错误的令牌返回 401；正确的令牌成功；审计存储用户 ID、工具、状态、持续时间和经过净化的参数摘要。
+- 证据摘要：冒烟审计记录了 `memory.context.assemble`、成功状态、269ms 耗时和 `{}`，未包含任何令牌或私有 Memory 内容。
+- 阻塞项：无
+- 下一步：围绕这些断言添加自动化 HTTP 集成套件。
+
+## 2.1 设计 Memory Schema
+
+- 负责人：AGENT-BE（提案）、ROOT（审核）
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`backend/prisma/schema.prisma`、`docs/development-runbook/architecture.md`
+- 执行命令：根据权限、生命周期、风险、隔离和删除要求进行架构审查。
+- 测试结果：Schema 已体现每个用户一个 Profile、事实索引、生命周期枚举、级联删除，以及由服务强制执行的置信度与风险约束。
+- 证据摘要：已向 Schema 添加 `AgentMemoryProfile`、`AgentMemoryFact` 和三个 Memory 枚举。
+- 阻塞项：设计无阻塞；数据库应用仍受步骤 1.1 阻塞。
+- 下一步：格式化、验证、生成和构建，无需应用于 PostgreSQL。
+
+## 2.3 创建 agent-memory 模块骨架
+
+- 负责人：AGENT-BE
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`backend/src/agent-memory/agent-memory.module.ts`、`backend/src/agent-memory/memory-sync.service.ts`，以及同目录下的 DTO 和服务文件
+- 执行命令：`npm --workspace backend run test:agent-memory`、`npm run build:backend`
+- 测试结果：包含全部 Memory Provider 和导出项的 NestJS TypeScript 构建通过；模块内部不存在循环依赖。
+- 证据摘要：ROOT 已在 `AppModule` 中导入 `AgentMemoryModule`；正式 Memory 测试脚本和仓库后端构建均成功退出。
+- 阻塞项：步骤 1.1 受 WSL/Docker 阻塞期间，仍无法针对 PostgreSQL 启动应用。
+- 下一步：PostgreSQL 可用后运行后端启动冒烟测试。
+
+## 2.4 实现候选记忆创建
+
+- 负责人：AGENT-BE
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`backend/src/agent-memory/memory-candidate.service.ts`、`backend/src/agent-memory/agent-memory.service.ts`、`backend/scripts/test-agent-memory.cjs`
+- 执行命令：`cd backend`、`npm run build`、`node scripts/test-agent-memory.cjs`
+- 测试结果：直接表达的回复风格偏好会创建候选记忆；当前体重、单次饮食和单次训练不会创建候选记忆；可能的膝伤仍会作为风险敏感候选记忆保留。
+- 证据摘要：四个必需的表驱动用例全部通过，候选记忆持久化会验证置信度处于 `0..1` 范围内。
+- 阻塞项：无
+- 下一步：待聊天编排契约明确后再集成提取调用。
+
+## 2.5 实现确认、拒绝与过期
+
+- 负责人：AGENT-BE
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`backend/src/agent-memory/agent-memory.service.ts`、`backend/src/agent-memory/dto/memory.dto.ts`、`backend/scripts/test-agent-memory.cjs`
+- 执行命令：`cd backend`、`npm run build`、`node scripts/test-agent-memory.cjs`
+- 测试结果：跨用户事实访问失败；缺少明确用户证据时风险确认失败；有效风险确认成功；非法的 confirmed 到 rejected 反向转换失败。
+- 证据摘要：状态转换同时按 `id` 和 `userId` 查询；失效时间戳和确认证据均会持久化。
+- 阻塞项：数据库支持的集成测试等待 Docker/PostgreSQL 的可用性。
+- 下一步：步骤 1.1 解锁后，针对 PostgreSQL 重新运行相同的案例。
+
+## 2.6 实现冲突与纠正
+
+- 负责人：AGENT-BE
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`backend/src/agent-memory/memory-conflict.service.ts`、`backend/scripts/test-agent-memory.cjs`
+- 执行命令：`cd backend`、`npm run build`、`node scripts/test-agent-memory.cjs`
+- 测试结果：纠正用户 A 的训练偏好后只保留一个有效值，旧事实会关联至替代事实，且不会修改用户 B 的同类事实。
+- 证据摘要：创建替代事实并废止同一用户同类别旧事实的操作在一个 Prisma 事务中执行。
+- 阻塞项：数据库支持的并发测试等待 Docker/PostgreSQL 的可用性。
+- 下一步：添加数据库运行时真实的事务/并发集成案例。
+
+## 2.7 实现 Profile 聚合
+
+- 负责人：AGENT-BE
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`backend/src/agent-memory/memory-profile.service.ts`、`backend/scripts/test-agent-memory.cjs`
+- 执行命令：`cd backend`、`npm run build`、`node scripts/test-agent-memory.cjs`、`npx prisma validate`
+- 测试结果：只有已确认事实会进入 Profile；确认候选记忆会增加版本号；事实过期后会从 Profile 移除并再次增加版本号；内容相同的同步不会改变版本号。
+- 证据摘要：确定性排序和字节等效 JSON 比较使重复同步只读且幂等； Prisma 验证已通过。
+- 阻塞项：数据库支持的投影测试等待 Docker/PostgreSQL 的可用性。
+- 下一步：Wave 3 将在 `MemorySyncService` 后添加稳定的 `MEMORY.md` 序列化。
+
+## 4.1 云端只读审计
+
+- 负责人：AGENT-OC
+- 状态：blocked
+- 开始/完成日期：2026-07-11
+- 修改文件：无
+- 执行命令：`ssh -o BatchMode=yes -o ConnectTimeout=8 root@106.54.16.31 "openclaw --version; openclaw gateway status; ..."`
+- 测试结果：在运行任何远程命令之前身份验证失败；没有更改远程状态，也没有显示令牌。
+- 证据摘要：SSH 返回 `Permission denied (publickey,gssapi-keyex,gssapi-with-mic,password)`。
+- 阻塞项：需要可用的 SSH 私钥或在服务器上安装该工作站的公钥。
+- 下一步：重复只读审计，并记录脱敏后的 OpenClaw 版本、Gateway 状态、配置结构、插件路径和 Personal 工作区路径。
+
+## 4.2 建立 Provisioner 骨架
+
+- 负责人：AGENT-OC
+- 状态：completed（本地）
+- 开始/完成日期：2026-07-11
+- 修改文件：`infra/provisioner/package.json`、`README.md`、`src/config.js`、`src/server.js`、`src/index.js`
+- 执行命令：`cd infra/provisioner`、`npm test`
+- 测试结果：缺少配置或使用通配符绑定时服务会安全失败；缺少或使用错误 Bearer token 时返回 401；有效请求成功。
+- 证据摘要：Provisioner 测试套件在 Node 24 上通过 6/6，与声明的 Node >=22 运行环境兼容。
+- 阻塞项：在 SSH 访问恢复之前，实际的 Tailscale 地址和云部署仍然不可用。
+- 下一步：使用服务器的特定 Tailscale IP 进行部署，切勿使用通配符或公共绑定。
+
+## 4.3 验证 Agent ID
+
+- 负责人：AGENT-OC
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`infra/provisioner/src/agent-id.js`、`infra/provisioner/test/provisioner.test.js`
+- 执行命令：`npm test`
+- 测试结果：路径遍历、Personal ID、空 ID 和超长 ID 均失败；`rightnow-user_123` 通过；调用方提供 workspace 时返回 400。
+- 证据摘要：严格验证 `rightnow-*` 后，工作区仅按 `<workspaceRoot>/workspace-<agentId>` 派生。
+- 阻塞项：无
+- 下一步：保留此验证器作为唯一的配置 API 入口路径。
+
+## 4.4 实现配置原子更新
+
+- 负责人：AGENT-OC
+- 状态：completed（本地）
+- 开始/完成日期：2026-07-11
+- 修改文件：`infra/provisioner/src/config-store.js`、`infra/provisioner/test/provisioner.test.js`
+- 执行命令：`npm test`
+- 测试结果：重复 provision 操作具有幂等性；模拟重命名前失败时会保留原文件；并发创建的 Agent 均会保留。
+- 证据摘要：已实现独占锁文件、JSON 验证、备份、同目录临时写入、文件 fsync、原子重命名和尽力执行的目录 fsync。
+- 阻塞项：网关热加载行为需要云审计/部署。
+- 下一步：验证实时网关是否观察到新代理，或者添加经过身份验证的重新加载挂钩（如果其安装的版本需要）。
+
+## 4.5 创建工作区模板
+
+- 负责人：AGENT-OC
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`infra/provisioner/src/workspace.js`、`infra/provisioner/test/provisioner.test.js`
+- 执行命令：`npm test`
+- 测试结果：已创建 `AGENTS.md`、`USER.md`、`MEMORY.md`、`.gitignore` 和 `memory/`；初始 Memory 仅包含 `No durable preferences confirmed yet.`。
+- 证据摘要：模板不包含令牌、当前业务事实、计划正文或 Personal 工作区路径；`USER.md` 仅包含 userId 和 language。
+- 阻塞项：无
+- 下一步：在云端使用实际 OpenClaw 账户对生成文件的所有权和权限模式进行冒烟测试。
+
+## 4.6 实现工作区引导
+
+- 负责人：AGENT-OC
+- 状态：completed（本地）
+- 开始/完成日期：2026-07-11
+- 修改文件：`infra/provisioner/src/workspace.js`、`infra/provisioner/test/provisioner.test.js`
+- 执行命令：`npm test`
+- 测试结果：首次引导完整执行；第二次引导保留已编辑的 Memory；无效路径失败；操作后 Personal 工作区哨兵文件逐字节保持一致。
+- 证据摘要：文件采用独占创建；目标 realpath 必须始终位于配置的根目录下。
+- 阻塞项：比较云端 Personal 工作区的 hash/mtime 需要 SSH 访问。
+- 下一步：对云上的一次性 RightNow 用户重复隔离检查。
+
+## 4.7 连接 NestJS admin-http
+
+- 负责人：AGENT-OC（合约）、ROOT（后端）
+- 状态：completed（仅契约）
+- 开始/完成日期：2026-07-11
+- 修改文件：`infra/provisioner/README.md`、`infra/provisioner/src/server.js`
+- 执行命令：通过 `npm test` 进行本地 HTTP 测试
+- 测试结果：契约为 `POST /provision`，采用 Bearer auth，请求体为 `{agentId, language?}`；任意 workspace 参数都会被拒绝，错误信息不会回显令牌。
+- 证据摘要：Provisioner 测试套件中的有效、未授权和无效 HTTP 用例均通过。
+- 阻塞项：ROOT 必须端到端验证后端成功、401、500、超时和 Gateway 热加载超时行为。
+- 下一步：云部署后配置 `OPENCLAW_PROVISION_MODE=admin-http`、URL 和不同的管理令牌。
+
+## 4.8 验证插件契约
+
+- 负责人：AGENT-OC
+- 状态：completed（本地）；云端加载检查 blocked
+- 开始/完成日期：2026-07-11
+- 修改文件：`openclaw/extensions/rightnow/package.json`
+- 执行命令：manifest 解析、契约成员检查、`node --check index.js`、`node --check src/rightnow-tools.js`、`node --check src/identity.js`
+- 测试结果：manifest 解析成功，声明了 `rightnow_classify_intent`，所有运行时 JS 语法检查均通过。
+- 证据摘要：PowerShell 契约查询返回 `True`。
+- 阻塞项：确认 Gateway 已加载且未使用旧路径的日志证据需要 SSH 访问。
+- 下一步：部署后检查脱敏的 Gateway 日志。
+
+## 4.9 验证插件身份映射
+
+- 负责人：AGENT-OC
+- 状态：completed（本地）
+- 开始/完成日期：2026-07-11
+- 修改文件：`openclaw/extensions/rightnow/src/identity.js`、`identity.ts`、`rightnow-tools.js`、`test/identity.test.js`
+- 执行命令：`cd openclaw/extensions/rightnow`、`npm test`
+- 测试结果：规范 session、规范 Agent、移除伪造模型身份、拒绝空值/Personal，以及拒绝 session 与 Agent 不匹配这 5/5 个用例均通过。
+- 证据摘要：Web RPC 身份仅接受 RightNow session/Agent 上下文；模型参数不能设置 user、session、Agent、channel-user 或 workspace 身份。
+- 阻塞项：恢复云端访问后，应通过 Gateway 再次验证实时写工具拒绝行为。
+- 下一步：针对已部署的插件运行五个案例并关联后端审核用户 ID。
+
+## 4.10 配置 Memory embedding
+
+- 负责人：AGENT-OC
+- 状态：blocked
+- 开始/完成日期：2026-07-11
+- 修改文件：无
+- 执行命令：由于 SSH 身份验证失败而未运行。
+- 测试结果：未假定 provider 具备相关能力，也未记录不实的召回结果。
+- 证据摘要：云命令 `openclaw memory status/index/search` 需要恢复 SSH 访问。
+- 阻塞项：需要通过 SSH 身份验证，并确认 provider 配置支持 embedding。
+- 下一步：验证 provider 支持后，在不暴露凭据的前提下运行 status、强制 index 和带来源的 search。
+
+## 3.1 创建 Python 3.11 虚拟环境
+
+- 负责人：AGENT-RAG
+- 状态：blocked
+- 开始/完成日期：2026-07-11
+- 修改文件：`rag-service/requirements.txt`
+- 执行命令：`py -V:Astral/CPython3.11.15 -m venv .venv`、`.venv/Scripts/python -m pip install --upgrade pip`、`.venv/Scripts/python -m pip install -r rag-service/requirements.txt`、Python/导入检查。
+- 测试结果：Python 3.11.15 和 pip 26.1.2 已安装；已删除 requirements 文件开头无效的 `"""`。完整依赖安装超过 120 秒命令时限，`import fastapi, chromadb` 仍然失败。
+- 证据摘要：虚拟环境被忽略；导入以 `ModuleNotFoundError: fastapi` 退出。
+- 阻塞项：执行导入和 API 测试前，需要在允许长时间运行的 shell 中完成依赖安装。
+- 下一步：重新运行 pip install，并确认得到文档要求的 `ok` 导入结果。
+
+## 3.2 检查知识源结构
+
+- 负责人：AGENT-RAG
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`rag-service/scripts/structure_check.py`
+- 执行命令：`python rag-service/scripts/structure_check.py --help`、`python rag-service/scripts/structure_check.py`。
+- 测试结果：检查通过；L1 包含 30 个 ID 唯一的有效 FAQ 条目，L2 包含 11 个非空 Markdown 文件，L3 包含 8 个非空 Markdown 文件。
+- 证据摘要：脚本打印 `structure check passed` 并退出 0。
+- 阻塞项：无
+- 下一步：每次导入前均执行此只读验证。
+
+## 3.3 清理与去重
+
+- 负责人：AGENT-RAG
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`rag-service/scripts/prepare_sources.py`、`.gitignore`
+- 执行命令：`python rag-service/scripts/prepare_sources.py --source l2-core --source l3-books --output rag-service/.work/prepared`，文件/空计数，`git check-ignore rag-service/.work/prepared`。
+- 测试结果：19 个输出文件，0 个空文件，0 个完全相同的重复文档；源目录未修改。
+- 证据摘要：输出隔离在已忽略的 `rag-service/.work/` 下；Chroma 运行时目录也已被忽略。
+- 阻塞项：无
+- 下一步：将原始的经过验证的源或准备好的副本导入到忽略的持久目录中。
+
+## 3.4 导入 L1/L2/L3
+
+- 负责人：AGENT-RAG
+- 状态：blocked
+- 开始/完成日期：2026-07-11
+- 修改文件：`rag-service/scripts/ingest_all.py`、`.gitignore`
+- 执行命令：`python rag-service/scripts/ingest_all.py --help`。
+- 测试结果：三层 CLI 和显式持久目录参数验证成功；由于步骤 3.1 依赖项不可用，因此未运行实际导入/计数/重新启动检查。
+- 证据摘要：帮助信息列出 `--l1`、`--l2`、`--l3`、`--persist-dir` 和 `--force`；输出默认写入已忽略的 `rag-service/.work/chroma`。
+- 阻塞项：Python 依赖尚未完整安装，embedding 模型也尚不可用。
+- 下一步：运行强制导入，记录所有三个计数，在第二个进程中重新打开存储，然后比较计数。
+
+## 3.5 运行检索验收集
+
+- 负责人：AGENT-RAG
+- 状态：pending
+- 开始/完成日期：2026-07-11
+- 修改文件：无
+- 执行命令：未运行。
+- 测试结果：pending，等待步骤 3.4 成功完成导入。
+- 证据摘要：暂无。
+- 阻塞项：步骤 3.4。
+- 下一步：测试平台期、初学者训练频率、力量/有氧训练、背伤恢复和严重睡眠不足场景，并断言来源元数据。
+
+## 3.6 验证 RAG API
+
+- 负责人：AGENT-RAG
+- 状态：pending
+- 开始/完成日期：2026-07-11
+- 修改文件：`rag-service/main.py`
+- 执行命令：仅审查源代码。
+- 测试结果：请求模式现在修剪查询，拒绝空白查询，并将 `top_k` 限制为 1..20；在依赖项和集合准备就绪之前，HTTP 行为仍未得到验证。
+- 证据摘要：Pydantic 验证定义在 `SearchRequest` 上；对于空白查询，FastAPI 应返回 422。
+- 阻塞项：步骤 3.1 和 3.4。
+- 下一步：启动 API，测试 docs、FAQ/Core/Books 查询，以及空白查询返回 422。
+
+## 5.1 阅读前端约束并建立基线
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`frontend/views/AIChat.tsx`
+- 执行命令：读取前端贡献者说明和 Memory 文件、`npm run build:frontend`、启动 Vite 开发服务器、检查浏览器重载/DOM/控制台。
+- 测试结果：删除了阻塞 Babel 编译的重复 `chatApi` 导入；生产构建通过，Vite 返回 200，渲染后的启动页无浏览器控制台错误。
+- 证据摘要：浏览器 DOM 在 `http://127.0.0.1:5173/` 处显示 `点击遇见 未来的自己` 和 `Tap to Start`。
+- 阻塞项：无
+- 下一步：在步骤 5.2-5.4 中验证 Vite `/api` 代理和经过身份验证的工作流程。
+
+## 5.2 验证 Vite API 代理
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成日期：2026-07-11
+- 修改文件：`frontend/api/client.ts`、`frontend/vite.config.ts`、`.env.example`、`backend/.env.example`
+- 执行命令：前端构建、重启 Vite/后端、使用显式 Origin 的代理认证探测、浏览器 demo 登录。
+- 测试结果：前端使用同源 `/api`；`/api/agent` 已通过代理；后端接受 localhost 和 127.0.0.1 开发源；demo 登录可进入仪表板。
+- 证据摘要：代理登录返回 201，并包含 `Access-Control-Allow-Origin: http://127.0.0.1:5173`；浏览器成功渲染已认证的 RightNow 仪表板，且无控制台错误。
+- 阻塞项：无
+- 下一步：在步骤 5.3-5.4 中验证个人资料/体重和业务记录工作流程。
