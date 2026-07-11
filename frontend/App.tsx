@@ -28,6 +28,7 @@ import TrainingHistory from './views/TrainingHistory';
 import TrainingConfirm from './views/TrainingConfirm';
 import CommunityShare from './views/CommunityShare';
 import WechatSettings from './views/WechatSettings';
+import BindXiaozhua from './views/BindXiaozhua';
 import BottomNav from './components/BottomNav';
 import FloatingAdvisor from './components/FloatingAdvisor';
 
@@ -451,6 +452,8 @@ const App: React.FC = () => {
         );
       case View.WechatSettings:
         return <WechatSettings onBack={() => setCurrentView(View.Dashboard)} />;
+      case View.BindXiaozhua:
+        return <BindXiaozhua onNavigate={setCurrentView} authUser={authUser} />;
 
       // Check-In Flow
       case View.CheckInType:
@@ -489,7 +492,8 @@ const App: React.FC = () => {
     currentView === View.TrainingHistory ||
     currentView === View.TrainingConfirm ||
     currentView === View.CommunityShare ||
-    currentView === View.WechatSettings;
+    currentView === View.WechatSettings ||
+    currentView === View.BindXiaozhua;
 
   // Views where BottomNav should be hidden
   const shouldHideBottomNav =
@@ -509,7 +513,8 @@ const App: React.FC = () => {
     currentView === View.TrainingHistory ||
     currentView === View.TrainingConfirm ||
     currentView === View.CommunityShare ||
-    currentView === View.WechatSettings;
+    currentView === View.WechatSettings ||
+    currentView === View.BindXiaozhua;
 
   // Show loading while checking auth
   if (!authChecked) {
