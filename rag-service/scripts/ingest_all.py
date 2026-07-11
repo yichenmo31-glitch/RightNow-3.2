@@ -1,82 +1,64 @@
-"""
-一键入库：把所有知识库分层导入 ChromaDB
-
-用法：
-  python scripts/ingest_all.py              # 入库所有层
-  python scripts/ingest_all.py --layer1      # 只入库 Layer 1（专业知识）
-  python scripts/ingest_all.py --layer2      # 只入库 Layer 2（专业书）
-  python scripts/ingest_all.py --layer1 --layer2  # 全部入库
-"""
-import sys, os
+"""Import the repository L1/L2/L3 knowledge sources into persistent Chroma."""
+import argparse
+import os
+import sys
 from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent))
-sys.stdout.reconfigure(encoding='utf-8')
 
-import config
-from services.retriever import build_embeddings, build_vectorstore, build_practical_vectorstore
-from services.ingest import IngestService, PracticalIngestService
+SERVICE_DIR = Path(__file__).resolve().parents[1]
+REPO_DIR = SERVICE_DIR.parent
+sys.path.insert(0, str(SERVICE_DIR))
 
 
-def ingest_layer1():
-    if not config.USE_PRACTICAL or not config.PRACTICAL_DATA_PATH:
-        print("[Layer 1] SKIP — PRACTICAL_DATA_PATH not configured")
-        return
-    data = Path(config.PRACTICAL_DATA_PATH)
-    if not data.exists():
-        print(f"[Layer 1] SKIP — path not found: {data}")
-        return
-
-    print(f"[Layer 1] Loading embedding: {config.EMBEDDING_MODEL}")
-    embeddings = build_embeddings()
-    vs = build_practical_vectorstore(embeddings)
-    if vs is None:
-        print("[Layer 1] SKIP — vectorstore init failed")
-        return
-    svc = PracticalIngestService(vs)
-
-    print(f"[Layer 1] Ingesting: {config.PRACTICAL_DATA_PATH}")
-    result = svc.ingest_directory(config.PRACTICAL_DATA_PATH)
-    print(f"[Layer 1] Done — {result['chunks']} chunks\n")
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--l1", type=Path, default=REPO_DIR / "l1-faq" / "faq.json")
+    parser.add_argument("--l2", type=Path, default=REPO_DIR / "l2-core")
+    parser.add_argument("--l3", type=Path, default=REPO_DIR / "l3-books")
+    parser.add_argument("--persist-dir", type=Path, default=SERVICE_DIR / ".work" / "chroma")
+    parser.add_argument("--force", action="store_true", help="clear each collection before import")
+    return parser.parse_args()
 
 
-def ingest_layer2():
-    data = Path(config.CLEANED_DATA_PATH)
-    if not data.exists():
-        print(f"[Layer 2] SKIP — path not found: {data}")
-        return
-
-    print(f"[Layer 2] Loading embedding: {config.EMBEDDING_MODEL}")
-    embeddings = build_embeddings()
-    vs = build_vectorstore(embeddings)
-    svc = IngestService(vs)
-
-    print(f"[Layer 2] Ingesting: {config.CLEANED_DATA_PATH}")
-    result = svc.ingest_directory(config.CLEANED_DATA_PATH)
-    print(f"[Layer 2] Done — {result['chunks']} chunks\n")
+def clear(vectorstore):
+    ids = vectorstore._collection.get()["ids"]
+    if ids:
+        vectorstore._collection.delete(ids=ids)
 
 
 def main():
-    args = set(sys.argv[1:])
-    do_layer1 = "--layer1" in args or "--blogger" in args
-    do_layer2 = "--layer2" in args
-    if not do_layer1 and not do_layer2:
-        do_layer1 = do_layer2 = True  # 默认全部
+    args = parse_args()
+    for source in (args.l1, args.l2, args.l3):
+        if not source.exists():
+            raise SystemExit(f"knowledge source not found: {source}")
+    args.persist_dir.mkdir(parents=True, exist_ok=True)
 
-    print("=" * 60)
-    print("RightNow RAG — Multi-Layer Ingest")
-    print("=" * 60)
-    print(f"Embedding model: {config.EMBEDDING_MODEL}")
-    print(f"Layer 1 (practical): {'ENABLED' if do_layer1 else 'SKIP'}")
-    print(f"Layer 2 (books):     {'ENABLED' if do_layer2 else 'SKIP'}")
-    print()
+    os.environ.update({
+        "RAG_L1_FAQ_PATH": str(args.l1.resolve()),
+        "RAG_L2_DATA_PATH": str(args.l2.resolve()),
+        "RAG_L3_DATA_PATH": str(args.l3.resolve()),
+        "RAG_L1_CHROMA_DIR": str((args.persist_dir / "l1").resolve()),
+        "RAG_L2_CHROMA_DIR": str((args.persist_dir / "l2").resolve()),
+        "RAG_L3_CHROMA_DIR": str((args.persist_dir / "l3").resolve()),
+    })
+    import config
+    from services.faq_ingest import FaqIngestService
+    from services.ingest import IngestService
+    from services.retriever import (
+        build_embeddings, build_l1_vectorstore, build_l2_vectorstore, build_l3_vectorstore,
+    )
 
-    if do_layer1:
-        ingest_layer1()
-    if do_layer2:
-        ingest_layer2()
-
-    print("=" * 60)
-    print("All done.")
+    embeddings = build_embeddings()
+    stores = (build_l1_vectorstore(embeddings), build_l2_vectorstore(embeddings), build_l3_vectorstore(embeddings))
+    if args.force:
+        for store in stores:
+            clear(store)
+    results = {
+        "l1": FaqIngestService(stores[0]).ingest_json(str(args.l1)),
+        "l2": IngestService(stores[1]).ingest_flat(str(args.l2), domain="comprehensive"),
+        "l3": IngestService(stores[2]).ingest_flat(str(args.l3), domain="comprehensive"),
+    }
+    for layer, store in zip(("l1", "l2", "l3"), stores):
+        print(f"{layer}: imported={results[layer]['chunks']} persisted={store._collection.count()} collection={getattr(config, layer.upper() + '_COLLECTION')}")
 
 
 if __name__ == "__main__":

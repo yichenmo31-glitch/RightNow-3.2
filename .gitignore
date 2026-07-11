@@ -50,6 +50,9 @@ openclaw/node_modules/
 openclaw/dist/
 blogger-data/
 cleaned-data/
+rag-service/.work/
+rag-service/chroma_*/
+rag-service/chroma_db/
 backups/
 uploads/
 

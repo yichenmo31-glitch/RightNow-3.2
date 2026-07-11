@@ -22,6 +22,7 @@ import { WeightModule } from './weight/weight.module';
 import { EvolutionStageModule } from './evolution-stage/evolution-stage.module';
 import { WechatModule } from './wechat/wechat.module';
 import { PromptsModule } from './prompts/prompts.module';
+import { AgentMemoryModule } from './agent-memory/agent-memory.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { PromptsModule } from './prompts/prompts.module';
       envFilePath: ['.env.local', '.env'],
     }),
     PrismaModule,
+    AgentMemoryModule,
     AiCoachModule,
     AuthModule,
     UsersModule,

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from langchain_core.documents import Document
 import tempfile, os, json
 from pathlib import Path
@@ -139,10 +139,18 @@ def _safe_clear_col(vs):
 
 class SearchRequest(BaseModel):
     query: str
-    top_k: int = 5
+    top_k: int = Field(default=5, ge=1, le=20)
     domain: str = None
     collection: str = None
     fast_path: bool = True  # 默认走新快路
+
+    @field_validator("query")
+    @classmethod
+    def query_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("query must not be blank")
+        return value
 
 
 class DocumentRequest(BaseModel):

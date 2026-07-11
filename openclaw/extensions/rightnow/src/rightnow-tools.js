@@ -2,31 +2,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { Type } from "typebox";
+import { resolveRightNowWebUserId, stripModelIdentity } from "./identity.js";
 
 let rpcConfig = null;
 
 function cleanString(value) {
   if (typeof value !== "string") return "";
   return value.trim();
-}
-
-function isAgentSessionKey(value) {
-  return !value || value.startsWith("agent:");
-}
-
-function normalizeUserId(value) {
-  const raw = cleanString(value);
-  if (!raw || isAgentSessionKey(raw)) return "";
-  const withoutModelPrefix = raw.startsWith("openclaw/")
-    ? raw.slice("openclaw/".length)
-    : raw;
-  if (withoutModelPrefix.startsWith("rightnow:")) {
-    return withoutModelPrefix.slice("rightnow:".length);
-  }
-  if (withoutModelPrefix.startsWith("rightnow-")) {
-    return withoutModelPrefix.slice("rightnow-".length);
-  }
-  return withoutModelPrefix;
 }
 
 function resolveRpcIdentity(ctx) {
@@ -36,9 +18,7 @@ function resolveRpcIdentity(ctx) {
     cleanString(delivery.channel) ||
     "web";
 
-  const webUserId =
-    normalizeUserId(ctx?.sessionKey) ||
-    normalizeUserId(ctx?.agentId);
+  const webUserId = channel === "web" ? resolveRightNowWebUserId(ctx) : "";
 
   let channelUserId =
     cleanString(ctx?.requesterSenderId) ||
@@ -165,7 +145,7 @@ async function rpcCall(tool, args, ctx) {
     channel: identity.channel,
     channelUserId: identity.channelUserId,
     channelChatId: identity.channelChatId,
-    args: normalizeToolArgs(tool, args),
+    args: stripModelIdentity(normalizeToolArgs(tool, args)),
   };
 
   const response = await fetch(cfg.rightnowApiBase + "/agent/rpc", {
