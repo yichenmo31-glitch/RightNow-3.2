@@ -1,7 +1,7 @@
 // RightNow data tools - 20 tools calling backend RPC
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
-import { Type } from "typebox";
+import { Type } from "@sinclair/typebox";
 import { resolveRightNowWebUserId, stripModelIdentity } from "./identity.js";
 
 let rpcConfig = null;

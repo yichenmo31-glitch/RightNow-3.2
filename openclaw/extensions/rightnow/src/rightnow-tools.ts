@@ -1,5 +1,5 @@
 // RightNow data tools — 21 tools that call RPC POST /api/agent/rpc on the backend.
-import { Type } from "typebox";
+import { Type } from "@sinclair/typebox";
 import type { AnyAgentTool, OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { RightNowPluginConfig } from "../index.js";
 

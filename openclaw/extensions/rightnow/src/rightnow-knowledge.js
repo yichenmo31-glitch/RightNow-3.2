@@ -1,5 +1,5 @@
 // RightNow knowledge-base tools - 3 tools calling RAG service directly
-import { Type } from "typebox";
+import { Type } from "@sinclair/typebox";
 
 let ragConfig = null;
 

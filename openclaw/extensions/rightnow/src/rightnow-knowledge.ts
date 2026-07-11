@@ -1,5 +1,5 @@
 // RightNow knowledge-base tools — 3 tools that call the RAG service directly.
-import { Type } from "typebox";
+import { Type } from "@sinclair/typebox";
 import type { AnyAgentTool, OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { RightNowPluginConfig } from "../index.js";
 

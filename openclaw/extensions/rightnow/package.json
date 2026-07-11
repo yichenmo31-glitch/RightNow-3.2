@@ -7,6 +7,9 @@
   "scripts": {
     "test": "node --test"
   },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.51"
+  },
   "openclaw": {
     "extensions": [
       "./index.js"
