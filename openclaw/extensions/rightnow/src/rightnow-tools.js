@@ -181,6 +181,21 @@ async function rpcCall(tool, args, ctx) {
   return payload;
 }
 
+async function classifyIntent(args) {
+  const cfg = rpcConfig;
+  if (!cfg) throw new Error("RightNow plugin not configured");
+  const response = await fetch(cfg.rightnowApiBase + "/agent/intent/classify", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + cfg.agentServiceToken,
+    },
+    body: JSON.stringify(args),
+  });
+  if (!response.ok) throw new Error("Intent classifier error: " + response.status);
+  return response.json();
+}
+
 function fmt(data) {
   const details = compactForModel(
     data && typeof data === "object" ? data : { raw: data }
@@ -193,6 +208,19 @@ function fmt(data) {
 
 const TOOLS = [
   // ── P0: Identity + Context ──
+  {
+    name: "rightnow_classify_intent",
+    label: "Classify Intent",
+    description: "在调用数据或知识工具前识别用户意图、风险、所需上下文、推荐工具顺序和回复形态。",
+    parameters: Type.Object({
+      message: Type.String({ description: "用户当前消息" }),
+      channel: Type.Optional(Type.String()),
+      hasImage: Type.Optional(Type.Boolean()),
+      imageType: Type.Optional(Type.Union([Type.Literal("food"), Type.Literal("body"), Type.Literal("unknown"), Type.Null()])),
+      recentMessages: Type.Optional(Type.Array(Type.Object({ role: Type.Union([Type.Literal("user"), Type.Literal("assistant")]), content: Type.String() }))),
+      knownContextSummary: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    }, { additionalProperties: false }),
+  },
   {
     name: "rightnow_bind_email",
     label: "Bind Email",
@@ -207,7 +235,7 @@ const TOOLS = [
     name: "rightnow_get_context",
     label: "Get Context",
     description:
-      "获取当前用户的完整上下文包：档案、训练/饮食计划、今日饮食摘要、今日待办、近期体重趋势。每次对话开始时应调用。",
+      "获取当前用户的完整上下文包：档案、训练/饮食计划、今日饮食摘要、今日待办、近期体重趋势。仅在分类结果 requiresContext=true 时调用。",
     parameters: Type.Object({}, { additionalProperties: false }),
   },
   {
@@ -496,7 +524,9 @@ export function registerRightNowTools(api, config) {
         description: def.description,
         parameters: def.parameters,
         async execute(_toolCallId, params, _signal) {
-          const result = await rpcCall(rpcName, params, ctx);
+          const result = def.name === "rightnow_classify_intent"
+            ? await classifyIntent(params)
+            : await rpcCall(rpcName, params, ctx);
           return fmt(result);
         },
       }),

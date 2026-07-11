@@ -49,16 +49,11 @@ export default definePluginEntry({
         );
         lines.push("");
         lines.push("### 核心流程");
-        lines.push(
-          "1. 新会话开始、用户询问个人资料/训练/饮食/待办，或你不确定用户当前状态时 -> 调用 rightnow_get_context 获取最新数据；闲聊和已知上下文的连续追问不要重复调用"
-        );
-        lines.push(
-          "2. 用户要记录饮食 -> 先 rightnow_analyze_food_text 分析 -> 展示结果 -> 用户确认 -> rightnow_log_diet"
-        );
-        lines.push(
-          "3. 用户要训练 -> rightnow_start_training -> 记录动作 -> rightnow_complete_training"
-        );
-        lines.push("4. 用户提到绑定码 -> rightnow_bind_email");
+        lines.push("1. 每条用户消息先调用 rightnow_classify_intent；绑定码除外，直接调用 rightnow_bind_email");
+        lines.push("2. 严格按分类结果的 suggestedTools 顺序调用；requiresContext=false 时不要读取完整上下文");
+        lines.push("3. requiresWriteTool=true 只表示可能需要写入；饮食估算须先展示并确认，明确训练/体重记录可直接写入");
+        lines.push("4. riskLevel=high 时使用保守措辞，禁止激进训练或节食建议，并优先检索深层安全知识");
+        lines.push("5. 最终回复遵循 responseMode；unknown_mixed 最多问一个关键澄清问题");
         lines.push("");
       }
 

@@ -1,0 +1,44 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { callChatLlm } from '../../chat/llm-chat.helper';
+import { classifyByRules } from './intent-rules';
+import { INTENTS, IntentClassifierInput, IntentDecision, RESPONSE_MODES, RISK_LEVELS } from './intent-classifier.types';
+
+@Injectable()
+export class IntentClassifierService {
+  constructor(private readonly config: ConfigService) {}
+
+  async classify(input: IntentClassifierInput): Promise<IntentDecision> {
+    const rule = classifyByRules(input);
+    if (rule) return rule;
+    if (input.useModelFallback !== false) {
+      try { return await this.classifyWithModel(input); } catch { /* conservative fallback below */ }
+    }
+    return {
+      intent: 'unknown_mixed', subIntent: null, confidence: 0.35, riskLevel: 'low',
+      requiresContext: true, requiresKnowledge: false, requiresWriteTool: false,
+      suggestedTools: ['memory.context.assemble'], responseMode: 'clarify', entities: {},
+      clarifyingQuestion: '你希望我帮你记录数据、调整计划，还是给一些建议？', classifier: 'fallback',
+    };
+  }
+
+  private async classifyWithModel(input: IntentClassifierInput): Promise<IntentDecision> {
+    const { reply } = await callChatLlm([
+      { role: 'system', content: '你是 RightNow 意图分类器。只返回 JSON，不能编造输入中不存在的事实。意图只能是 diet_log, training_log, body_data_update, fitness_advice, plan_adjustment, social_chat, unknown_mixed。疼痛、伤病、头晕、极端节食必须为 high risk；不确定时选择 unknown_mixed。输出字段：intent, subIntent, confidence, riskLevel, requiresContext, requiresKnowledge, requiresWriteTool, suggestedTools, responseMode, entities, clarifyingQuestion。' },
+      { role: 'user', content: JSON.stringify(input) },
+    ], {
+      stepfunBaseUrl: this.config.get('STEPFUN_BASE_URL'), stepfunApiKey: this.config.get('STEPFUN_API_KEY'), stepfunModel: this.config.get('STEPFUN_CHAT_MODEL'),
+      deepseekBaseUrl: this.config.get('DEEPSEEK_BASE_URL'), deepseekApiKey: this.config.get('DEEPSEEK_API_KEY'), deepseekModel: this.config.get('DEEPSEEK_MODEL'),
+    }, { temperature: 0.1, maxTokens: 600 });
+    const parsed = JSON.parse(reply.replace(/^```json\s*/i, '').replace(/```$/i, '').trim()) as Partial<IntentDecision>;
+    if (!INTENTS.includes(parsed.intent as never) || !RISK_LEVELS.includes(parsed.riskLevel as never) || !RESPONSE_MODES.includes(parsed.responseMode as never)) throw new Error('Invalid classifier enum');
+    return {
+      intent: parsed.intent!, subIntent: typeof parsed.subIntent === 'string' ? parsed.subIntent : null,
+      confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0.5)), riskLevel: parsed.riskLevel!,
+      requiresContext: Boolean(parsed.requiresContext), requiresKnowledge: Boolean(parsed.requiresKnowledge), requiresWriteTool: Boolean(parsed.requiresWriteTool),
+      suggestedTools: Array.isArray(parsed.suggestedTools) ? parsed.suggestedTools.filter((x): x is string => typeof x === 'string') : [],
+      responseMode: parsed.responseMode!, entities: parsed.entities && typeof parsed.entities === 'object' ? parsed.entities : {},
+      clarifyingQuestion: typeof parsed.clarifyingQuestion === 'string' ? parsed.clarifyingQuestion : null, classifier: 'model',
+    };
+  }
+}

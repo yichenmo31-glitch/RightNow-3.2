@@ -24,6 +24,7 @@ import { TodosService } from '../todos/todos.module';
 import { UsersService } from '../users/users.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { IntentClassifierService } from './intent/intent-classifier.service';
 
 @Module({
   imports: [DietModule, TrainingSessionModule, TodosModule, UsersModule],
@@ -34,6 +35,7 @@ import { ConfigService } from '@nestjs/config';
     AgentRpcService,
     AgentAuditService,
     ToolRegistry,
+    IntentClassifierService,
     {
       provide: 'AGENT_TOOL_INIT',
       inject: [ToolRegistry, DietService, TrainingSessionService, TodosService, UsersService, PrismaService, ConfigService],

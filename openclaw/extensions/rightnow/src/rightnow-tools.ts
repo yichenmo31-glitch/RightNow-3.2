@@ -50,6 +50,33 @@ function createBindEmailTool(): AnyAgentTool {
   };
 }
 
+function createClassifyIntentTool(): AnyAgentTool {
+  return {
+    name: "rightnow_classify_intent",
+    label: "Classify Intent",
+    description: "在调用数据或知识工具前识别用户意图、风险、所需上下文、推荐工具顺序和回复形态。",
+    parameters: Type.Object({
+      message: Type.String({ description: "用户当前消息" }),
+      channel: Type.Optional(Type.String()),
+      hasImage: Type.Optional(Type.Boolean()),
+      imageType: Type.Optional(Type.Union([Type.Literal("food"), Type.Literal("body"), Type.Literal("unknown"), Type.Null()])),
+      recentMessages: Type.Optional(Type.Array(Type.Object({ role: Type.Union([Type.Literal("user"), Type.Literal("assistant")]), content: Type.String() }))),
+      knownContextSummary: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    }, { additionalProperties: false }),
+    execute: async (_toolCallId, params, _signal) => {
+      const config = rpcConfig;
+      if (!config) throw new Error("RightNow plugin not configured");
+      const response = await fetch(`${config.rightnowApiBase}/agent/intent/classify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.agentServiceToken}` },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) throw new Error(`Intent classifier error: ${response.status}`);
+      return formatRpcResult(await response.json());
+    },
+  };
+}
+
 function createGetContextTool(): AnyAgentTool {
   return {
     name: "rightnow_get_context",
@@ -347,6 +374,7 @@ function createCreateTodoTool(): AnyAgentTool {
 // ── All tools list ──
 
 const ALL_TOOLS: (() => AnyAgentTool)[] = [
+  createClassifyIntentTool,
   // P0: Identity + Context
   createBindEmailTool,
   createGetContextTool,

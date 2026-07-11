@@ -4,11 +4,22 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AgentServiceGuard } from './agent-service.guard';
 import { AgentBindingService } from './agent-binding.service';
 import { AgentRpcService, AgentRpcRequest } from './agent-rpc.service';
+import { IntentClassifierService } from './intent/intent-classifier.service';
+import { IntentClassifierInput } from './intent/intent-classifier.types';
 
 // ── OpenClaw 调用：服务 token 鉴权 ──
 @Controller('agent')
 export class AgentRpcController {
-  constructor(private readonly rpc: AgentRpcService) {}
+  constructor(
+    private readonly rpc: AgentRpcService,
+    private readonly intentClassifier: IntentClassifierService,
+  ) {}
+
+  @Post('intent/classify')
+  @UseGuards(AgentServiceGuard)
+  async classifyIntent(@Body() body: IntentClassifierInput) {
+    return this.intentClassifier.classify(body);
+  }
 
   @Post('rpc')
   @UseGuards(AgentServiceGuard)
