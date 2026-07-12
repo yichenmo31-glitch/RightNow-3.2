@@ -10,6 +10,7 @@
     "test:openclaw-identity": "npm run build && node scripts/test-openclaw-identity.cjs",
     "test:openclaw-provisioning": "npm run build && node scripts/test-openclaw-provisioning.cjs",
     "test:chat-conversations": "npm run build && node scripts/test-chat-conversations.cjs",
+    "test:read-route-isolation": "npm run build && node --env-file=.env scripts/test-read-route-isolation.cjs",
     "test:agent-memory": "npm run build && node scripts/test-agent-memory.cjs",
     "test:account-deletion": "npm run build && node scripts/test-account-deletion.cjs",
     "test:upload-prefix": "npm run build && node scripts/test-upload-prefix.cjs",

@@ -948,6 +948,8 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 文档：将 `RightNow_本地Demo开发者测试指南.md` 纳入仓库为 `docs/development-runbook/LOCAL_DEMO_TESTING_GUIDE.md`，修正本地 PostgreSQL 端口为 `15433`，补充一键启动、停止、冒烟和真实图片编辑说明。
 - 启动器：新增 `scripts/start-local-demo.ps1` 与 `scripts/stop-local-demo.ps1`。启动器使用已构建的 Backend/Frontend 产物，启动本机 PostgreSQL 16（不可用时尝试 Docker Compose），只清理属于当前仓库的 `5000/5173` 监听进程，以 Backend 单进程和 Vite preview 启动；PID/日志位于被忽略的 `.work/local-demo`。
 - 冒烟：新增 `scripts/smoke-local-demo.ps1`，覆盖前端 HTTP、小爪聊天入口契约、演示账号登录、真实教练聊天、TODO/饮食/训练读取；`-IncludeImageEdit` 显式增加一次真实 `step-image-edit-2` 请求，默认不消耗图片额度。
+- 完善（2026-07-12）：新增 `demo:smoke:full`，将真实图片编辑作为显式完整冒烟；新增 `test:read-route-isolation`，使用本地 PostgreSQL 临时 A/B 用户验证八条确定性只读路由零串读并在结束时清理；测试指南补充版本记录、隔离命令和本地数据库限制。
+- 验证结果：`test:read-route-isolation` 的 8/8 A/B 路由通过；`demo:smoke:full` 的前端、入口、登录、聊天、TODO、饮食、训练和真实图片编辑 8/8 通过；Backend/Frontend production build、`demo:stop`、`demo:start` 均通过，Demo 已恢复监听 `127.0.0.1:5173/5000`。
 - 验证：Backend/Frontend 构建通过；完整冒烟 8/8 通过；stop 后 `5000/5173` 均释放，再次 start 后 Backend 401 readiness 与 Frontend 200 readiness 通过。测试仅新增演示账号聊天/图片生成记录，不写饮食、训练或 TODO。
 - Windows 约束：当前环境 Vite/esbuild 在嵌套 PowerShell 构建时存在 IPC 不稳定，因此启动器只消费独立构建产生的 `dist`；使用前先运行 `npm run build:backend` 和 `npm run build:frontend`。
 - 聊天稳定性补充：用户实际输入“今天什么安排”曾遇到一次阶跃瞬时失败并显示 `Internal server error`。本地 direct-chat fallback 超时从 12 秒调整为 30 秒，对网络错误、429、5xx 和空回复最多重试一次；前端 5xx 改为可重试中文提示。冒烟消息改为覆盖“今天什么安排”路径，重启后连续 3 轮均为 7/7。

@@ -24,6 +24,8 @@
     "demo:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-demo.ps1",
     "demo:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-local-demo.ps1",
     "demo:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-local-demo.ps1",
+    "demo:smoke:full": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-local-demo.ps1 -IncludeImageEdit",
+    "test:read-route-isolation": "npm --workspace backend run test:read-route-isolation",
     "install:all": "npm install"
   }
 }

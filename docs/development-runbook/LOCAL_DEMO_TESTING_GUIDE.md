@@ -54,7 +54,7 @@ C:\Users\maggie mo\Documents\Codex\2026-07-12\agents-md-development-runbook-prog
 - 聊天模型：阶跃 `step-3.7-flash`
 - 本地没有运行 OpenClaw Gateway，已通过 `CHAT_DIRECT_FALLBACK=true` 启用本地聊天降级。
 - 生产环境不应开启 `CHAT_DIRECT_FALLBACK`；生产聊天仍应经过 OpenClaw。
-- 当前 Git 工作树包含未提交的 Wave 3、Wave 4 和 Demo 调整，不能假设重新 clone 的仓库已包含这些变更。
+- 测试前记录 `git rev-parse --short HEAD`，确保测试报告可以对应到明确版本。
 
 ## 3. 环境要求
 
@@ -191,10 +191,20 @@ npm run demo:smoke
 需要验证真实阶跃图片编辑时，显式运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-local-demo.ps1 -IncludeImageEdit
+npm run demo:smoke:full
 ```
 
 该命令会消费一次真实 `step-image-edit-2` 请求。测试图仅为本地生成的 64x64 图形，不包含用户照片。
+
+### 双用户只读隔离
+
+以下命令会在本地 PostgreSQL 中创建两个一次性虚构用户，为八条确定性只读路由写入不同标记，验证计划、周计划、今日/未完成 TODO、饮食、训练历史、体重和进展均不会串读。测试结束后会级联清理两个用户；不会使用演示账号或已有用户。
+
+```powershell
+npm run test:read-route-isolation
+```
+
+该测试要求 `backend/.env` 指向本地测试数据库，禁止指向生产数据库。
 
 ## 8. 构建与专项测试
 
@@ -203,6 +213,7 @@ npm --workspace frontend run build
 npm --workspace backend run build
 npm --workspace backend run test:intent
 npm --workspace backend run test:chat-conversations
+npm run test:read-route-isolation
 npm --workspace backend run test:agent-memory
 npm --workspace backend run test:openclaw-identity
 npm --workspace backend run test:openclaw-provisioning
@@ -216,7 +227,7 @@ npm --workspace backend run test:openclaw-provisioning
 - OpenClaw Memory provider 当前为 `none`，只能验证 PostgreSQL Memory Profile 和 `MEMORY.md` 同步，不能声称向量召回通过。
 - 图片模型只支持基于输入图片编辑；无照片场景应显示提示或允许跳过。
 - Vite 开发模式在当前 Windows/Node 环境出现过 esbuild IPC 异常，稳定演示应使用 `vite preview`。
-- 当前改动尚未形成干净的 Git release，测试人员应记录所测试的 commit、补丁包或目录快照。
+- 语义分类器依赖外部模型时可能因网络或限流降级；八条确定性只读路由不依赖该模型即可返回本地 PostgreSQL 数据。
 
 ## 10. 常见故障
 
