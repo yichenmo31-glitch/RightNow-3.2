@@ -6,7 +6,9 @@ import {
   IntentDecisionV2, IntentOperation, IntentResource, IntentScope, READ_ONLY_ROUTES,
   RISK_LEVELS,
 } from './intent-classifier.types';
-import { normalizeSemanticPolicy, resolveContextProfile, resolveReadSet } from './intent-policy';
+import { normalizeSemanticPolicy, resolveContextProfile, resolveReadOnlyRoute, resolveReadSet } from './intent-policy';
+
+export interface SemanticClassifyOptions { timeoutMs?: number; maxAttempts?: number }
 
 interface SemanticPayload {
   resource?: unknown;
@@ -27,7 +29,7 @@ interface SemanticPayload {
 export class IntentSemanticService {
   constructor(private readonly config: ConfigService) {}
 
-  async classify(input: IntentClassifierInput): Promise<IntentDecisionV2> {
+  async classify(input: IntentClassifierInput, options: SemanticClassifyOptions = {}): Promise<IntentDecisionV2> {
     const { reply } = await callChatLlm([
       {
         role: 'system',
@@ -56,8 +58,8 @@ export class IntentSemanticService {
     }, {
       temperature: 0.1,
       maxTokens: 500,
-      timeoutMs: this.positiveInteger('INTENT_MODEL_TIMEOUT_MS', 7000),
-      maxAttempts: this.positiveInteger('INTENT_MODEL_MAX_ATTEMPTS', 2),
+      timeoutMs: options.timeoutMs ?? this.positiveInteger('INTENT_MODEL_TIMEOUT_MS', 7000),
+      maxAttempts: options.maxAttempts ?? this.positiveInteger('INTENT_MODEL_MAX_ATTEMPTS', 2),
     });
     return this.parse(reply, input.message);
   }
@@ -90,7 +92,6 @@ export class IntentSemanticService {
     const confidence = Number(payload.confidence);
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error('Invalid semantic confidence');
     const subIntent = typeof payload.subIntent === 'string' ? payload.subIntent.slice(0, 64) : null;
-    const selectedRoute = READ_ONLY_ROUTES.includes(subIntent as never) ? subIntent as any : null;
     const modelResource = payload.resource as IntentResource;
     const modelOperation = payload.operation as IntentOperation;
     const normalizedPolicy = normalizeSemanticPolicy(
@@ -99,6 +100,8 @@ export class IntentSemanticService {
     const resource = normalizedPolicy.resource;
     const operation = normalizedPolicy.operation;
     const contextProfile = resolveContextProfile(resource, operation);
+    const selectedRoute = resolveReadOnlyRoute(resource, operation, normalizedPolicy.scope) ??
+      (READ_ONLY_ROUTES.includes(subIntent as never) ? subIntent as any : null);
     const legacyDecision = {
       intent: 'unknown_mixed' as const, subIntent, confidence,
       riskLevel: payload.riskLevel as any, requiresContext: Boolean(payload.requiresContext),

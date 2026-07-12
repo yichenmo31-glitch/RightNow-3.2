@@ -234,6 +234,18 @@ async function testSemanticShadow() {
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(shadowCalls, 1, 'risk and write requests must bypass semantic shadow');
 
+    const readonlyConfig = { get: (key) => key === 'INTENT_CLASSIFIER_VERSION' ? 'v2-readonly' : key === 'INTENT_MODEL_MIN_CONFIDENCE' ? '0.90' : undefined };
+    const readonlySemantic = { classify: async () => ({
+      ...result, resource: 'progress', operation: 'analyze', scope: 'current',
+      selectedRoute: 'current_progress', confidence: 0.95, requestedWrite: false, riskLevel: 'low',
+    }) };
+    const readonlyClassifier = new IntentClassifierService(readonlyConfig, readonlySemantic);
+    const readonlyDecision = await readonlyClassifier.classifyV2({ message: '最近这状态是不是掉了', useModelFallback: false });
+    assert.equal(readonlyDecision.selectedRoute, 'current_progress');
+    readonlySemantic.classify = async () => ({ ...result, selectedRoute: 'today_plan', confidence: 0.5 });
+    const lowConfidence = await readonlyClassifier.classifyV2({ message: '那个怎么样', useModelFallback: false });
+    assert.equal(lowConfidence.selectedRoute, null);
+
     global.fetch = async () => ({ ok: true, status: 200, async text() {
       return JSON.stringify({ choices: [{ message: { content: 'not-json' } }] });
     } });

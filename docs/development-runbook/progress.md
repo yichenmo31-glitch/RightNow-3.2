@@ -1,5 +1,18 @@
 # RightNow 开发进度
 
+## Intent V2 Phase 3：受限只读语义灰度
+
+- 负责人：ROOT
+- 状态：completed（本地 Demo 开启；生产关闭）
+- 开始/完成时间：2026-07-12
+- 修改文件：`intent-policy.ts`、`intent-semantic.service.ts`、`intent-classifier.service.ts`、V2 测试、环境模板及架构/设计文档；本地忽略的 `backend/.env`。
+- 执行命令：`npm --workspace backend run test:intent`、Chat/Memory 回归、Demo restart/readiness、`git diff --check`。
+- 测试结果：高置信 low-risk progress analyze 可映射 `current_progress`；低置信、无 route、写入、高风险和分类失败均不执行；执行超时 2500ms、一次尝试，五次失败熔断 60 秒。
+- 证据摘要：模型不能提供表、文件或任意工具；selectedRoute 来自 Backend route table。写入继续只走确定性规则。生产模板不默认开启 `v2-readonly`。
+- 阻塞项：生产开放前仍需真实 Chat 长尾冒烟和连续失败熔断观测。
+- 下一步：本地 Demo 验证长尾进展查询，并评估用户可接受延迟；生产保持 `v2`。
+- 本地真实 Chat 验证：2500ms 首次尝试按设计超时并安全回退，但总回复约 9520ms；结合单请求 P95 约 3761ms，将执行上限调整为 4500ms。重启后同一长尾“最近这状态是不是有点掉了”在约 3484ms 返回 PostgreSQL `current_progress` 模板，确认未进入 OpenClaw/普通聊天。生产仍未开启。
+
 ## Intent V2：扩展确定性业务查询
 
 - 负责人：ROOT

@@ -11,6 +11,8 @@ import { mapLegacyPolicy } from './intent-policy';
 @Injectable()
 export class IntentClassifierService {
   private readonly logger = new Logger(IntentClassifierService.name);
+  private semanticFailures = 0;
+  private semanticCircuitOpenUntil = 0;
 
   constructor(
     private readonly config: ConfigService,
@@ -44,12 +46,48 @@ export class IntentClassifierService {
     const readOnly = classifyReadOnlyV2(input);
     if (readOnly) return readOnly;
     const legacyDecision = legacyRule ?? await this.classify(input);
+    if (this.classifierVersion() === 'v2-readonly') {
+      const semantic = await this.classifyReadOnlySemantic(input);
+      if (semantic) return semantic;
+    }
     this.runShadow(input, legacyDecision);
     return this.mapLegacyDecision(legacyDecision, input.message);
   }
 
+  private async classifyReadOnlySemantic(input: IntentClassifierInput): Promise<IntentDecisionV2 | null> {
+    if (!this.semantic || Date.now() < this.semanticCircuitOpenUntil) return null;
+    try {
+      const decision = await this.semantic.classify(input, {
+        timeoutMs: this.positiveInteger('INTENT_EXECUTION_TIMEOUT_MS', 4500), maxAttempts: 1,
+      });
+      this.semanticFailures = 0;
+      const allowedOperation = decision.operation === 'query' ||
+        (decision.resource === 'progress' && decision.operation === 'analyze');
+      if (!allowedOperation || decision.riskLevel !== 'low' || decision.requestedWrite ||
+          decision.confidence < this.modelMinConfidence() || !decision.selectedRoute) return null;
+      return decision;
+    } catch (error) {
+      this.semanticFailures += 1;
+      if (this.semanticFailures >= 5) {
+        this.semanticCircuitOpenUntil = Date.now() + this.positiveInteger('INTENT_CIRCUIT_BREAKER_MS', 60000);
+        this.semanticFailures = 0;
+      }
+      this.logger.warn(JSON.stringify({ event: 'intent_v2_readonly_error', errorType: this.shadowErrorType(error) }));
+      return null;
+    }
+  }
+
+  private classifierVersion(): string {
+    return this.config.get<string>('INTENT_CLASSIFIER_VERSION')?.trim().toLowerCase() || 'v2';
+  }
+
+  private positiveInteger(key: string, fallback: number): number {
+    const value = Number(this.config.get<string>(key));
+    return Number.isInteger(value) && value > 0 ? value : fallback;
+  }
+
   private runShadow(input: IntentClassifierInput, legacyDecision: IntentDecision): void {
-    if (this.config.get<string>('INTENT_CLASSIFIER_VERSION')?.trim().toLowerCase() !== 'v2-shadow') return;
+    if (this.classifierVersion() !== 'v2-shadow') return;
     if (!this.semantic || legacyDecision.riskLevel === 'high' || legacyDecision.requiresWriteTool) return;
     const startedAt = Date.now();
     void this.semantic.classify(input).then((shadow) => {

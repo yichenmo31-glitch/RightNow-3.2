@@ -1,5 +1,5 @@
 import {
-  ContextProfile, ContextReadKey, IntentDecision, IntentOperation, IntentResource, IntentScope,
+  ContextProfile, ContextReadKey, IntentDecision, IntentOperation, IntentResource, IntentScope, ReadOnlyIntentRoute,
 } from './intent-classifier.types';
 
 export const CONTEXT_READ_SETS: Record<ContextProfile, readonly ContextReadKey[]> = {
@@ -93,6 +93,21 @@ export function resolveContextProfile(resource: IntentResource, operation: Inten
 
 export function resolveReadSet(profile: ContextProfile): ContextReadKey[] {
   return [...CONTEXT_READ_SETS[profile]];
+}
+
+export function resolveReadOnlyRoute(
+  resource: IntentResource,
+  operation: IntentOperation,
+  scope: IntentScope | null,
+): ReadOnlyIntentRoute | null {
+  const key = `${resource}/${operation}/${scope ?? 'none'}`;
+  const routes: Record<string, ReadOnlyIntentRoute> = {
+    'plan/query/today': 'today_plan', 'plan/query/week': 'weekly_plan',
+    'todo/query/today': 'today_todos', 'diet/query/today': 'today_diet',
+    'training/query/history': 'training_history', 'weight/query/latest': 'latest_weight',
+    'progress/query/current': 'current_progress', 'progress/analyze/current': 'current_progress',
+  };
+  return routes[key] ?? null;
 }
 
 export function normalizeSemanticPolicy(
