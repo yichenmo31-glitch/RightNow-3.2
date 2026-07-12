@@ -39,7 +39,11 @@ export class ChatController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('since') since?: string,
+    @Query('conversationId') conversationId?: string,
   ) {
+    if (conversationId) {
+      await this.chatService.assertConversation(user.sub, conversationId);
+    }
     if (since) {
       const date = new Date(since);
       if (Number.isNaN(date.getTime())) {
@@ -48,6 +52,7 @@ export class ChatController {
       const rows = await this.prisma.chatMessage.findMany({
         where: {
           userId: user.sub,
+          conversationId: conversationId || null,
           createdAt: { gt: date },
         },
         orderBy: { createdAt: 'asc' },
@@ -69,18 +74,26 @@ export class ChatController {
       user.sub,
       Number.parseInt(page || '1', 10),
       Number.parseInt(limit || '20', 10),
+      conversationId,
     );
+  }
+
+  @Post('conversations')
+  @UseGuards(JwtAuthGuard)
+  createConversation(@CurrentUser() user: { sub: string }) {
+    return this.chatService.createConversation(user.sub);
   }
 
   @Post()
   @UseGuards(JwtAuthGuard)
   send(
     @CurrentUser() user: { sub: string },
-    @Body() body: { content: string; systemPrompt?: string },
+    @Body() body: { content: string; systemPrompt?: string; conversationId?: string },
   ) {
     return this.chatService.send(user.sub, body.content, {
       systemPrompt: body.systemPrompt,
       source: 'web',
+      conversationId: body.conversationId,
     });
   }
 
@@ -113,12 +126,13 @@ export class ChatController {
   @UseGuards(JwtAuthGuard)
   async aiChat(
     @CurrentUser() user: { sub: string },
-    @Body() body: { message?: string; systemPrompt?: string; history?: any[] },
+    @Body() body: { message?: string; systemPrompt?: string; history?: any[]; conversationId?: string },
   ) {
     if (!body.message?.trim()) throw new BadRequestException('message is required');
     return this.chatService.send(user.sub, body.message, {
       systemPrompt: body.systemPrompt,
       source: 'web',
+      conversationId: body.conversationId,
     });
   }
 

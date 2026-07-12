@@ -1,14 +1,23 @@
 import {
+  BadRequestException,
   Body,
+  ConflictException,
   Controller,
+  Delete,
   Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
   Injectable,
   Module,
   Param,
   Patch,
   Post,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import * as bcrypt from 'bcrypt';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -65,6 +74,56 @@ export class UsersService {
     });
 
     return this.toUserProfile(user);
+  }
+
+  async requestAccountDeletion(userId: string, password: string, idempotencyKey: string) {
+    if (typeof password !== 'string' || password.length < 6) {
+      throw new BadRequestException('password is required');
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{15,127}$/.test(idempotencyKey)) {
+      throw new BadRequestException('Idempotency-Key is invalid');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, passwordHash: true, accountStatus: true },
+    });
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      throw new UnauthorizedException('Invalid password');
+    }
+
+    const job = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.accountDeletionJob.findUnique({ where: { userId } });
+      if (existing) {
+        if (existing.idempotencyKey !== idempotencyKey) {
+          throw new ConflictException('Account deletion is already pending');
+        }
+        return existing;
+      }
+      if (user.accountStatus !== 'ACTIVE') {
+        throw new ConflictException('Account deletion is already pending');
+      }
+      const frozen = await tx.user.updateMany({
+        where: { id: userId, accountStatus: 'ACTIVE' },
+        data: {
+          accountStatus: 'DELETION_PENDING',
+          deletionRequestedAt: new Date(),
+          authVersion: { increment: 1 },
+        },
+      });
+      if (frozen.count !== 1) throw new ConflictException('Account deletion is already pending');
+      await tx.agentBindToken.deleteMany({ where: { userId } });
+      await tx.agentChannelBinding.deleteMany({ where: { userId } });
+      await tx.wechatBinding.deleteMany({ where: { userId } });
+      await tx.wechatBindCode.deleteMany({ where: { userId } });
+      return tx.accountDeletionJob.create({
+        data: {
+          userId,
+          idempotencyKey,
+          externalOperationId: `account-delete-${randomUUID()}`,
+        },
+      });
+    });
+    return { deletionId: job.id, status: job.status, requestedAt: job.requestedAt.toISOString() };
   }
 
   private toOptionalNumber(value: unknown): number | undefined {
@@ -187,6 +246,23 @@ class UsersController {
     },
   ) {
     return this.usersService.updateProfile(user.sub, body, true);
+  }
+
+  @Delete('me')
+  @HttpCode(HttpStatus.ACCEPTED)
+  requestAccountDeletion(
+    @CurrentUser() user: { sub: string },
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: { password?: string; userId?: string },
+  ) {
+    if (Object.prototype.hasOwnProperty.call(body || {}, 'userId')) {
+      throw new BadRequestException('userId is not accepted');
+    }
+    return this.usersService.requestAccountDeletion(
+      user.sub,
+      body?.password || '',
+      idempotencyKey || '',
+    );
   }
 
   @Get(':id')

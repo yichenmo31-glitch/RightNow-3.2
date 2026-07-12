@@ -17,11 +17,30 @@ export interface PaginatedChat {
 export interface SendChatPayload {
   content: string;
   systemPrompt?: string;
+  conversationId?: string;
+}
+
+export interface ChatConversation {
+  id: string;
+  createdAt: string;
+  businessAction?: {
+    type: 'diet_analyzed' | 'diet_record_created' | 'training_record_created' | 'weight_record_created';
+    recordId?: string;
+    todoCompleted?: boolean;
+    estimated?: {
+      name: string;
+      calories: number;
+      protein: number;
+      fat: number;
+      carbs: number;
+      mealType: string;
+    };
+  };
 }
 
 export const chatApi = {
-  async history(page = 1, limit = 20): Promise<PaginatedChat> {
-    const { data } = await client.get<PaginatedChat>('/chat', { params: { page, limit } });
+  async history(page = 1, limit = 20, conversationId?: string): Promise<PaginatedChat> {
+    const { data } = await client.get<PaginatedChat>('/chat', { params: { page, limit, conversationId } });
     return data;
   },
 
@@ -38,9 +57,43 @@ export const chatApi = {
     return data;
   },
 
+  async createConversation(): Promise<ChatConversation> {
+    const { data } = await client.post<ChatConversation>('/chat/conversations', {});
+    return data;
+  },
+
   /** Trigger a proactive push (persists + delivers to all bound channels). */
   async push(text: string): Promise<ChatMessage> {
     const { data } = await client.post<ChatMessage>('/chat/push', { text });
+    return data;
+  },
+};
+
+export interface MemoryCandidate {
+  id: string;
+  category: string;
+  content: string;
+  confidence: number;
+  observedAt: string;
+}
+
+export interface MemoryMutationResult {
+  fact: unknown;
+  profileUpdated: boolean;
+  workspaceSynced: boolean;
+}
+
+export const memoryApi = {
+  async candidates(): Promise<MemoryCandidate[]> {
+    const { data } = await client.get<MemoryCandidate[]>('/agent-memory/candidates');
+    return data;
+  },
+  async confirm(factId: string): Promise<MemoryMutationResult> {
+    const { data } = await client.post<MemoryMutationResult>(`/agent-memory/${encodeURIComponent(factId)}/confirm`, {});
+    return data;
+  },
+  async reject(factId: string): Promise<MemoryMutationResult> {
+    const { data } = await client.post<MemoryMutationResult>(`/agent-memory/${encodeURIComponent(factId)}/reject`, {});
     return data;
   },
 };

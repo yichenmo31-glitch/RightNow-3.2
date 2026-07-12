@@ -562,3 +562,265 @@
 - 证据摘要：最初误用不存在的 `test:memory` 和错误 cwd 的 Prisma 命令，两者均为命令名/路径问题；改用仓库真实 `test:agent-memory` 与 `npx prisma validate --schema backend/prisma/schema.prisma` 后通过。
 - 阻塞项：深度 P3/P4 E2E 尚未执行，具体保持在上方未勾选清单中。
 - 下一步：使用隔离测试用户完成 CRUD、聊天六流程、用户隔离、Agent 重建、账户删除与恢复演练。
+
+## 7.2 Agent 重建测试
+
+- 负责人：ROOT
+- 状态：blocked（重建持久化成功，自动路由确认失败）
+- 开始/完成时间：2026-07-12 / 未完成
+- 修改文件：生产 `/root/.openclaw/openclaw.json`、测试 workspace；本地 `docs/development-runbook/progress.md`、`architecture.md`
+- 执行命令：Provisioner 幂等创建；备份配置/workspace；从配置移除 demo Agent 并移动 workspace；重启 Backend 清空 ensureAgent 缓存；通过 `POST /api/chat/internal/send-as` 触发 ensureAgent；Gateway 重启与 `/v1/models` 探测；PostgreSQL/Profile/业务计数和 Personal workspace 完整性检查。
+- 测试结果：`rightnow-cmrg25e480000b1vess7phqby` 已重新写入配置并创建全新 workspace，`AGENTS.md`、`USER.md`、`MEMORY.md`、`.gitignore` 和 `memory/` 齐全，旧 workspace 哨兵未进入新 workspace。测试期间临时 Memory Profile 保持存在，原有 6 条饮食记录保持为 6；测试 Profile 随后已删除。Personal workspace 检查期间 hash/mtime 稳定，Backend、Provisioner、Gateway 均为 active。
+- 证据摘要：可逆备份位于 `/root/backups/rightnow-agent-rebuild-20260712-011958`。首次触发 Provisioner 后 Agent 配置和 workspace 均恢复，但聊天返回 500；Gateway 2026.3.24 的认证 `/v1/models` 返回 `200 text/html` 管理页面，后端 `agentExists()` JSON 解析失败并返回 false，导致 `waitForAgent()` 必然超时。Gateway 重启不能修复错误的探测契约。重建后的 `MEMORY.md` 为默认模板；当前 `MemorySyncService` 尚未把 PostgreSQL Profile 序列化回文件。
+- 阻塞项：必须将 `OpenClawProvisioningService.agentExists()` 改为 Gateway 2026.3.24 支持的 Agent 可路由探测，或让经过认证的 Provisioner 返回并验证 Gateway 已加载的确认；同时补齐 Profile 到 `MEMORY.md` 的同步后，才能满足完整通过标准。
+- 下一步：修复 Agent 可路由确认契约并部署 Backend，复跑首次聊天必须为 2xx；随后实现/验证 Memory Profile 原子同步，再将本步骤标记 completed。
+
+## 7.2a 修复 Agent 状态确认契约
+
+- 负责人：ROOT
+- 状态：completed（本地，按要求未部署、未复跑生产重建）
+- 开始/完成时间：2026-07-12
+- 修改文件：`infra/provisioner/src/server.js`、`infra/provisioner/test/provisioner.test.js`、`backend/src/openclaw/openclaw-provisioning.service.ts`、`backend/scripts/test-openclaw-provisioning.cjs`、`backend/package.json`、开发文档。
+- 执行命令：`cd infra/provisioner && npm test`；`cd backend && npm run build`；`npm run test:openclaw-provisioning`；`git diff --check`。
+- 测试结果：Provisioner 6/6 通过；Backend 构建通过；后端 provisioning 回归的 HTML 拒绝、合法 JSON 状态接受、provision 后二次 ready 确认 3 个场景通过。
+- 证据摘要：新增认证 `GET /agents/<agentId>`，直接检查唯一 Agent 配置、服务端推导 workspace 和五项必需模板。Backend 不再请求或解析 Gateway `/v1/models`，且只有 `configured=true`、`workspaceReady=true`、Agent ID 匹配时才缓存成功。
+- 阻塞项：本地修复尚未发布到生产；该接口证明配置与 workspace 就绪，不宣称证明 Gateway 模型路由或 Memory Profile 已同步。
+- 下一步：后续发布时同时部署 Provisioner 与 Backend，再复跑 7.2 首次聊天和 Profile 到 `MEMORY.md` 同步测试。
+
+## 6.1-6.2 Memory 文件序列化与安全同步
+
+- 负责人：ROOT；AGENT-BE/AGENT-OC 只读审查
+- 状态：completed（本地，未部署生产）
+- 开始/完成时间：2026-07-12
+- 修改文件：`backend/src/agent-memory/memory-sync.service.ts`、`backend/src/agent-memory/agent-memory.module.ts`、`backend/src/chat/chat.service.ts`、`backend/scripts/test-agent-memory.cjs`、`infra/provisioner/src/workspace.js`、`infra/provisioner/src/server.js`、`infra/provisioner/test/provisioner.test.js`、开发文档。
+- 执行命令：`npm run test:agent-memory`；`cd infra/provisioner && npm test`；Backend 构建；子代理只读架构、数据库断言与 E2E 清单审查。
+- 测试结果：Memory candidate/lifecycle/conflict/profile/serialization/transport 套件通过；Backend 构建通过；Provisioner 6/6 通过。覆盖空 Profile、确定性排序、控制字符清理、Markdown 转义、认证 PUT、非法格式拒绝和序列化内容逐字节传输。
+- 证据摘要：聊天在 `ensureAgent` 后从 PostgreSQL `AgentMemoryProfile` 生成 `MEMORY.md`；Provisioner 仅向服务端推导的目标 workspace 原子写入，拒绝 workspace 与 `MEMORY.md` 符号链接、非普通目标、NUL、错误标题、缺少结尾换行及超过 64 KiB 的内容。provider 仍为 `none`，不宣称向量召回。
+- 阻塞项：尚未部署生产；尚未用全新隔离用户验证首次聊天 2xx、Profile 文件恢复、业务 digest、双用户隔离和 Personal workspace hash/mtime。
+- 下一步：由 ROOT 独占生产配置写操作，创建全新 `rightnow-rebuild-smoke` 隔离用户和独立对照用户，按子代理清单备份、删除、重建并验收；失败立即从 `/root/backups` 恢复。
+
+## 下一阶段开发计划（2026-07-12）
+
+### 总体顺序
+
+```text
+Track A：Memory/Chat 代码收口 ─┐
+                              ├─> 代码冻结与统一门禁 -> 单一 release -> ROOT 串行发布
+Track B：发布/回滚工具开发 ────┘                                      |
+                                                                      v
+                                                         Wave 3 跨服务业务联调
+                                                                      |
+                                                                      v
+                                                         Wave 4 生命周期与恢复
+```
+
+Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和生产配置写入不能并行，必须由 ROOT 在代码冻结后串行执行。
+
+### 阶段 1A：Memory 与 Chat 代码收口
+
+- 负责人：AGENT-BE；ROOT 审核共享模块。
+- 状态：completed（本地，未发布生产）。
+- 工作项：
+  - 补齐 `MemorySyncService` 对未配置、401、409、500、超时、非 JSON 和 Agent ID 不匹配响应的测试。
+  - 以 `memoryVersion` 或内容 hash 避免每条聊天重复写相同 `MEMORY.md`。
+  - 区分 Profile 聚合时间与 workspace 文件同步成功时间；在 Schema 未明确前不得把 `lastSyncedAt` 当成文件同步证据。
+  - 明确聊天失败语义：`ensureAgent`、Memory 同步或 Gateway 失败时不得留下无状态说明的孤立用户消息或重复消息。
+  - 保证动态体重、饮食、训练和 TODO 不参与 `MEMORY.md` 序列化。
+- 测试门禁：Backend build；Memory 套件；provisioning 套件；失败注入后的 ChatMessage 数量/顺序；A/B Agent ID 隔离；`git diff --check`。
+- 完成标准：同步幂等、错误可观测但不泄密，聊天成功/失败的数据契约有自动化断言。
+
+### 阶段 1B：可靠发布与回滚工具
+
+- 负责人：AGENT-OC 设计和本地脚本；ROOT 负责生产执行。
+- 状态：completed（本地及 Linux `/tmp` 隔离验证，未发布生产）。
+- 工作项：
+  - 从真实 release 目录创建新目录，禁止对 `/opt/rightnow/current` symlink 直接使用 `cp -a`。
+  - 构建单一 release artifact，生成 manifest 和 SHA-256；artifact 不包含 env、Token、数据库、Chroma 或 workspace。
+  - 增加 Nest 启动/依赖注入冒烟，不能只以 TypeScript build 作为发布门禁。
+  - 发布顺序固定为 Provisioner -> Backend；逐服务执行切换、active、端口、401 和回滚验证。
+  - 生产切换前记录当前 release、服务状态与回滚命令；失败只回滚当前服务，不继续后续阶段。
+- 测试门禁：Provisioner tests；Backend build/启动；native template validation；artifact checksum；旧 release 可启动验证。
+- 完成标准：本地隔离目录完成一次发布和回滚演练，命令不依赖未解析 symlink，失败不会修改当前 release。
+
+### 阶段 2：代码冻结与生产发布
+
+- 负责人：ROOT，单写入者。
+- 状态：pending，依赖 1A 和 1B 全部通过。
+- 操作顺序：
+  - 审查完整 diff，运行 Backend/Frontend build、Memory、intent、Provisioner、Plugin、Prisma、native host template 和 diff check。
+  - 生成唯一 artifact/checksum；冻结代码后不得在服务器临时改源码。
+  - 创建 `/root/backups/<timestamp>` 发布备份；不得把备份放入 OpenClaw extensions。
+  - 先发布 Provisioner 并验证旧 Backend 仍兼容，再发布 Backend；最后按需重启 Gateway。
+  - 每一步记录当前 release、HTTP 状态和回滚是否触发。
+- 硬停止条件：Nest 启动失败、服务非 active、认证端点不是预期 401、内部端口暴露、日志泄露、artifact checksum 不符或 Personal baseline 漂移。
+
+### 阶段 3：Wave 3 跨服务联调
+
+- 负责人：ROOT；AGENT-BE/AGENT-RAG/AGENT-OC/AGENT-TEST 仅做分范围验证。
+- 状态：pending，依赖阶段 2 稳定发布。
+- 测试数据：只使用新建隔离用户 A/B 和虚构数据，不使用现有 3 个用户作为写入测试对象。
+- 执行批次：
+  - 3A Memory：6.3 偏好跨 Session、6.4 动态业务事实不进 Memory、6.5 candidate 晋升、6.6 冲突优先级。
+  - 3B 路由：6.7 RAG 建议、6.10 高风险 L3 保守路径、6.11 领域外零 RightNow 工具调用。
+  - 3C 写入：6.8 饮食记录/只分析边界、6.9 训练写入及 TODO/前端刷新。
+  - 3D 隔离：用户 A/B 的 Profile、Memory、Session、业务数据和审计零串读。
+- 通过标准：每条链路均有 requestId、意图、工具、数据库行或不写入断言；`MEMORY.md` 与 PostgreSQL Profile 一致；provider=`none` 时不声称向量召回通过。
+
+### 阶段 4：Wave 4 生命周期与恢复
+
+- 负责人：ROOT 统筹；生产 OpenClaw 删除/恢复只允许 ROOT 执行。
+- 状态：pending，依赖 Wave 3 通过。
+- 开发顺序：
+  - 实现 Provisioner 幂等反注册：只接受 `rightnow-*`，配置原子移除，workspace/session 先 quarantine，拒绝 Personal/路径参数/符号链接逃逸。
+  - 实现账户删除状态机和重试：冻结新写入 -> 外部资源清理 -> PostgreSQL 删除 -> 最终清理；不得假装跨 DB/文件系统事务原子。
+  - 使用新建隔离用户完成 7.1 用户隔离、7.2 Agent 重建、7.3 两次账户删除幂等。
+  - 在隔离恢复环境完成 7.4 备份恢复，不覆盖在线 Prod。
+  - 完成 7.5 网络边界、7.6 历史窗口、7.7 日志隐私、7.8 六流程和 7.9 最终自动化。
+- 硬停止条件：目标身份不唯一、备份不可读、业务 digest 变化、其他用户或 Personal hash/mtime 漂移、重复 Agent、服务健康失败或日志出现 secret/完整私密正文。
+
+### 当前下一步
+
+- ROOT：审查并拆分当前未提交改动，优先完成阶段 1A 的错误语义和测试。
+- AGENT-OC：只在本地/隔离目录实现阶段 1B artifact、启动冒烟和回滚脚本，不连接生产。
+- AGENT-TEST：为 Wave 3 每个案例准备输入、预期 intent/tool/数据库变化和失败停止条件。
+- 在 1A/1B 完成前，不再执行生产 Agent 删除、账户删除或主机重启。
+
+## 阶段 1A/1B 开发执行结果
+
+- 负责人：ROOT；AGENT-BE（Memory/Chat）；AGENT-OC（发布工具）；AGENT-TEST（只读测试审查）。
+- 状态：completed。
+- 开始/完成时间：2026-07-12。
+- 修改文件：Backend Memory/Chat/Provisioning 代码与测试；Provisioner Memory/状态端点与测试；`infra/native-deploy/release-manager.sh`、隔离测试和模板检查；开发文档。
+- 执行命令：`npm run test:agent-memory`、`npm run test:openclaw-provisioning`、Provisioner `npm test`、Frontend build、native template validation、Git Bash/远端 Linux `/tmp` release-manager isolation tests、`git diff --check`。
+- 测试结果：
+  - Memory candidate/lifecycle/conflict/profile/serialization/sync protocol 与 Chat 失败持久化通过；Backend 构建通过。
+  - ensureAgent、Memory 或 Gateway 失败时新增 ChatMessage 为 0；成功后在事务中按 user/assistant 写入两行。
+  - Memory 同步支持超时、拒绝非 JSON/错误 Agent ID；每次可安全重试。Provisioner 对字节相同内容返回 `updated=false` 且不改 mtime，Agent 重建后仍可恢复文件。
+  - Provisioner 6/6；状态查询、Memory 认证写、固定格式、64 KiB、符号链接/非普通目标和原子替换门禁通过。
+  - release manager 默认 dry-run，只允许带隔离标记的非生产 root；拒绝危险 release ID、secret/数据库 artifact、runtime 目录和源符号链接；生成并校验 `ARTIFACTS.sha256`。
+  - Linux `/tmp` 隔离测试真实完成 base -> next 原子 symlink deploy -> base rollback；未访问 `/opt/rightnow`、systemd 或生产 release。
+- 证据摘要：发布工具不含 SSH/生产地址，服务白名单仅 `rightnow-backend/rag/provisioner`。Nest 启动/DI 冒烟已纳入工具；生产 artifact 和切换仍须在阶段 2 代码冻结后由 ROOT 串行执行。
+- 阻塞项：尚未执行阶段 2 的正式 diff 拆分、单一 artifact 构建和生产发布；尚未进入 Wave 3。
+- 下一步：ROOT 审查当前完整 diff，按独立目标拆分提交候选并运行最终全套门禁；得到明确发布窗口后再执行阶段 2。
+
+## 阶段 2 Memory/Chat 正式生产发布
+
+- 负责人：ROOT。
+- 状态：completed。
+- 开始/完成时间：2026-07-12。
+- 修改文件：生产 `/opt/rightnow/releases/rn-20260712-memory-chat`、`/opt/rightnow/current`、`/opt/rightnow/previous`；未修改数据库、OpenClaw 配置或 workspace。
+- 执行命令：从 `readlink -f /opt/rightnow/current` 的真实目录复制独立 release；覆盖已验证源码；Provisioner/Backend/intent/Memory/Plugin/Prisma 测试；备用端口 Nest 启动/DI 冒烟；完整 artifact manifest；原子 symlink 切换；逐服务 restart/HTTP 门禁。
+- 测试结果：Provisioner 6/6；OpenClaw provisioning 3 场景；Memory/Chat 套件通过；intent 32 cases/224 assertions；Plugin identity 5/5；Prisma valid；备用端口 `/api/auth/me`=401。发布后 Backend、Provisioner、RAG、Nginx 均 active；5000、8000、8787、18789 仅监听 `127.0.0.1`；Personal `/`=200、RightNow `/rightnow/`=200、未认证 API=401。
+- 证据摘要：`current=/opt/rightnow/releases/rn-20260712-memory-chat`；`previous=/opt/rightnow/releases/1039a8b`。`ARTIFACTS.sha256` 覆盖 40,403 个文件，manifest SHA-256 为 `be9f8eac009792ce5f0a7b8b616e854ea7a9492de1c53350fd4b2ffb81ea7d11`。发布包扫描未发现真实 `.env`、密钥、dump、Chroma 或 workspace；允许版本化的 `.env.example` 模板。
+- 恢复/异常记录：首次切换中 systemd 已报告 Provisioner active、但 8787 尚未监听，HTTP 门禁失败并自动恢复旧 `current`。将等待条件改为真实 401/200 HTTP readiness 后第二次切换成功。此前中断部署曾因复制 symlink 修改旧 release，并触发 ChatModule DI 失败；已通过新增 `AgentMemoryModule` 导入恢复服务。本次正式 release 使用真实源目录复制、Nest DI 冒烟和 manifest，消除了目录名与运行内容不一致状态。
+- 阻塞项：未执行聊天、Agent 重建或业务写入 E2E；这些属于 Wave 3/4，按用户要求未在本次发布中复跑。
+- 下一步：进入 Wave 3，先使用新建隔离用户执行 3A Memory 联调，再执行路由、写入和 A/B 隔离批次。
+
+## Wave 3A Memory/Conversation 基础链路
+
+- 负责人：ROOT；AGENT-BE/AGENT-OC 实现分范围代码；AGENT-TEST 只读测试设计。
+- 状态：completed（生产发布与隔离 A/B E2E 通过）。
+- 开始/完成时间：2026-07-12。
+- 修改文件：`backend/prisma/schema.prisma`、conversation migration、Chat/Memory/OpenClaw 模块与测试、RightNow 插件 identity、前端 API 客户端、env examples、开发文档。
+- 执行命令：Prisma format/generate/validate；迁移 SQL 人工审查；本地 `prisma db execute`；二次 migrate diff；Backend/Frontend build；Memory/JWT、Conversation、OpenClaw identity、Plugin tests。
+- 测试结果：迁移仅新增 `ChatConversation`、nullable `ChatMessage.conversationId`、两个索引和两个级联外键；本地应用成功且二次 diff 为 empty。JWT Memory 编排、A/B ownership、候选服务端确认来源、Profile/外部同步状态、conversation ownership、history window=0、legacy null 隔离和 Session 后缀验证通过。
+- 证据摘要：Chat 成功后尽力提取去重 candidate；动态体重/饮食/训练仍被排除。用户通过 JWT API 显式确认后才进入 confirmed/Profile/MEMORY。新 conversation 使用 `rightnow:<userId>:<conversationId>`，旧客户端继续 `rightnow:<userId>`。provider=`none`，不声明向量召回。
+- 阻塞项：OpenClaw Memory provider 仍为 `none`，未执行或声称向量索引/语义召回；模型行为验证只作为 workspace prompt 观察。
+- 下一步：进入 3B 路由联调：RAG 建议、高风险 L3 保守路径和领域外零 RightNow 工具调用。
+
+## Wave 3A 生产发布与 E2E
+
+- 负责人：ROOT；AGENT-OC 提供 Gateway reload 修复；其他子代理只读设计/本地测试。
+- 状态：completed。
+- 开始/完成时间：2026-07-12。
+- 修改文件：生产 Conversation Schema、`/opt/rightnow/releases/rn-20260712-wave3a-*`、Gateway chat completions 配置、RightNow 插件 identity；本地相关源码、测试和开发文档。
+- 数据库发布：完整 dump 位于 `/root/backups/rightnow-wave3a-20260712-0240/rightnow_fitness_prod.dump`，SHA-256 `beed2531aac28fa61dde5f8d06fd0639b9c03c9501ab9750b3b4ee15de533484`。生产 diff 精确为 1 表、1 nullable 列、2 索引、2 外键，零 DROP/UPDATE；应用后二次 diff empty，`ChatConversation` owner=`rightnow_app`，旧 3 用户和旧 ChatMessage 保留。
+- 自动化结果：Backend/Frontend build；Memory/JWT orchestration；Conversation ownership/window=0/legacy；intent 224/224；OpenClaw identity 12 assertions；Plugin 6/6；Provisioner 7/7；Prisma validate 与真实迁移通过。
+- E2E 测试数据：仅创建 `rn3a-a-1783795654@example.invalid` 与 `rn3a-b-1783795654@example.invalid` 两个隔离用户；现有 3 用户未用于写入测试。测试凭据未写入 Git/进度文档。
+- E2E 结果：
+  - A 首聊成功并创建一个 RESPONSE_STYLE candidate；B candidates=0，B 确认 A fact 返回 404。
+  - A 显式确认后 Profile 与原子 `MEMORY.md` 同步成功；Markdown marker 按安全规则转义。
+  - A 第二 conversation 使用 `rightnow:<userId>:<conversationId>`，Backend 日志有 2 条对应 session 证据；临时 DB history window=0 后已恢复默认配置。
+  - B 读取 A conversation 返回 404；A/B Agent、workspace、Fact 和 Session 均按用户隔离。
+  - B Agent 可逆删除测试后，首次聊天为 201；Provisioner 自动重启 Gateway、重建唯一 Agent/workspace，Personal workspace hash 不变。
+  - 动态体重 `63.1kg` 首聊为 201，`WeightRecord` 由 0 增为 1，User 当前体重更新为 63.1，`weight.record` 审计存在；candidate=0，`MEMORY.md` 不含 63.1。
+- 故障与修复：
+  - Gateway 2026.3.24 默认关闭 `/v1/chat/completions`，导致首聊 404；备份后显式启用 loopback Token 端点，Personal workspace hash/mtime 不变。
+  - Provisioner system service 缺 `XDG_RUNTIME_DIR`，user bus 返回 `No medium found`；固定 `/run/user/0` 后同沙箱 `is-active` 成功，B 首次 provision 自动重启通过。
+  - “请按我的长期偏好…训练几次”误报运动偏好 candidate；规则收紧为明确第一人称偏好或句首偏好表达，新增回归并将隔离误报 fact 标记 REJECTED。
+- 发布结果：当前 release `/opt/rightnow/releases/rn-20260712-wave3a-weight`；manifest 覆盖 40,413 个文件，SHA-256 `27d23bd71452e41cc1a29530c0760bd8a3937dee57db5775432da0f7e8731ee5`。Backend、Provisioner、RAG、Gateway、Nginx 均 active，内部端口保持回环。
+- 阻塞项：provider=`none`；3B/3C 尚未执行。
+- 下一步：3B 先验证建议请求触发 RAG、高风险请求走 L3 且不激进写入、领域外请求零 RightNow 工具/零业务表变化。
+
+## Wave 3B 确定性路由实现
+
+- 负责人：ROOT；AGENT-BE/AGENT-OC/AGENT-TEST 只读审计和测试设计。
+- 状态：completed（本地实现、正式生产发布与隔离 E2E 通过）。
+- 开始/完成时间：2026-07-12。
+- 修改文件：`backend/src/chat/chat.service.ts`、`backend/scripts/test-chat-conversations.cjs`、开发文档。
+- 实现结果：
+  - 一般建议由 Backend 根据 `requiresKnowledge` 调用 RAG 自动多层 `/search`，将返回的 `source_layer` 与最多 5 条文档作为受限上下文传给 Gateway；不执行业务写工具。
+  - high-risk 请求固定传 `collection=l3`，并始终增加停止危险活动、禁止诊断/激进方案和医疗升级边界；RAG 失败时安全约束仍保留。
+  - `out_of_domain` 在 DB 历史、Provisioner、Memory sync/candidate、RAG 和 Gateway 之前短路，只保存当前 ChatMessage 对并返回固定领域边界说明。
+  - `knowledge.search` 审计只记录用户作用域、channel、成功/错误、耗时、目标层和 intent，不保存消息正文、Token 或检索文档。
+- 测试结果：`test:chat-conversations` 覆盖一般建议 RAG、high-risk L3/安全 prompt/零体重写入、领域外零 Gateway/Provisioner/Memory/RAG/audit/历史读取；conversation ownership、Session Key、window=0、legacy 和体重写入回归继续通过。`test:intent` 为 32 cases/224 assertions；`test:agent-memory` 全部通过；Backend build 通过；`git diff --check` 通过（仅 CRLF 提示）。
+- 生产发布：最终 `current=/opt/rightnow/releases/rn-20260712-wave3b-routing-v3`，`previous=/opt/rightnow/releases/rn-20260712-wave3b-routing-v2`；manifest 覆盖 40,413 个文件，SHA-256 `aa1004484d5bf35e53ac845c7c05ead78d8ba3c81c5cba135faf57a1ec15639c`。Backend、RAG、Provisioner、Gateway、Nginx 均 active，Backend 未认证端点为 401，Nginx `/rightnow/` 为 200。
+- 生产 E2E：仅使用新建 `.invalid` 隔离用户和虚构输入；凭据未输出或记录。一般建议 201 且实际 `source_layer=1`；膝痛继续跳绳请求 201、固定 L3 且实际 `source_layer=3`；领域外请求 201，并保持 audit 计数不变。Diet/Weight/Training/Todo 聚合计数为 `0 -> 0`，CONFIRMED Memory=0，三轮对话精确写 6 条 ChatMessage。
+- 故障与修复：首次发布门禁误用不匹配证书的域名，自动回滚至 Wave 3A；改用本机 Nginx Host/path 门禁后切换成功。首次新 release 的旧 Memory 测试桩缺 classifier，补齐已通过的测试版本后恢复全套门禁。真实高风险回答虽命中 L3，但模型未稳定输出明确停止措辞；v3 改为 Backend 确定性添加停止危险活动/禁止带伤继续训练前缀，再次 E2E 通过。RAG 审计新增实际 `sourceLayer`，高风险返回非 L3 时按 `RAG_LAYER_MISMATCH` 安全降级。
+- 约束与未验证项：OpenClaw 插件现有 `score_threshold` 参数未被 RAG schema 消费，不计入本轮通过项。provider=`none`，仍不声称向量 Memory 召回。
+- 下一步：进入 3C，按确定性白名单实现饮食记录/只分析边界、训练写入及 TODO/前端刷新；继续只使用新隔离用户做生产写入测试。
+
+## Wave 3C 饮食/训练确定性写入
+
+- 负责人：ROOT；AGENT-BE/AGENT-OC/AGENT-TEST 只读审计与测试设计。
+- 状态：completed（本地实现、正式发布与隔离 E2E 通过）。
+- 开始/完成时间：2026-07-12。
+- 实现结果：饮食文本统一先走现有营养分析服务；明确“吃了/记录”才事务创建 DietRecord，只询问热量时只返回估算。训练 `complete_training` 由 Backend 事务创建 TrainingRecord、完成当天 training TODO 并写审计。两类请求均不进入 Gateway/Provisioner/Memory，消除模型插件重复写入入口。
+- API/前端：Chat 响应增加可选 `businessAction`，包含动作类型、record ID、估算和 TODO 状态；AIChat 派发 `rightnow:data-changed`，页面后续 GET/切换读取 PostgreSQL 最新数据。
+- 只读修复：`todo.today.list` 改用 `listExisting`，不再通过 `list` 隐式执行 ensure/delete/create；显式页面初始化契约保持不变。
+- 本地测试：Chat 套件覆盖饮食只分析 0 行/0 Gateway、明确记录 1 行/record ID/审计、训练完成 1 行/TODO auto/审计/0 Gateway，以及 TODO tool 纯读；Wave 3A/3B、Memory、intent 回归和 Backend/Frontend build 均通过。
+- 正式发布：`current=/opt/rightnow/releases/rn-20260712-wave3c-writes`，`previous=/opt/rightnow/releases/rn-20260712-wave3b-routing-v3`；manifest 覆盖 40,413 个文件，SHA-256 `eefecd2657116652a1fb0f2df16bbca1f8f6c6490a3b62269f097d12a490d0e2`。Backend、RAG、Provisioner、Gateway、Nginx 均 active，Backend 401、RAG 200、Nginx `/rightnow/` 200。
+- 生产 E2E：仅创建新的 `.invalid` 隔离用户，凭据未输出/记录。预置当天 training TODO；“鸡胸肉和米饭大概多少热量”返回 `diet_analyzed` 且 DietRecord=0；“午饭吃了鸡胸肉和米饭”返回唯一 record ID 且 DietRecord=1；训练完成返回唯一 record ID、TrainingRecord=1、TODO=`completed=true/completedSource=auto`。
+- 前端/隔离证据：JWT GET diet/training/todos 均精确读到对应 ID/完成状态，构建产物包含 `rightnow:data-changed`；三轮 ChatMessage=6，CONFIRMED Memory=0；审计工具精确为 `diet.log.create,training.session.complete`，未记录食物/训练正文。
+- 发布异常：首次批量传输误将 `AIChat.tsx` 放入新 release 的 `frontend/api/`；在切换前删除误放文件并覆盖正确 `frontend/views/AIChat.tsx`，随后重新构建和生成 manifest，未影响 current 或生产服务。
+- 已知限制：Chat API 尚无持久化 request/idempotency key；用户或网络重复提交可能创建重复 DietRecord/TrainingRecord。本轮不声称重复请求幂等，后续需独立 schema/API 迁移解决。训练 update/start 和 Chat TODO 创建仍未纳入确定性路径，不计入 3C 完成项。
+- 下一步：进入 3D，验证新 A/B 用户的 Profile、Memory、Session、业务数据和审计零串读；随后为 request idempotency、训练 start/update 和 TODO Chat 状态机建立后续开发项。
+
+## Wave 3D A/B 全链路隔离验收
+
+- 负责人：ROOT；AGENT-BE/AGENT-OC/AGENT-TEST 只读审计和断言设计。
+- 状态：completed（生产新建 A/B 隔离用户矩阵通过；未执行 Agent 删除/重建）。
+- 开始/完成时间：2026-07-12。
+- 测试边界：只使用新建 `.invalid` A/B 用户和虚构标记；凭据、聊天正文、Memory 正文、Token 和审计参数均未输出或记录。provider=`none`，本轮不声称向量索引或语义 Memory 召回通过。
+- Memory/Profile：A 产生唯一运动偏好 candidate，B candidates=0；B 确认 A fact 返回 404，A 确认返回 201 且 `workspaceSynced=true`。数据库断言为 A Profile=1、B Profile=0、A marker 仅存在于 A Profile/Facts，B marker 命中=0；B `MEMORY.md` hash 在 A 确认前后不变。
+- Conversation/Session：A/B 各建独立 conversation；B 读取 A conversation 返回 404。关系完整性查询 `ChatMessage.userId <> ChatConversation.userId` 为 0；Backend 日志分别存在 `rightnow:<A>:<A conversation>` 与 `rightnow:<B>:<B conversation>`，未交叉复用。
+- 业务/审计：A 通过确定性 Chat 写入 1 条 DietRecord，B DietRecord/API 列表为 0；`diet.log.create` 审计 A=1、B=0。B 的 conversation/history 中 A marker=0，交叉操作未改变 B 业务数据或审计。
+- Agent/workspace：A/B workspace canonical path 不同，均为非 symlink，必需模板和 `MEMORY.md` 均为普通文件；`openclaw.json` 中两个 Agent 各唯一 1 条。完成 Memory/业务/交叉访问后，OpenClaw 配置 hash、B `MEMORY.md` hash 和 Personal workspace 根层文件聚合 hash 均保持不变。
+- 执行结果：隔离脚本最终状态 `stage=final rc=0`。Backend、RAG、Provisioner、Gateway、Nginx 未重启、未修改 Personal workspace，未执行生产 Agent/workspace 删除或恢复。
+- 已知限制：当前 AgentAudit `argsDigest` 名称与实现不一致，RPC 路径可能保存原始参数截断；3D 只使用不含正文参数的确定性审计，不能据此声称全局日志隐私已通过。缺少普通用户 Conversation 列表和审计查询 API，相关验收由 ownership 404 与 ROOT 数据库只读查询完成。
+- 下一步：Wave 3 主链路完成。进入 Wave 4 前先实现 request idempotency、训练 start/update 与 TODO Chat 状态机，或按风险优先直接开发 7.3 账户删除状态机；生产 OpenClaw 删除/恢复仍只允许 ROOT 串行执行。
+
+## Wave 4A Provisioner 可恢复反注册原语
+
+- 负责人：ROOT；AGENT-OC/AGENT-BE/AGENT-TEST 只读审计与测试设计。
+- 状态：completed（本地与 Linux `/tmp` 隔离测试通过，未部署生产、未执行真实 Agent 删除）。
+- 开始/完成时间：2026-07-12。
+- 实现：新增认证 `DELETE /agents/<agentId>`；只接受 operationId 和 account-deletion reason，拒绝调用方路径。服务端显式配置 workspace、2026.3.24 agent-state 和同盘 quarantine root；两类 active 资源先 rename quarantine 并写 manifest，Agent 配置唯一项再经原锁/backup/fsync/temp/rename 原子移除。
+- 恢复/幂等：相同 operation manifest 重复调用不再次移动或重启；Gateway restart/health 或配置移除失败时补偿恢复 workspace、agent-state 和 Agent 配置。目标配置重复、workspace 冲突、路径越界、symlink、Personal/非 rightnow ID 均安全拒绝。
+- 测试：Provisioner Windows 为 9 pass、0 fail、1 symlink 权限 skip；同一源码复制到主机 `/tmp` 后 Linux 10/10 全通过，真实覆盖 symlink workspace 拒绝。成功路径断言仅 A 被 quarantine、B/Personal 不变、第二次 changed=false；失败路径断言 Gateway restart 失败后 config/workspace/session 全恢复。
+- 部署模板：新增 `OPENCLAW_AGENT_STATE_ROOT=/root/.openclaw/agents` 与 `OPENCLAW_QUARANTINE_ROOT=/root/.openclaw-rightnow-quarantine`，native template validation 通过。生产只读确认实际 agent state 布局符合 `/root/.openclaw/agents/<agentId>/{sessions,agent}`，未读取 session 内容。
+- 生产状态：仍运行 `/opt/rightnow/releases/rn-20260712-wave3c-writes`；未修改 `/etc/rightnow/provisioner.env`、`openclaw.json`、workspace 或 systemd，未调用新 DELETE。
+- Backend 审计结论：账户删除仍需持久 job 与冻结状态；`WechatBindCode`、`AgentAuditLog` 无 User FK，uploads 磁盘文件不随 DB 级联。禁止直接暴露 `prisma.user.delete()`；下一步实现 `AccountDeletionJob`、ACTIVE/DELETION_PENDING 写门禁、上传 quarantine 和明确的审计匿名化策略，再接入 Provisioner DELETE。
+
+## Wave 4B 账户冻结与删除 Job
+
+- 负责人：ROOT；AGENT-BE/AGENT-TEST 提供只读 schema/状态机审计。
+- 状态：completed（本地冻结/job 基础完成，DB purge worker 尚未实现，未部署生产）。
+- 开始/完成时间：2026-07-12。
+- Schema/migration：User 新增 `accountStatus=ACTIVE`、`deletionRequestedAt`、`authVersion=0`；新增无 User FK 的 `AccountDeletionJob`，状态覆盖 REQUESTED、外部 cleanup/quarantine、DB purge、finalizing、completed 和 retryable failure。userId、idempotencyKey、externalOperationId 均唯一，避免重复 job/外部操作。
+- API：新增 JWT `DELETE /users/me`，要求当前密码与 16-128 位安全 `Idempotency-Key`；userId 只能来自 JWT，body 携带 userId 直接拒绝。事务冻结 ACTIVE 用户、authVersion+1、撤销 AgentBindToken/AgentChannelBinding/WechatBinding/WechatBindCode，并创建 REQUESTED job；不调用 `prisma.user.delete()`。
+- Auth 门禁：新 JWT 包含 authVersion；JwtStrategy 只接受 ACTIVE 且 token version 等于数据库版本。现有 Token 缺 version 时按 0 兼容现有用户；冻结后旧 Token 立即失效，登录也拒绝 pending 用户。
+- 审计策略：确定为匿名保留最小 AgentAudit，最终 purge 清空 userId/channelUserId/argsDigest，保留工具、结果、错误码、耗时与时间。WechatBindCode 显式删除；uploads 磁盘文件必须在 DB purge 前 quarantine。
+- 测试：Prisma format/generate/validate 与 Backend build 通过；`test:account-deletion` 覆盖密码、同 key 幂等、不同 key 冲突、四类绑定撤销、pending/旧版本 JWT 拒绝；Chat、Memory 回归继续通过。
+- 安全停止点：Provisioner DELETE 尚未生产部署，上传文件 quarantine 和 job worker 尚未实现，因此 REQUESTED job 不会自动进入外部 cleanup 或删除 User。生产 schema/API 均未发布，未冻结或删除任何生产用户。
+- 下一步：实现上传资源安全 manifest/quarantine 与内部 deletion worker；worker 仅在 Provisioner/上传均完成后进入单事务 DB purge，并补充每阶段失败注入、重复执行和 B/Personal 哨兵测试。

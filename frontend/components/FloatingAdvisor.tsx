@@ -20,11 +20,19 @@ const DEFAULT_TIP = '有什么健身问题，随时问我';
 
 const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false, currentView, coachReady = false, coachMessage, onCoachStart }) => {
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 150 });
-  const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [message, setMessage] = useState<string | null>(null);
   const hideTimerRef = useRef<number | null>(null);
   const dragMovedRef = useRef(false);
+  const draggingRef = useRef(false);
+
+  const openChat = () => {
+    if (coachReady && onCoachStart) {
+      onCoachStart();
+    } else {
+      onChatClick?.();
+    }
+  };
 
   // Show contextual tip based on current page
   useEffect(() => {
@@ -57,7 +65,7 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false
   }, [currentView, coachReady, coachMessage, hasNotification]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    setIsDragging(true);
+    draggingRef.current = true;
     dragMovedRef.current = false;
     setOffset({
       x: e.clientX - position.x,
@@ -68,7 +76,7 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging) return;
+    if (!draggingRef.current) return;
     e.preventDefault();
     if (
       Math.abs(e.clientX - (position.x + offset.x)) > 3 ||
@@ -83,19 +91,13 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    setIsDragging(false);
-    e.currentTarget.releasePointerCapture(e.pointerId);
-  };
-
-  const handleClick = () => {
-    if (!isDragging && !dragMovedRef.current) {
-      if (coachReady && onCoachStart) {
-        onCoachStart();
-      } else if (onChatClick) {
-        onChatClick();
-      }
+    const wasDragged = dragMovedRef.current;
+    draggingRef.current = false;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
     dragMovedRef.current = false;
+    if (!wasDragged) openChat();
   };
 
   return (
@@ -105,11 +107,14 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={() => {
+        draggingRef.current = false;
+        dragMovedRef.current = false;
+      }}
     >
       {/* Message Bubble - Clicking this also opens chat */}
       {message && (
         <div
-          onClick={handleClick}
           className="absolute right-16 top-0 w-48 bg-black/80 backdrop-blur-md border border-white/10 p-3 rounded-2xl rounded-tr-none text-xs text-gray-200 shadow-xl animate-fade-in cursor-pointer hover:bg-black/90"
         >
           <div className="flex items-center gap-2 mb-1 text-primary">
@@ -122,7 +127,15 @@ const FloatingAdvisor: React.FC<Props> = ({ onChatClick, hasNotification = false
 
       {/* The Orb */}
       <div
-        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        aria-label="打开小爪教练对话"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openChat();
+          }
+        }}
         className="w-14 h-14 rounded-full relative cursor-pointer group transition-transform active:scale-95"
       >
         {/* Unread Red Dot */}

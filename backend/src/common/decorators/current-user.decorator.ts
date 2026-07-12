@@ -5,6 +5,7 @@ export interface AuthenticatedUser {
   email: string;
   name: string;
   scope?: 'app' | 'admin';
+  authVersion?: number;
 }
 
 export const CurrentUser = createParamDecorator(

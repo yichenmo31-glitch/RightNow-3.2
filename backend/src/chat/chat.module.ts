@@ -4,9 +4,12 @@ import { PushService } from '../common/push.service';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { OpenClawModule } from '../openclaw/openclaw.module';
+import { AgentMemoryModule } from '../agent-memory/agent-memory.module';
+import { AgentModule } from '../agent/agent.module';
+import { DietModule } from '../diet/diet.module';
 
 @Module({
-  imports: [PrismaModule, OpenClawModule],
+  imports: [PrismaModule, OpenClawModule, AgentMemoryModule, AgentModule, DietModule],
   controllers: [ChatController],
   providers: [ChatService, PushService],
   exports: [ChatService],

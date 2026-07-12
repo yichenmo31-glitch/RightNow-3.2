@@ -138,6 +138,11 @@ export class TodosService {
     const targetDate = date || getShanghaiDateString();
     await this.ensureDailyTodos(userId, targetDate);
 
+    return this.listExisting(userId, targetDate);
+  }
+
+  async listExisting(userId: string, date?: string) {
+    const targetDate = date || getShanghaiDateString();
     const records = await this.prisma.todo.findMany({
       where: {
         userId,

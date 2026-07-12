@@ -41,9 +41,15 @@ export class OpenClawClient {
     return normalized.startsWith('rightnow-') ? normalized : `rightnow-${normalized}`;
   }
 
-  toSessionKey(userId: string): string {
+  toSessionKey(userId: string, conversationId?: string): string {
     const normalized = String(userId).trim().toLowerCase();
-    return normalized.startsWith('rightnow:') ? normalized : `rightnow:${normalized}`;
+    const base = normalized.startsWith('rightnow:') ? normalized : `rightnow:${normalized}`;
+    if (conversationId === undefined) return base;
+    const opaqueId = String(conversationId);
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(opaqueId)) {
+      throw new TypeError('conversationId must be 1-64 safe ASCII characters');
+    }
+    return `${base}:${opaqueId}`;
   }
 
   private baseUrl(): string {

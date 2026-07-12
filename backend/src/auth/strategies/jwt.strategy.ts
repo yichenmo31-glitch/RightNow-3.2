@@ -25,10 +25,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         id: true,
         email: true,
         name: true,
+        accountStatus: true,
+        authVersion: true,
       },
     });
 
-    if (!user) {
+    if (!user || user.accountStatus !== 'ACTIVE' || user.authVersion !== (payload.authVersion ?? 0)) {
       throw new UnauthorizedException('Invalid token');
     }
 
@@ -37,6 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       name: user.name,
       scope: payload.scope,
+      authVersion: user.authVersion,
     };
   }
 }

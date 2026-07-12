@@ -29,6 +29,26 @@ async function serialize(key, operation) {
   try { return await operation(); } finally { release(); if (queues.get(key) === tail) queues.delete(key); }
 }
 
+async function writeConfig(configPath, config, beforeRename) {
+  const temporary = `${configPath}.${process.pid}.${Date.now()}.tmp`;
+  const backup = `${configPath}.bak`;
+  const handle = await open(temporary, "wx", 0o600);
+  try {
+    await handle.writeFile(JSON.stringify(config, null, 2) + "\n");
+    await handle.sync();
+    await handle.close();
+    await copyFile(configPath, backup);
+    if (beforeRename) await beforeRename();
+    await rename(temporary, configPath);
+    const directory = await open(dirname(configPath), "r").catch(() => null);
+    if (directory) { await directory.sync().catch(() => {}); await directory.close(); }
+  } catch (error) {
+    await handle.close().catch(() => {});
+    await rm(temporary, { force: true });
+    throw error;
+  }
+}
+
 export async function provisionAgentConfig({ configPath, agentId, workspace, beforeRename }) {
   validateAgentId(agentId);
   return serialize(configPath, () => withFileLock(configPath, async () => {
@@ -44,23 +64,23 @@ export async function provisionAgentConfig({ configPath, agentId, workspace, bef
     }
     const agent = { id: agentId, workspace };
     config.agents.list.push(agent);
-    const temporary = `${configPath}.${process.pid}.${Date.now()}.tmp`;
-    const backup = `${configPath}.bak`;
-    const handle = await open(temporary, "wx", 0o600);
-    try {
-      await handle.writeFile(JSON.stringify(config, null, 2) + "\n");
-      await handle.sync();
-      await handle.close();
-      await copyFile(configPath, backup);
-      if (beforeRename) await beforeRename();
-      await rename(temporary, configPath);
-      const directory = await open(dirname(configPath), "r").catch(() => null);
-      if (directory) { await directory.sync().catch(() => {}); await directory.close(); }
-    } catch (error) {
-      await handle.close().catch(() => {});
-      await rm(temporary, { force: true });
-      throw error;
-    }
+    await writeConfig(configPath, config, beforeRename);
     return { changed: true, agent };
+  }));
+}
+
+export async function deprovisionAgentConfig({ configPath, agentId, workspace, beforeRename }) {
+  validateAgentId(agentId);
+  return serialize(configPath, () => withFileLock(configPath, async () => {
+    const config = JSON.parse(await readFile(configPath, "utf8"));
+    if (config.agents?.list != null && !Array.isArray(config.agents.list)) throw new TypeError("agents.list must be an array");
+    const list = config.agents?.list || [];
+    const matches = list.filter((agent) => agent?.id === agentId);
+    if (matches.length > 1) throw new TypeError("agent configuration is not unique");
+    if (matches.length === 0) return { changed: false, agent: null };
+    if (matches[0].workspace !== workspace) throw new TypeError("agent workspace conflicts with server-computed path");
+    config.agents.list = list.filter((agent) => agent?.id !== agentId);
+    await writeConfig(configPath, config, beforeRename);
+    return { changed: true, agent: matches[0] };
   }));
 }

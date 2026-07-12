@@ -21,6 +21,9 @@ if ($backendEnv -notmatch '(?m)^OPENCLAW_ADMIN_URL=http://127\.0\.0\.1:8787$') {
 
 $provisionerEnv = Get-Content -Raw (Join-Path $root 'env/provisioner.env.example')
 if ($provisionerEnv -notmatch '(?m)^PROVISIONER_BIND_ADDRESS=127\.0\.0\.1$') { throw 'Provisioner must bind to loopback' }
+if ($provisionerEnv -notmatch '(?m)^OPENCLAW_GATEWAY_HEALTH_URL=http://127\.0\.0\.1:18789/healthz$') { throw 'Gateway health URL must be loopback' }
+if ($provisionerEnv -notmatch '(?m)^OPENCLAW_AGENT_STATE_ROOT=/root/\.openclaw/agents$') { throw 'Agent state root must be explicit' }
+if ($provisionerEnv -notmatch '(?m)^OPENCLAW_QUARANTINE_ROOT=/root/\.openclaw-rightnow-quarantine$') { throw 'Quarantine root must stay outside active OpenClaw state' }
 
 $nginx = Get-Content -Raw (Join-Path $root 'nginx/rightnow.locations.conf')
 if ($nginx -match 'location\s+/\s*\{') { throw 'Snippet must not replace Personal OpenClaw root location' }
@@ -33,5 +36,10 @@ if (($all -join "`n") -match '/root/\.openclaw/workspace(?:\s|$)') {
     throw 'A template references the Personal OpenClaw workspace'
 }
 
-Write-Output 'native deployment templates: OK'
+$releaseManager = Get-Content -Raw (Join-Path $root 'release-manager.sh')
+if ($releaseManager -match '(?m)^\s*ssh\s|106\.54\.16\.31') { throw 'Release manager must not connect to production' }
+if ($releaseManager -notmatch '\.rightnow-isolated-root') { throw 'Release manager lacks isolated-root guard' }
+if ($releaseManager -notmatch 'ARTIFACTS\.sha256') { throw 'Release manager lacks artifact manifest validation' }
+if ($releaseManager -notmatch 'dry-run') { throw 'Release manager must default to dry-run' }
 
+Write-Output 'native deployment templates: OK'

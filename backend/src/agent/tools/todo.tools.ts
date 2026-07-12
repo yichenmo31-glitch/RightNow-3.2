@@ -8,7 +8,7 @@ export function todoTools(todos: TodosService): ToolHandler[] {
       write: false,
       async run(ctx) {
         const date = (ctx.args.date as string) ?? undefined;
-        return todos.list(ctx.userId!, date);
+        return todos.listExisting(ctx.userId!, date);
       },
     },
     {

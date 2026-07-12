@@ -52,7 +52,9 @@ export class OpenClawProvisioningService {
 
     if (this.mode() === 'admin-http') {
       await this.provisionViaAdmin(agentId);
-      await this.waitForAgent(agentId);
+      if (!(await this.agentExists(agentId))) {
+        throw new Error(`Agent ${agentId} was not ready after provisioning`);
+      }
     } else if (this.mode() === 'config-file') {
       const configPath = this.configPath();
       this.logger.log(`[provision] auto-registering agent ${agentId} in ${configPath}`);
@@ -80,20 +82,29 @@ export class OpenClawProvisioningService {
     return agentId;
   }
 
-  /** Check declared agents via gateway /v1/models (token-gated, internal). */
+  /** Check the server-owned Agent configuration and workspace via Provisioner. */
   private async agentExists(agentId: string): Promise<boolean> {
-    const base = (this.config.get<string>('OPENCLAW_GATEWAY_URL') || 'http://rn-openclaw-gw:18789')
-      .trim()
-      .replace(/\/+$/, '');
-    const token = (this.config.get<string>('OPENCLAW_GATEWAY_TOKEN') || '').trim();
+    if (this.mode() === 'config-file') {
+      try {
+        const cfg = JSON.parse(fs.readFileSync(this.configPath(), 'utf-8'));
+        return cfg.agents?.list?.some((agent: any) => agent?.id === agentId) === true;
+      } catch {
+        return false;
+      }
+    }
+
+    const base = (this.config.get<string>('OPENCLAW_ADMIN_URL') || '').trim().replace(/\/+$/, '');
+    const token = (this.config.get<string>('OPENCLAW_ADMIN_TOKEN') || '').trim();
+    if (!base || !token) return false;
     try {
-      const res = await fetch(`${base}/v1/models`, {
+      const res = await fetch(`${base}/agents/${encodeURIComponent(agentId)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return false;
-      const j: any = await res.json();
-      const ids: string[] = (j .data || []).map((m: any) => String(m.id));
-      return ids.includes(`openclaw/${agentId}`);
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) return false;
+      const status: any = await res.json();
+      return status.agentId === agentId && status.configured === true && status.workspaceReady === true;
     } catch {
       return false;
     }

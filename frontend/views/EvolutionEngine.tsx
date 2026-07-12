@@ -24,20 +24,35 @@ const EvolutionEngine: React.FC<Props> = ({
   const [isGenerating, setIsGenerating] = useState(true);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
 
   const generate = async () => {
     setIsGenerating(true);
     setImages([null, null, null]);
     setSelectedIdx(null);
     setErrorMessage(null);
-    const results = await generateIdealBodyAll3({
-      currentImageBase64: userImage || undefined,
-      targetStyle: bodyStyle || 'athletic',
-      gender: gender || 'male',
-    });
-    setImages(results);
-    if (!results.some(Boolean)) {
-      setErrorMessage('生图服务暂时受限，请稍后再试或检查中转站额度。');
+    setErrorDetail(null);
+    try {
+      const results = await generateIdealBodyAll3({
+        currentImageBase64: userImage || undefined,
+        targetStyle: bodyStyle || 'athletic',
+        gender: gender || 'male',
+      });
+      setImages(results);
+    } catch (error: any) {
+      const status = Number(error?.status || 0);
+      const message = String(error?.message || '');
+      setImages([null, null, null]);
+      if (/not configured|未配置/i.test(message)) {
+        setErrorMessage('本地 Demo 尚未配置图片生成服务。');
+        setErrorDetail('配置 IMAGE_GEN_API_KEY 后可生成三个理想身材版本。');
+      } else if (status === 429) {
+        setErrorMessage('图片生成服务当前限流。');
+        setErrorDetail('请稍后点击下方按钮重新生成。');
+      } else {
+        setErrorMessage('图片生成服务暂时不可用。');
+        setErrorDetail('请检查本地图片生成配置或稍后重试。');
+      }
     }
     setIsGenerating(false);
   };
@@ -71,7 +86,7 @@ const EvolutionEngine: React.FC<Props> = ({
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-6 text-center">
             <span className="material-icons-round mb-3 text-3xl text-white/35">hourglass_empty</span>
             <p className="text-sm font-bold text-white/80">暂时没有生成可用图片</p>
-            <p className="mt-2 text-xs leading-5 text-white/45">当前中转站返回繁忙或限流，请稍后点击下方按钮重新生成。</p>
+            <p className="mt-2 text-xs leading-5 text-white/45">{errorDetail}</p>
           </div>
         ) : (
           <div className="flex items-end justify-center gap-4">
@@ -124,19 +139,30 @@ const EvolutionEngine: React.FC<Props> = ({
 
       {/* Bottom Actions */}
       <div className="px-5 pb-8 space-y-2.5">
+        {errorMessage && !isGenerating && (
+          <button
+            onClick={() => onComplete(null, null)}
+            className="w-full py-3.5 rounded-full text-sm font-bold flex items-center justify-center gap-2 bg-[#B8FF00] text-black shadow-[0_0_25px_rgba(184,255,0,0.2)] transition-all"
+          >
+            <span>暂时跳过，进入计划</span>
+            <span className="material-icons-round text-lg">arrow_forward</span>
+          </button>
+        )}
         {/* Confirm */}
-        <button
-          onClick={() => selectedIdx !== null && onComplete(images[selectedIdx], null)}
-          disabled={selectedIdx === null || isGenerating || !images[selectedIdx]}
-          className={`w-full py-3.5 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-            selectedIdx !== null && !isGenerating && images[selectedIdx]
-              ? 'bg-[#B8FF00] text-black shadow-[0_0_25px_rgba(184,255,0,0.3)]'
-              : 'bg-white/5 text-white/30 cursor-not-allowed'
-          }`}
-        >
-          <span>这就是理想的我！</span>
-          <span className="material-icons-round text-lg">arrow_forward</span>
-        </button>
+        {!errorMessage && (
+          <button
+            onClick={() => selectedIdx !== null && onComplete(images[selectedIdx], null)}
+            disabled={selectedIdx === null || isGenerating || !images[selectedIdx]}
+            className={`w-full py-3.5 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              selectedIdx !== null && !isGenerating && images[selectedIdx]
+                ? 'bg-[#B8FF00] text-black shadow-[0_0_25px_rgba(184,255,0,0.3)]'
+                : 'bg-white/5 text-white/30 cursor-not-allowed'
+            }`}
+          >
+            <span>这就是理想的我！</span>
+            <span className="material-icons-round text-lg">arrow_forward</span>
+          </button>
+        )}
 
         {/* Regenerate */}
         <button

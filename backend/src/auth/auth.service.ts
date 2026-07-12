@@ -43,7 +43,7 @@ export class AuthService {
       where: { email: normalizedEmail },
     });
 
-    if (!user) {
+    if (!user || user.accountStatus !== 'ACTIVE') {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -70,6 +70,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         scope,
+        authVersion: user.authVersion,
       }),
       user: this.toAuthUser(user),
     };

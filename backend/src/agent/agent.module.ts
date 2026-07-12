@@ -77,5 +77,6 @@ import { IntentClassifierService } from './intent/intent-classifier.service';
       },
     },
   ],
+  exports: [IntentClassifierService],
 })
 export class AgentModule {}

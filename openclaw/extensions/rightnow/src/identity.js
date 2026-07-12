@@ -1,4 +1,5 @@
 const USER_ID = /^[a-z0-9][a-z0-9_-]*$/;
+const CONVERSATION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 function clean(value) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -9,10 +10,12 @@ function validateUserId(value) {
 }
 
 export function userIdFromSessionKey(value) {
-  const sessionKey = clean(value);
-  return sessionKey.startsWith("rightnow:")
-    ? validateUserId(sessionKey.slice("rightnow:".length))
-    : "";
+  if (typeof value !== "string") return "";
+  const parts = value.trim().split(":");
+  if (parts.length !== 2 && parts.length !== 3) return "";
+  if (parts[0].toLowerCase() !== "rightnow") return "";
+  if (parts.length === 3 && !CONVERSATION_ID.test(parts[2])) return "";
+  return validateUserId(parts[1].toLowerCase());
 }
 
 export function userIdFromAgentId(value) {

@@ -1411,19 +1411,31 @@ export async function generateIdealBodyAll3(params: {
 
   const styleNote = `Target body style: ${params.targetStyle}, gender: ${params.gender}.`;
 
+  let lastError: any = null;
   const call = (prompt: string) =>
     apiClient
       .post<{ image?: string }>('/image-gen/ideal-body',
         { prompt: `${prompt} ${styleNote}`, currentImageBase64, size: '1024x1024' },
         { timeout: 120_000 })
       .then(r => r.data?.image || null)
-      .catch(() => null);
+      .catch((error) => {
+        lastError = error;
+        return null;
+      });
 
-  return Promise.all([
+  const results = await Promise.all([
     call(IDEAL_PROMPT_A),
     call(IDEAL_PROMPT_B),
     call(IDEAL_PROMPT_C),
   ]);
+  if (!results.some(Boolean)) {
+    const status = Number(lastError?.response?.status || 0);
+    const message = String(lastError?.response?.data?.message || lastError?.message || 'Image generation failed');
+    const error = new Error(message) as Error & { status?: number };
+    error.status = status;
+    throw error;
+  }
+  return results;
 }
 
 export interface FoodAnalysis {

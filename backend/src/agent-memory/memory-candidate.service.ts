@@ -31,7 +31,7 @@ export class MemoryCandidateService {
       return [this.candidate(MemoryCategory.Allergy, content, true, 0.7)];
     }
 
-    if (/(?:喜欢|偏好|不喜欢|讨厌).{0,12}(?:跑步|游泳|骑车|椭圆机|力量|有氧|训练)/u.test(content)) {
+    if (/(?:(?:我|本人)(?:很|更|最|现在)?(?:喜欢|偏好|不喜欢|讨厌)|^(?:喜欢|不喜欢|讨厌)).{0,12}(?:跑步|游泳|骑车|椭圆机|力量|有氧|训练)/u.test(content)) {
       return [this.candidate(MemoryCategory.ExercisePreference, content, false, 0.85)];
     }
 

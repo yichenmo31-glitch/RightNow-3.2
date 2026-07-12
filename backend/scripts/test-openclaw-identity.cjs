@@ -18,5 +18,9 @@ for (const [input, expectedAgentId, expectedSessionKey] of cases) {
 
 assert.equal(client.toAgentId(client.toAgentId('User-1')), 'rightnow-user-1');
 assert.equal(client.toSessionKey(client.toSessionKey('User-1')), 'rightnow:user-1');
+assert.equal(client.toSessionKey(' User-1 ', 'Chat_2026-07'), 'rightnow:user-1:Chat_2026-07');
+for (const invalid of ['', 'bad:id', '../escape', 'a'.repeat(65), ' leading']) {
+  assert.throws(() => client.toSessionKey('user-1', invalid), /conversationId/);
+}
 
-console.log(`OpenClaw identity contract: ${cases.length + 2} assertions passed`);
+console.log(`OpenClaw identity contract: ${cases.length + 8} assertions passed`);

@@ -1256,6 +1256,9 @@ const AIChat: React.FC<Props> = ({
           );
           const reply = await chatApi
             .send({ content: userText, systemPrompt: stagePrompt });
+          if (reply.businessAction) {
+            window.dispatchEvent(new CustomEvent('rightnow:data-changed', { detail: reply.businessAction }));
+          }
           const assistantText = reply.content.trim() || '请确认是否继续。';
           freeChatHistoryRef.current = [
             ...freeChatHistoryRef.current,
@@ -1275,6 +1278,9 @@ const AIChat: React.FC<Props> = ({
 
           const reply = await chatApi
             .send({ content: userText, systemPrompt: modePrompt });
+          if (reply.businessAction) {
+            window.dispatchEvent(new CustomEvent('rightnow:data-changed', { detail: reply.businessAction }));
+          }
           const assistantText =
             reply.content.trim() || '我在，告诉我你今天的训练目标和状态。';
 

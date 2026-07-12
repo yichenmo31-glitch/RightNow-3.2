@@ -19,13 +19,30 @@ const RISK_CATEGORIES = new Set<MemoryCategory>([
 export class AgentMemoryService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listCandidates(userId: string): Promise<unknown> {
+    return this.prisma.agentMemoryFact.findMany({
+      where: { userId, status: MemoryStatus.Candidate },
+      orderBy: [{ observedAt: 'desc' }, { id: 'desc' }],
+    });
+  }
+
   async createCandidate(userId: string, candidate: MemoryCandidate): Promise<unknown> {
     this.assertConfidence(candidate.confidence);
+    const content = candidate.content.trim();
+    const existing = await this.prisma.agentMemoryFact.findFirst({
+      where: {
+        userId,
+        category: candidate.category,
+        content,
+        status: MemoryStatus.Candidate,
+      },
+    });
+    if (existing) return existing;
     return this.prisma.agentMemoryFact.create({
       data: {
         userId,
         category: candidate.category,
-        content: candidate.content.trim(),
+        content,
         source: candidate.source,
         confidence: candidate.confidence,
         status: MemoryStatus.Candidate,
