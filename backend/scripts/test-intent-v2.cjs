@@ -1,9 +1,35 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { classifyReadOnlyV2 } = require('../dist/agent/intent/intent-v2-rules.js');
 const { TodayPlanQueryService } = require('../dist/chat/today-plan-query.service.js');
 const { IntentClassifierService } = require('../dist/agent/intent/intent-classifier.service.js');
 const { IntentSemanticService } = require('../dist/agent/intent/intent-semantic.service.js');
 const { compareShadowDecisions } = require('../dist/agent/intent/intent-shadow.js');
+const { normalizeSemanticPolicy } = require('../dist/agent/intent/intent-policy.js');
+
+const shadowDocument = JSON.parse(fs.readFileSync(
+  path.resolve(__dirname, '../../docs/AGENT_INTENT_V2_SHADOW_SAMPLE.json'), 'utf8',
+));
+const shadowSamples = shadowDocument.groups.flatMap((group) => group.messages.map((message, index) => ({
+  caseId: `${group.id}-${index + 1}`, message,
+  resource: group.resource, operation: group.operation, scope: group.scope,
+})));
+assert.equal(shadowSamples.length, 120, 'shadow golden set must contain 120 cases');
+assert.equal(new Set(shadowSamples.map((sample) => sample.caseId)).size, 120, 'shadow case IDs must be unique');
+assert.equal(new Set(shadowSamples.map((sample) => sample.message)).size, 120, 'shadow messages must be unique');
+for (const sample of shadowSamples) {
+  assert.ok(['plan', 'todo', 'training', 'diet', 'weight', 'progress', 'memory'].includes(sample.resource));
+  assert.ok(['query', 'analyze', 'advise', 'create', 'update'].includes(sample.operation));
+  assert.ok([null, 'today', 'week', 'latest', 'current', 'history'].includes(sample.scope));
+}
+assert.deepEqual(
+  normalizeSemanticPolicy('training', 'query', 'week', '本周有几次训练'),
+  { resource: 'plan', operation: 'query', scope: 'week', matchedRuleIds: ['normalize.plan-query.v1'] },
+);
+const progressPolicy = normalizeSemanticPolicy('plan', 'query', null, '我的计划执行得怎么样');
+assert.deepEqual([progressPolicy.resource, progressPolicy.operation, progressPolicy.scope], ['progress', 'analyze', 'current']);
+assert.equal(normalizeSemanticPolicy('weight', 'query', 'history', '上次称重是多少').scope, 'latest');
 
 const cases = [
   ['今天计划是啥', 'plan', 'query', 'today', 'today_plan'],

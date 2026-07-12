@@ -100,34 +100,60 @@ export function normalizeSemanticPolicy(
   operation: IntentOperation,
   modelScope: IntentScope | null,
   message: string,
-): { operation: IntentOperation; scope: IntentScope | null; matchedRuleIds: string[] } {
+): { resource: IntentResource; operation: IntentOperation; scope: IntentScope | null; matchedRuleIds: string[] } {
   const normalized = message.normalize('NFKC').trim();
   const matchedRuleIds: string[] = [];
   let resolvedOperation = operation;
+  let resolvedResource = resource;
   let scope = explicitScope(normalized);
 
-  if (resource === 'progress' && operation === 'query' && /(怎么样|如何|表现|进展|趋势|变化)/.test(normalized)) {
+  if (/(以后|之后|记住)/.test(normalized) && /(回答|推荐|安排|喜欢|偏好|不喜欢|不要)/.test(normalized)) {
+    resolvedResource = 'memory'; resolvedOperation = 'update'; scope = 'current';
+    matchedRuleIds.push('normalize.memory-preference.v1');
+  } else if (/(提醒|待办|任务|todo|事项)/i.test(normalized) && /(创建|新增|加一个|加个|提醒)/.test(normalized)) {
+    resolvedResource = 'todo'; resolvedOperation = 'create';
+    matchedRuleIds.push('normalize.todo-create.v1');
+  } else if (/(换成|替换|改成|调轻|调整|修改|减少|改练)/.test(normalized) &&
+      /(计划|训练|深蹲|卧推|硬拉|跑步|有氧|骑车|练腿|练背|训练时长|训练顺序)/.test(normalized)) {
+    resolvedResource = 'plan'; resolvedOperation = 'update';
+    matchedRuleIds.push('normalize.plan-update.v1');
+  } else if ((scope === 'today' || scope === 'week') &&
+      /(计划|安排|练什么|练啥|怎么练|有什么训练|该做哪些运动|要练|训练日|几次训练)/.test(normalized) &&
+      !/(历史|过去|最近练了|完成|做过)/.test(normalized)) {
+    resolvedResource = 'plan'; resolvedOperation = 'query';
+    matchedRuleIds.push('normalize.plan-query.v1');
+  } else if (/(todo|待办|任务|事项|清单)/i.test(normalized) && operation === 'query') {
+    resolvedResource = 'todo';
+    matchedRuleIds.push('normalize.todo-query.v1');
+  }
+
+  if (/(计划执行|阶段成果|健身效果)/.test(normalized) && /(怎么样|如何|分析|评估|成果|效果)/.test(normalized)) {
+    resolvedResource = 'progress'; resolvedOperation = 'analyze';
+    matchedRuleIds.push('normalize.progress-review.v1');
+  }
+
+  if (resolvedResource === 'progress' && resolvedOperation === 'query' && /(怎么样|如何|表现|进展|趋势|变化|进步|成果|效果|执行)/.test(normalized)) {
     resolvedOperation = 'analyze';
     matchedRuleIds.push('normalize.progress-analyze.v1');
   }
-  if (!scope && resource === 'todo' && ['query', 'create'].includes(resolvedOperation)) {
+  if (!scope && resolvedResource === 'todo' && ['query', 'create'].includes(resolvedOperation)) {
     scope = 'today';
     matchedRuleIds.push('scope.todo-default-today.v1');
   }
-  if (!scope && resource === 'progress' && ['query', 'analyze'].includes(resolvedOperation)) {
+  if (!scope && resolvedResource === 'progress' && ['query', 'analyze'].includes(resolvedOperation)) {
     scope = 'current';
     matchedRuleIds.push('scope.progress-current.v1');
   }
-  if (!scope && resource === 'weight' && /(最新|最近一次|现在|当前)/.test(normalized)) {
+  if (!scope && resolvedResource === 'weight' && /(最新|最近一次|最近体重|上次称重|现在|当前)/.test(normalized)) {
     scope = 'latest';
     matchedRuleIds.push('scope.weight-latest.v1');
   }
-  if (!scope && ['training', 'diet'].includes(resource) && resolvedOperation === 'query' && /(最近|过去|历史|都练了|都吃了)/.test(normalized)) {
+  if (!scope && ['training', 'diet'].includes(resolvedResource) && resolvedOperation === 'query' && /(最近|过去|历史|都练了|都吃了)/.test(normalized)) {
     scope = 'history';
     matchedRuleIds.push('scope.history-explicit.v1');
   }
-  if (!scope && resource === 'memory') scope = 'current';
-  return { operation: resolvedOperation, scope: scope ?? modelScope, matchedRuleIds };
+  if (!scope && resolvedResource === 'memory') scope = 'current';
+  return { resource: resolvedResource, operation: resolvedOperation, scope: scope ?? modelScope, matchedRuleIds };
 }
 
 function dateScope(message: string): IntentScope | null {

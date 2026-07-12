@@ -56,7 +56,7 @@ export class IntentSemanticService {
     }, {
       temperature: 0.1,
       maxTokens: 500,
-      timeoutMs: this.positiveInteger('INTENT_MODEL_TIMEOUT_MS', 5000),
+      timeoutMs: this.positiveInteger('INTENT_MODEL_TIMEOUT_MS', 7000),
       maxAttempts: this.positiveInteger('INTENT_MODEL_MAX_ATTEMPTS', 2),
     });
     return this.parse(reply, input.message);
@@ -84,17 +84,19 @@ export class IntentSemanticService {
     const payload = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```$/i, '').trim()) as SemanticPayload;
     if (!INTENT_RESOURCES.includes(payload.resource as IntentResource)) throw new Error('Invalid semantic resource');
     if (!INTENT_OPERATIONS.includes(payload.operation as IntentOperation)) throw new Error('Invalid semantic operation');
-    if (payload.scope !== null && !INTENT_SCOPES.includes(payload.scope as IntentScope)) throw new Error('Invalid semantic scope');
+    const modelScope = this.normalizeScope(payload.scope);
+    if (modelScope !== null && !INTENT_SCOPES.includes(modelScope)) throw new Error('Invalid semantic scope');
     if (!RISK_LEVELS.includes(payload.riskLevel as never)) throw new Error('Invalid semantic risk level');
     const confidence = Number(payload.confidence);
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error('Invalid semantic confidence');
     const subIntent = typeof payload.subIntent === 'string' ? payload.subIntent.slice(0, 64) : null;
     const selectedRoute = READ_ONLY_ROUTES.includes(subIntent as never) ? subIntent as any : null;
-    const resource = payload.resource as IntentResource;
+    const modelResource = payload.resource as IntentResource;
     const modelOperation = payload.operation as IntentOperation;
     const normalizedPolicy = normalizeSemanticPolicy(
-      resource, modelOperation, payload.scope as IntentScope | null, message,
+      modelResource, modelOperation, modelScope, message,
     );
+    const resource = normalizedPolicy.resource;
     const operation = normalizedPolicy.operation;
     const contextProfile = resolveContextProfile(resource, operation);
     const legacyDecision = {
@@ -125,5 +127,13 @@ export class IntentSemanticService {
   private positiveInteger(key: string, fallback: number): number {
     const value = Number(this.config.get<string>(key));
     return Number.isInteger(value) && value > 0 ? value : fallback;
+  }
+
+  private normalizeScope(value: unknown): IntentScope | null {
+    if (value === null || value === undefined || value === '' ||
+        (typeof value === 'string' && ['none', 'null', 'unspecified', 'n/a'].includes(value.toLowerCase()))) {
+      return null;
+    }
+    return value as IntentScope;
   }
 }

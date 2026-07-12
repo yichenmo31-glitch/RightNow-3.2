@@ -1,14 +1,52 @@
-[
-  { "caseId": "SV201", "message": "那今天怎么安排", "resource": "plan", "operation": "query", "scope": "today" },
-  { "caseId": "SV202", "message": "这周要练几天", "resource": "plan", "operation": "query", "scope": "week" },
-  { "caseId": "SV203", "message": "还有哪些事情没做", "resource": "todo", "operation": "query", "scope": "today" },
-  { "caseId": "SV204", "message": "看看今天的待办", "resource": "todo", "operation": "query", "scope": "today" },
-  { "caseId": "SV205", "message": "最近训练表现怎么样", "resource": "progress", "operation": "analyze", "scope": "current" },
-  { "caseId": "SV206", "message": "最近都练了哪些动作", "resource": "training", "operation": "query", "scope": "history" },
-  { "caseId": "SV207", "message": "今天吃的东西有多少热量", "resource": "diet", "operation": "query", "scope": "today" },
-  { "caseId": "SV208", "message": "我最新一次体重是多少", "resource": "weight", "operation": "query", "scope": "latest" },
-  { "caseId": "SV209", "message": "新手怎么安排力量训练", "resource": "training", "operation": "advise", "scope": null },
-  { "caseId": "SV210", "message": "帮我加一个喝水待办", "resource": "todo", "operation": "create", "scope": "today" },
-  { "caseId": "SV211", "message": "把今天的深蹲换成腿举", "resource": "plan", "operation": "update", "scope": "today" },
-  { "caseId": "SV212", "message": "以后回答简短一些", "resource": "memory", "operation": "update", "scope": "current" }
-]
+{
+  "groups": [
+    {
+      "id": "today_plan", "resource": "plan", "operation": "query", "scope": "today",
+      "messages": ["今天怎么安排", "今天练什么", "给我看看今天计划", "今天有什么训练", "今日安排是啥", "今天该做哪些运动", "我今天要练啥", "今天的健身计划呢", "看看今日训练安排", "今天准备怎么练"]
+    },
+    {
+      "id": "weekly_plan", "resource": "plan", "operation": "query", "scope": "week",
+      "messages": ["这周怎么练", "本周训练安排", "这星期练什么", "看看这周计划", "本周有几次训练", "这个星期如何安排运动", "我这周要练啥", "给我本周健身计划", "这周的训练日是哪几天", "本周计划是什么"]
+    },
+    {
+      "id": "today_todos", "resource": "todo", "operation": "query", "scope": "today",
+      "messages": ["今天有哪些任务", "看看今日待办", "今天的 TODO", "我今天还要做什么", "今日任务列表", "今天有哪些健身事项", "查一下今天待办", "今天要完成哪些事", "给我今天的任务", "今天的清单是什么"]
+    },
+    {
+      "id": "pending_todos", "resource": "todo", "operation": "query", "scope": "today",
+      "messages": ["还有什么没完成", "今天还剩哪些任务", "哪些事情还没做", "未完成待办有哪些", "今天还有啥没完成", "剩余任务给我看看", "我漏了哪些任务", "还有待完成的事项吗", "今天没做完什么", "查一下未完成任务"]
+    },
+    {
+      "id": "training_history", "resource": "training", "operation": "query", "scope": "history",
+      "messages": ["最近练了什么", "过去都做过哪些训练", "看看我的训练历史", "最近完成了哪些动作", "之前练过什么项目", "查一下过去的训练", "我最近都练了哪些部位", "历史训练记录", "前几次训练做了什么", "最近的运动记录"]
+    },
+    {
+      "id": "diet_today", "resource": "diet", "operation": "query", "scope": "today",
+      "messages": ["今天吃了多少", "看看今天的饮食", "今日摄入多少热量", "今天吃过什么", "查一下今日饮食记录", "我今天蛋白质吃够了吗", "今天的营养摄入", "今日饮食情况", "今天记录了哪些食物", "看看我今天吃的东西"]
+    },
+    {
+      "id": "weight_latest", "resource": "weight", "operation": "query", "scope": "latest",
+      "messages": ["我现在多少斤", "最新体重是多少", "最近一次体重", "查一下当前体重", "我现在有多重", "看看最新体重记录", "当前记录的公斤数", "上次称重是多少", "最近体重数据", "我的最新体重"]
+    },
+    {
+      "id": "progress_review", "resource": "progress", "operation": "analyze", "scope": "current",
+      "messages": ["最近进展怎么样", "我的训练表现如何", "这段时间有进步吗", "分析一下最近状态", "当前健身效果怎么样", "看看我的阶段成果", "最近体能变化如何", "我的计划执行得怎么样", "评估一下当前进度", "最近减脂表现如何"]
+    },
+    {
+      "id": "training_advice", "resource": "training", "operation": "advise", "scope": null,
+      "messages": ["新手怎么练力量", "深蹲应该怎么做", "新手训练频率怎么选", "怎样提高卧推", "有氧和力量怎么搭配", "增肌适合什么训练", "怎么安排恢复日", "训练前要热身多久", "如何改善核心力量", "新手适合跑步吗"]
+    },
+    {
+      "id": "todo_create", "resource": "todo", "operation": "create", "scope": "today",
+      "messages": ["帮我加一个喝水待办", "创建今天拉伸任务", "新增一个晚饭后散步提醒", "加个今天称重的任务", "帮我创建蛋白质记录待办", "提醒我今天练腿", "新增今日早睡任务", "创建一个补水事项", "今天加一条核心训练待办", "帮我加个饭后走路任务"]
+    },
+    {
+      "id": "plan_update", "resource": "plan", "operation": "update", "scope": "today",
+      "messages": ["把今天深蹲换成腿举", "今天训练调轻一点", "把今天跑步替换成椭圆机", "修改今天的训练顺序", "将今天卧推换成俯卧撑", "今天计划减少一组", "把今天有氧改成骑车", "调整今日训练时长", "今天不练腿改练背", "替换今天计划里的硬拉"]
+    },
+    {
+      "id": "memory_update", "resource": "memory", "operation": "update", "scope": "current",
+      "messages": ["以后回答简短一点", "记住我不喜欢跑步", "之后优先推荐椭圆机", "以后别安排早晨训练", "记住我喜欢晚上运动", "回答时直接给结论", "以后训练建议保守一些", "记住我偏好居家训练", "以后用中文回答", "之后不要推荐跳绳"]
+    }
+  ]
+}

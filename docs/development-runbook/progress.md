@@ -1,5 +1,17 @@
 # RightNow 开发进度
 
+## Intent V2：120 条分层 Shadow 黄金集
+
+- 负责人：ROOT
+- 状态：completed（准确率与有效率门禁通过）；Phase 3 仍未启用
+- 开始/完成时间：2026-07-12
+- 修改文件：`docs/AGENT_INTENT_V2_SHADOW_SAMPLE.json`、`observe-intent-shadow.cjs`、`test-intent-v2.cjs`、`intent-policy.ts`、`intent-semantic.service.ts`、环境模板及本进度文档。
+- 执行命令：`npm --workspace backend run test:intent`、两轮 `npm run observe:intent-shadow`、Chat/Memory 回归、`git diff --check`。
+- 测试结果：黄金集扩展为 12 类 x 10 条，共 120 条且 case/message 唯一。首轮 `103/120=85.83%`；确定性冲突校正后最终有效响应 `120/120`、错误 `0`、resource `120/120`、operation `120/120`、三字段 `119/120=99.17%`、平均约 `2638ms/样本`。
+- 证据摘要：今日计划、周计划、TODO、训练历史、今日饮食、进展、训练建议、TODO 创建、计划调整和 Memory 更新均达到 10/10；唯一 scope 偏差位于 latest weight 表达，已加入“上次称重/最近体重”确定性规范化与单测。
+- 阻塞项：大样本准确率和有效响应率已超过设计门槛，但尚未测量 P95、并发限流和连续多轮稳定性；高风险/写入零误触发仍由确定性套件证明，语义写入执行继续关闭。
+- 下一步：增加耗时分位数与小并发观测，然后仅评估只读 Phase 3 灰度；写入不随 Phase 3 开放。
+
 ## Intent V2：独立分类模型与确定性 Scope
 
 - 负责人：ROOT
