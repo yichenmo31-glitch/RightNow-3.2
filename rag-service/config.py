@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 
 BASE_DIR = Path(__file__).resolve().parent
+KNOWLEDGE_DIR = BASE_DIR / "knowledge"
 
 EMBEDDING_MODEL         = os.getenv("RAG_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
 EMBEDDING_QUERY_PREFIX  = os.getenv("RAG_QUERY_PREFIX", "为这个句子生成表示以用于检索相关文章：")
@@ -18,7 +19,7 @@ CORS_ORIGINS            = os.getenv("RAG_CORS_ORIGINS", "*")
 # Layer 1: FAQ 快路（三文档结构化问答对）
 L1_COLLECTION           = os.getenv("RAG_L1_COLLECTION", "kb_l1_faq")
 L1_CHROMA_DIR           = os.getenv("RAG_L1_CHROMA_DIR", str(BASE_DIR / "chroma_l1_faq"))
-L1_FAQ_PATH             = os.getenv("RAG_L1_FAQ_PATH", "")  # faq.json 路径
+L1_FAQ_PATH             = os.getenv("RAG_L1_FAQ_PATH", str(KNOWLEDGE_DIR / "l1-faq" / "faq.json"))
 L1_FAST_THRESHOLD       = float(os.getenv("RAG_L1_FAST_THRESHOLD", "0.30"))
 L1_MIN_RESULTS          = int(os.getenv("RAG_L1_MIN_RESULTS", "1"))
 L1_WAIT_MS              = int(os.getenv("RAG_L1_WAIT_MS", "150"))
@@ -28,13 +29,13 @@ USE_L1_FAQ              = os.getenv("RAG_USE_L1_FAQ", "true").lower() == "true"
 # Layer 2: 生活化减脂内核其它部分（1-4 节）
 L2_COLLECTION           = os.getenv("RAG_L2_COLLECTION", "kb_l2_core")
 L2_CHROMA_DIR           = os.getenv("RAG_L2_CHROMA_DIR", str(BASE_DIR / "chroma_l2_core"))
-L2_DATA_PATH            = os.getenv("RAG_L2_DATA_PATH", "")  # 内核 1-4 节目录
+L2_DATA_PATH            = os.getenv("RAG_L2_DATA_PATH", str(KNOWLEDGE_DIR / "l2-core"))
 USE_L2_CORE             = os.getenv("RAG_USE_L2_CORE", "true").lower() == "true"
 
 # Layer 3: 营养学书籍
 L3_COLLECTION           = os.getenv("RAG_L3_COLLECTION", "kb_l3_books")
 L3_CHROMA_DIR           = os.getenv("RAG_L3_CHROMA_DIR", str(BASE_DIR / "chroma_l3_books"))
-L3_DATA_PATH            = os.getenv("RAG_L3_DATA_PATH", "")  # 营养学书籍目录
+L3_DATA_PATH            = os.getenv("RAG_L3_DATA_PATH", str(KNOWLEDGE_DIR / "l3-books"))
 USE_L3_BOOKS            = os.getenv("RAG_USE_L3_BOOKS", "true").lower() == "true"
 
 # Layer 4: Web 搜索兜底（旧 L3）

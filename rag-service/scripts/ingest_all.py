@@ -5,15 +5,15 @@ import sys
 from pathlib import Path
 
 SERVICE_DIR = Path(__file__).resolve().parents[1]
-REPO_DIR = SERVICE_DIR.parent
+KNOWLEDGE_DIR = SERVICE_DIR / "knowledge"
 sys.path.insert(0, str(SERVICE_DIR))
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--l1", type=Path, default=REPO_DIR / "l1-faq" / "faq.json")
-    parser.add_argument("--l2", type=Path, default=REPO_DIR / "l2-core")
-    parser.add_argument("--l3", type=Path, default=REPO_DIR / "l3-books")
+    parser.add_argument("--l1", type=Path, default=KNOWLEDGE_DIR / "l1-faq" / "faq.json")
+    parser.add_argument("--l2", type=Path, default=KNOWLEDGE_DIR / "l2-core")
+    parser.add_argument("--l3", type=Path, default=KNOWLEDGE_DIR / "l3-books")
     parser.add_argument("--persist-dir", type=Path, default=SERVICE_DIR / ".work" / "chroma")
     parser.add_argument("--force", action="store_true", help="clear each collection before import")
     return parser.parse_args()

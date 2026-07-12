@@ -4,7 +4,7 @@
 
 ## Project Structure & Module Organization
 
-This is a multi-service fitness platform. `frontend/` contains the React 19/Vite application, views, API clients, public assets, and frontend scripts. Read `frontend/AGENTS.md` and `frontend/CLAUDE_PROJECT_MEMORY.md` before substantial UI work. `backend/` is the NestJS API; Prisma schema and seed data live in `backend/prisma/`, while feature modules live under `backend/src/`. `rag-service/` provides FastAPI/Chroma retrieval. Knowledge sources are separated into `l1-faq/`, `l2-core/`, and `l3-books/`. The OpenClaw plugin is in `openclaw/extensions/rightnow/`; integration and operating notes belong in `docs/`.
+This is a multi-service fitness platform. `frontend/` contains the React 19/Vite application, views, API clients, public assets, and frontend scripts. Read `frontend/AGENTS.md` and `frontend/CLAUDE_PROJECT_MEMORY.md` before substantial UI work. `backend/` is the NestJS API; Prisma schema and seed data live in `backend/prisma/`, while feature modules live under `backend/src/`. `rag-service/` owns FastAPI/Chroma retrieval, its documentation, and the authoritative L1/L2/L3 knowledge sources under `rag-service/knowledge/`. The OpenClaw plugin is in `openclaw/extensions/rightnow/`; cross-service integration and operating notes belong in `docs/`.
 
 ## Build, Test, and Development Commands
 

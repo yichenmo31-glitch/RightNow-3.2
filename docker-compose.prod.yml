@@ -79,43 +79,32 @@ services:
       RAG_USE_L1_FAQ: "true"
       RAG_L1_COLLECTION: kb_l1_faq
       RAG_L1_CHROMA_DIR: /app/chroma_l1_faq
-      RAG_L1_FAQ_PATH: /data/l1-faq/faq.json
+      RAG_L1_FAQ_PATH: /app/knowledge/l1-faq/faq.json
       RAG_L1_FAST_THRESHOLD: "0.30"
       RAG_L1_SEARCH_EF: "16"
       RAG_L1_WAIT_MS: "150"
       RAG_USE_L2_CORE: "true"
       RAG_L2_COLLECTION: kb_l2_core
       RAG_L2_CHROMA_DIR: /app/chroma_l2_core
-      RAG_L2_DATA_PATH: /data/l2-core
+      RAG_L2_DATA_PATH: /app/knowledge/l2-core
       RAG_USE_L3_BOOKS: "true"
       RAG_L3_COLLECTION: kb_l3_books
       RAG_L3_CHROMA_DIR: /app/chroma_l3_books
-      RAG_L3_DATA_PATH: /data/l3-books
+      RAG_L3_DATA_PATH: /app/knowledge/l3-books
       RAG_FAST_PATH: "true"
       RAG_USE_LEGACY: "false"
-      RAG_CHROMA_PERSIST_DIR: /app/chroma_db
-      RAG_BLOGGER_CHROMA_DIR: /app/chroma_blogger
-      RAG_CLEANED_DATA_PATH: /data/cleaned-data
-      RAG_BLOGGER_DATA_PATH: /data/blogger-data
       RAG_EMBEDDING_MODEL: BAAI/bge-small-zh-v1.5
-      RAG_USE_BLOGGER: "true"
-      RAG_USE_WEB_SEARCH: "true"
+      RAG_USE_WEB_SEARCH: "false"
       RAG_WEB_SEARCH_ENGINE: duckduckgo
       RAG_SIMILARITY_THRESHOLD: "0.35"
       RAG_CHUNK_SIZE: "800"
-      RAG_CHUNK_OVERLAP: "100"
+      RAG_CHUNK_OVERLAP: "200"
       HF_ENDPOINT: https://hf-mirror.com
     volumes:
-      - chroma_data:/app/chroma_db
-      - chroma_blogger_data:/app/chroma_blogger
       - chroma_l1_data:/app/chroma_l1_faq
       - chroma_l2_data:/app/chroma_l2_core
       - chroma_l3_data:/app/chroma_l3_books
-      - ./cleaned-data:/data/cleaned-data:ro
-      - ./blogger-data:/data/blogger-data:ro
-      - ./l1-faq:/data/l1-faq:ro
-      - ./l2-core:/data/l2-core:ro
-      - ./l3-books:/data/l3-books:ro
+      - ./rag-service/knowledge:/app/knowledge:ro
 
   wechat-bridge:
     build:
@@ -185,8 +174,6 @@ services:
 volumes:
   pgdata:
   uploads:
-  chroma_data:
-  chroma_blogger_data:
   chroma_l1_data:
   chroma_l2_data:
   chroma_l3_data:

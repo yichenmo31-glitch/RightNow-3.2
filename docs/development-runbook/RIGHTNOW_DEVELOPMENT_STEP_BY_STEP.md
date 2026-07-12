@@ -342,9 +342,9 @@ pip install -r rag-service/requirements.txt
 
 ```powershell
 python rag-service/scripts/structure_check.py --help
-Test-Path l1-faq/faq.json
-Get-ChildItem l2-core -File
-Get-ChildItem l3-books -File
+Test-Path rag-service/knowledge/l1-faq/faq.json
+Get-ChildItem rag-service/knowledge/l2-core -File
+Get-ChildItem rag-service/knowledge/l3-books -File
 ```
 
 通过标准：三层均有数据；结构检查无阻断错误。

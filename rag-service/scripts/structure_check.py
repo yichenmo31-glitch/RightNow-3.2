@@ -3,14 +3,15 @@ import argparse
 import json
 from pathlib import Path
 
-REPO_DIR = Path(__file__).resolve().parents[2]
+SERVICE_DIR = Path(__file__).resolve().parents[1]
+KNOWLEDGE_DIR = SERVICE_DIR / "knowledge"
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--l1", type=Path, default=REPO_DIR / "l1-faq" / "faq.json")
-    parser.add_argument("--l2", type=Path, default=REPO_DIR / "l2-core")
-    parser.add_argument("--l3", type=Path, default=REPO_DIR / "l3-books")
+    parser.add_argument("--l1", type=Path, default=KNOWLEDGE_DIR / "l1-faq" / "faq.json")
+    parser.add_argument("--l2", type=Path, default=KNOWLEDGE_DIR / "l2-core")
+    parser.add_argument("--l3", type=Path, default=KNOWLEDGE_DIR / "l3-books")
     args = parser.parse_args()
     errors = []
     try:
