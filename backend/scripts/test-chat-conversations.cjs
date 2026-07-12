@@ -187,7 +187,8 @@ async function main() {
   assert.equal(dietWrite.calls.diets[0].calories, 520);
   assert.equal(dietWrite.calls.audits.at(-1).tool, 'diet.log.create');
   assert.equal(dietCreated.businessAction.recordId, 'diet-1');
-  assert.match(dietCreated.content, /记录 ID：diet-1.*可以纠正/);
+  assert.match(dietCreated.content, /大致估算约 520 千卡。已写入饮食记录，如份量不准确可以纠正/);
+  assert.doesNotMatch(dietCreated.content, /记录 ID|diet-1|[（）()]/);
   dietWrite.restore();
 
   const training = harness({

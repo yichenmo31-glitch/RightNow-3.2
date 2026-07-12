@@ -382,7 +382,9 @@ export class ChatService {
       return `这是估算结果，可随时纠正：约 ${action.estimated.calories} 千卡。${content}`;
     }
     if (action.type === 'diet_record_created') {
-      return `已按估算写入饮食记录（记录 ID：${action.recordId}），如份量不准确可以纠正。${content}`;
+      const calories = action.estimated?.calories;
+      const estimate = Number.isFinite(calories) ? `大致估算约 ${calories} 千卡。` : '已完成大致营养估算。';
+      return `${estimate}已写入饮食记录，如份量不准确可以纠正。${content}`;
     }
     if (action.type === 'training_record_created') {
       return `训练已记录（记录 ID：${action.recordId}）${action.todoCompleted ? '，今日训练待办已完成' : ''}。${content}`;
