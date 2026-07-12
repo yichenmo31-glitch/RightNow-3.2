@@ -1,13 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { callChatLlm } from '../../chat/llm-chat.helper';
 import { classifyByRules } from './intent-rules';
 import { classifyReadOnlyV2 } from './intent-v2-rules';
 import { INTENTS, IntentClassifierInput, IntentDecision, IntentDecisionV2, RESPONSE_MODES, RISK_LEVELS } from './intent-classifier.types';
+import { IntentSemanticService } from './intent-semantic.service';
 
 @Injectable()
 export class IntentClassifierService {
-  constructor(private readonly config: ConfigService) {}
+  private readonly logger = new Logger(IntentClassifierService.name);
+
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() private readonly semantic?: IntentSemanticService,
+  ) {}
 
   async classify(input: IntentClassifierInput): Promise<IntentDecision> {
     const rule = classifyByRules(input);
@@ -36,7 +42,43 @@ export class IntentClassifierService {
     const readOnly = classifyReadOnlyV2(input);
     if (readOnly) return readOnly;
     const legacyDecision = legacyRule ?? await this.classify(input);
+    this.runShadow(input, legacyDecision);
     return this.mapLegacyDecision(legacyDecision);
+  }
+
+  private runShadow(input: IntentClassifierInput, legacyDecision: IntentDecision): void {
+    if (this.config.get<string>('INTENT_CLASSIFIER_VERSION')?.trim().toLowerCase() !== 'v2-shadow') return;
+    if (!this.semantic || legacyDecision.riskLevel === 'high' || legacyDecision.requiresWriteTool) return;
+    const startedAt = Date.now();
+    void this.semantic.classify(input).then((shadow) => {
+      this.logger.log(JSON.stringify({
+        event: 'intent_v2_shadow', classifierVersion: 'v2-shadow', classifier: shadow.classifier,
+        legacyIntent: legacyDecision.intent, resource: shadow.resource, operation: shadow.operation,
+        scope: shadow.scope, confidence: shadow.confidence, riskLevel: shadow.riskLevel,
+        selectedRoute: shadow.selectedRoute, differs: shadow.legacyIntent !== legacyDecision.intent,
+        meetsReadOnlyThreshold: shadow.confidence >= this.modelMinConfidence(),
+        durationMs: Date.now() - startedAt,
+      }));
+    }).catch((error) => {
+      this.logger.warn(JSON.stringify({
+        event: 'intent_v2_shadow_error', classifierVersion: 'v2-shadow',
+        errorType: this.shadowErrorType(error), durationMs: Date.now() - startedAt,
+      }));
+    });
+  }
+
+  private shadowErrorType(error: unknown): string {
+    const message = error instanceof Error ? error.message : '';
+    if (/JSON|semantic/i.test(message)) return 'invalid_response';
+    if (/429/.test(message)) return 'rate_limited';
+    if (/abort|timeout/i.test(message)) return 'timeout';
+    if (/No chat provider configured/.test(message)) return 'not_configured';
+    return 'provider_error';
+  }
+
+  private modelMinConfidence(): number {
+    const configured = Number(this.config.get<string>('INTENT_MODEL_MIN_CONFIDENCE'));
+    return Number.isFinite(configured) && configured >= 0 && configured <= 1 ? configured : 0.8;
   }
 
   private mapLegacyDecision(legacyDecision: IntentDecision): IntentDecisionV2 {
@@ -68,7 +110,7 @@ export class IntentClassifierService {
       { role: 'user', content: JSON.stringify(input) },
     ], {
       stepfunBaseUrl: this.config.get('STEPFUN_BASE_URL'), stepfunApiKey: this.config.get('STEPFUN_API_KEY'), stepfunModel: this.config.get('STEPFUN_CHAT_MODEL'),
-      deepseekBaseUrl: this.config.get('DEEPSEEK_BASE_URL'), deepseekApiKey: this.config.get('DEEPSEEK_API_KEY'), deepseekModel: this.config.get('DEEPSEEK_MODEL'),
+      deepseekBaseUrl: this.config.get('DEEPSEEK_BASE_URL'), deepseekApiKey: this.config.get('DEEPSEEK_API_KEY'), deepseekModel: this.config.get('DEEPSEEK_CHAT_MODEL'),
     }, { temperature: 0.1, maxTokens: 600 });
     const parsed = JSON.parse(reply.replace(/^```json\s*/i, '').replace(/```$/i, '').trim()) as Partial<IntentDecision>;
     if (!INTENTS.includes(parsed.intent as never) || !RISK_LEVELS.includes(parsed.riskLevel as never) || !RESPONSE_MODES.includes(parsed.responseMode as never)) throw new Error('Invalid classifier enum');

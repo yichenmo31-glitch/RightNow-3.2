@@ -25,6 +25,7 @@ import { UsersService } from '../users/users.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { IntentClassifierService } from './intent/intent-classifier.service';
+import { IntentSemanticService } from './intent/intent-semantic.service';
 
 @Module({
   imports: [DietModule, TrainingSessionModule, TodosModule, UsersModule],
@@ -36,6 +37,7 @@ import { IntentClassifierService } from './intent/intent-classifier.service';
     AgentAuditService,
     ToolRegistry,
     IntentClassifierService,
+    IntentSemanticService,
     {
       provide: 'AGENT_TOOL_INIT',
       inject: [ToolRegistry, DietService, TrainingSessionService, TodosService, UsersService, PrismaService, ConfigService],

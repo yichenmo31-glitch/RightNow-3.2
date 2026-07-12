@@ -1,6 +1,6 @@
 # RightNow Intent Classifier V2 设计计划
 
-状态：Phase 1 Implemented / Phase 2-4 Planned
+状态：Phase 1 Implemented / Phase 2 Shadow Available / Phase 3-4 Planned
 日期：2026-07-12  
 适用范围：Web、飞书私聊以及后续受支持的外部通道
 
@@ -425,4 +425,6 @@ V2 只有同时满足以下条件才能标记完成：
 - `docs/development-runbook/architecture.md`：V2 进入执行阶段后写入稳定跨模块契约。
 - `docs/development-runbook/progress.md`：逐 Phase 记录实现、测试和灰度证据。
 
-截至 2026-07-12，Phase 1 已实现并启用四个确定性只读路由：`today_plan`、`weekly_plan`、`today_todos`、`pending_todos`。它们在 Chat 主链路中先于 OpenClaw、RAG 和聊天模型短路执行，仅读取 PostgreSQL 并使用 Backend 模板回复；其他意图继续使用 V1 规则和既有门禁。Phase 2 的语义分类、Shadow 指标以及 Phase 3-4 仍未实现或启用。
+截至 2026-07-12，Phase 1 已实现并启用四个确定性只读路由：`today_plan`、`weekly_plan`、`today_todos`、`pending_todos`。它们在 Chat 主链路中先于 OpenClaw、RAG 和聊天模型短路执行，仅读取 PostgreSQL 并使用 Backend 模板回复；其他意图继续使用 V1 规则和既有门禁。
+
+Phase 2 的结构化语义分类与异步 Shadow 比较能力已经实现，但默认配置保持 `INTENT_CLASSIFIER_VERSION=v2`，尚未在生产或本地 Demo 持续灰度。显式设置 `v2-shadow` 后，仅未形成完整 V2 路由的低风险、非写入请求进入旁路；V1 结果立即照常执行，Shadow 结果不会调用工具或改变响应。诊断日志只包含分类枚举、置信度、差异、阈值结果、错误类型和耗时，不记录消息正文、prompt、Profile 或 Token。Phase 2 仍需积累真实样本差异率后才能完成灰度验收；Phase 3-4 尚未实现。

@@ -1,5 +1,17 @@
 # RightNow 开发进度
 
+## Intent V2 Phase 2：语义分类 Shadow 能力
+
+- 负责人：ROOT
+- 状态：completed（实现与自动化）；真实流量灰度证据 pending
+- 开始/完成时间：2026-07-12
+- 修改文件：`backend/src/agent/intent/intent-semantic.service.ts`、`intent-classifier.service.ts`、`agent.module.ts`、V2 测试、三份环境变量模板及设计/架构文档。
+- 执行命令：`npm --workspace backend run test:intent`、`npm --workspace backend run test:chat-conversations`、`npm --workspace backend run test:agent-memory`、`git diff --check`。
+- 测试结果：结构化 JSON 正常响应、低置信度只记录、坏 JSON 拒绝、最近四条上下文限制、布尔状态白名单、风险/写入不调用 Shadow、Shadow 不改变 selectedRoute 均通过。
+- 证据摘要：`v2-shadow` 异步执行，V1 主链路不等待模型；日志不含消息正文或 prompt。默认 `v2` 保持 Phase 1 行为，不自动增加模型费用。
+- 阻塞项：完成 Phase 2 产品灰度验收前，需要在明确授权的本地或预发布环境启用 `v2-shadow` 并积累一致率、错误率和延迟指标；生产未启用。
+- 下一步：先运行受控 Shadow 观察窗口并扩展真实误判黄金集，再决定是否进入 Phase 3 只读灰度。
+
 ## Intent V2 Phase 1：契约与只读计划查询
 
 - 负责人：ROOT（子代理只读审计设计与测试边界）
