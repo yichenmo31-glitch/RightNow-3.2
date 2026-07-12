@@ -71,6 +71,9 @@ export class IntentSemanticService {
     }
     return {
       message: input.message.slice(0, 2000),
+      currentLocalDateTime: this.shanghaiDateTime(),
+      currentLocalWeekday: new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', weekday: 'long' }).format(new Date()),
+      timeZone: 'Asia/Shanghai',
       channel: (input.channel || 'unknown').slice(0, 32),
       hasImage: Boolean(input.hasImage),
       imageType: input.imageType || null,
@@ -80,6 +83,13 @@ export class IntentSemanticService {
       })),
       state,
     };
+  }
+
+  private shanghaiDateTime(): string {
+    return new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    }).format(new Date());
   }
 
   private parse(raw: string, message: string): IntentDecisionV2 {

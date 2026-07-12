@@ -93,6 +93,7 @@ async function main() {
   await owned.service.send('user-a', 'hello', { conversationId: 'conv-a', source: 'wechat' });
   assert.equal(owned.calls.sessionKey, 'rightnow:user-a:conv-a');
   assert.equal(owned.calls.lastUserMessage, 'hello');
+  assert.match(owned.calls.systemPrompt, /当前时间: .*Asia\/Shanghai/);
   assert.deepEqual(owned.rows.map((row) => [row.role, row.conversationId]), [
     ['user', 'conv-a'],
     ['assistant', 'conv-a'],

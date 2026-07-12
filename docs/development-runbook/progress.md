@@ -1,5 +1,16 @@
 # RightNow 开发进度
 
+## Chat 与意图分类时间上下文
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成时间：2026-07-12
+- 修改文件：`chat.service.ts`、`intent-semantic.service.ts`、相关测试及架构文档。
+- 测试结果：Chat system prompt 包含 `Asia/Shanghai` 当前时间；语义输入包含固定日期时间、星期和时区；Intent/Chat 回归通过。
+- 证据摘要：模型可以理解今天、今晚、明早等相对表达，但业务记录时间仍由 Backend/数据库生成。
+- 阻塞项：无。
+- 下一步：扩展“今晚/明早/周末”的 scope 黄金样本。
+
 ## Intent V2 Phase 3：受限只读语义灰度
 
 - 负责人：ROOT

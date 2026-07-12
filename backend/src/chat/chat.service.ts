@@ -137,6 +137,7 @@ export class ChatService {
     ];
 
     const systemPrompt = (options.systemPrompt?.trim() || DEFAULT_SYSTEM_PROMPT) +
+      `\n当前时间: ${this.shanghaiDateTime()}（Asia/Shanghai）` +
       `\n当前用户ID: ${userId}`;
 
     const messages: OpenClawChatMessage[] = [
@@ -470,6 +471,13 @@ export class ChatService {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
+    }).format(new Date());
+  }
+
+  private shanghaiDateTime(): string {
+    return new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+      weekday: 'long', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
     }).format(new Date());
   }
 

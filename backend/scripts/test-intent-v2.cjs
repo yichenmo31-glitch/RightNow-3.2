@@ -218,6 +218,8 @@ async function testSemanticShadow() {
     assert.equal(requests[0].body.model, 'intent-model-test');
     const semanticInput = JSON.parse(requests[0].body.messages[1].content);
     assert.equal(semanticInput.recentMessages.length, 4);
+    assert.equal(semanticInput.timeZone, 'Asia/Shanghai');
+    assert.match(semanticInput.currentLocalDateTime, /^\d{4}-\d{2}-\d{2}/);
     assert.deepEqual(semanticInput.state, { hasActivePlan: true });
     assert.doesNotMatch(requests[0].body.messages[1].content, /must-not-leak/);
 
