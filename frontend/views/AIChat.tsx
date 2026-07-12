@@ -1293,10 +1293,13 @@ const AIChat: React.FC<Props> = ({
           addBackendMessage(reply, assistantText);
           void appendTrainingLog('assistant', assistantText);
         }
-      } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || String(err || '');
-        console.error('[chat] send error:', err);
-        addMessage('ai', `发送失败: ${msg}`);
+        } catch (err: any) {
+          const msg = err?.response?.data?.message || err?.message || String(err || '');
+          const status = Number(err?.response?.status || 0);
+          console.error('[chat] send error:', err);
+          addMessage('ai', status >= 500
+            ? '小爪暂时没有回应，请稍后再试一次。'
+            : `发送失败: ${msg}`);
         throw err;
       } finally {
         setSending(false);

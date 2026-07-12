@@ -849,3 +849,4 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 冒烟：新增 `scripts/smoke-local-demo.ps1`，覆盖前端 HTTP、小爪聊天入口契约、演示账号登录、真实教练聊天、TODO/饮食/训练读取；`-IncludeImageEdit` 显式增加一次真实 `step-image-edit-2` 请求，默认不消耗图片额度。
 - 验证：Backend/Frontend 构建通过；完整冒烟 8/8 通过；stop 后 `5000/5173` 均释放，再次 start 后 Backend 401 readiness 与 Frontend 200 readiness 通过。测试仅新增演示账号聊天/图片生成记录，不写饮食、训练或 TODO。
 - Windows 约束：当前环境 Vite/esbuild 在嵌套 PowerShell 构建时存在 IPC 不稳定，因此启动器只消费独立构建产生的 `dist`；使用前先运行 `npm run build:backend` 和 `npm run build:frontend`。
+- 聊天稳定性补充：用户实际输入“今天什么安排”曾遇到一次阶跃瞬时失败并显示 `Internal server error`。本地 direct-chat fallback 超时从 12 秒调整为 30 秒，对网络错误、429、5xx 和空回复最多重试一次；前端 5xx 改为可重试中文提示。冒烟消息改为覆盖“今天什么安排”路径，重启后连续 3 轮均为 7/7。

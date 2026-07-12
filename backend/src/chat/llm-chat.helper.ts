@@ -67,7 +67,8 @@ function pickProvider(cfg: ChatProviderConfig): {
   return null;
 }
 
-const LLM_TIMEOUT_MS = 12_000;
+const LLM_TIMEOUT_MS = 30_000;
+const LLM_MAX_ATTEMPTS = 2;
 
 export async function callChatLlm(
   messages: ChatTurn[],
@@ -89,40 +90,52 @@ export async function callChatLlm(
     max_tokens: opts.maxTokens ?? 800,
   };
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${provider.apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-
-    const text = await res.text();
-    let data: OpenAIChatResponse;
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= LLM_MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
     try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(`Chat provider returned non-JSON (HTTP ${res.status}): ${text.slice(0, 300)}`);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${provider.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      const text = await res.text();
+      let data: OpenAIChatResponse;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Chat provider returned non-JSON (HTTP ${res.status})`);
+      }
+
+      if (!res.ok) {
+        const msg = data.error?.message || `HTTP ${res.status}`;
+        const error = new Error(`Chat provider failed: ${msg}`);
+        if (res.status !== 429 && res.status < 500) throw error;
+        lastError = error;
+      } else {
+        const reply = data.choices?.[0]?.message?.content?.trim();
+        if (reply) return { reply, provider: provider.name, model: provider.model };
+        lastError = new Error('Chat provider returned empty reply');
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Chat provider request failed');
+      if (lastError.message.startsWith('Chat provider failed:') && !/HTTP (429|5\d\d)/.test(lastError.message)) {
+        throw lastError;
+      }
+    } finally {
+      clearTimeout(timer);
     }
 
-    if (!res.ok) {
-      const msg = data.error?.message || `HTTP ${res.status}`;
-      throw new Error(`Chat provider failed: ${msg}`);
+    if (attempt < LLM_MAX_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
     }
-
-    const reply = data.choices?.[0]?.message?.content?.trim();
-    if (!reply) {
-      throw new Error('Chat provider returned empty reply');
-    }
-
-    return { reply, provider: provider.name, model: provider.model };
-  } finally {
-    clearTimeout(timer);
   }
+
+  throw lastError || new Error('Chat provider request failed');
 }

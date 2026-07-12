@@ -42,7 +42,7 @@ $headers = @{ Authorization = "Bearer $token" }
 Pass 'Demo login'
 
 $chatRaw = Invoke-RestMethod -Method Post -Uri "$apiBase/chat" -Headers $headers `
-  -ContentType 'application/json' -Body (@{ content = '你好，请用一句话回复本地冒烟测试。' } | ConvertTo-Json) `
+  -ContentType 'application/json' -Body (@{ content = '今天什么安排？请用一句话回复本地冒烟测试。' } | ConvertTo-Json) `
   -TimeoutSec 120
 $chat = Unwrap $chatRaw
 if (-not ([string]$chat.content).Trim()) { throw 'Chat reply content is empty.' }
