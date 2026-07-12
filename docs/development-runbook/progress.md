@@ -1,5 +1,17 @@
 # RightNow 开发进度
 
+## Intent V2：独立分类模型与确定性 Scope
+
+- 负责人：ROOT
+- 状态：completed（小样本验证）；大样本门禁 pending
+- 开始/完成时间：2026-07-12
+- 修改文件：忽略的 `backend/.env`、`llm-chat.helper.ts`、`intent-semantic.service.ts`、`intent-policy.ts`、环境模板、V2 测试及设计/架构文档。
+- 执行命令：安全 `/v1/models` 探测、`npm --workspace backend run test:intent`、`npm run observe:intent-shadow`、Chat/Memory 回归和 `git diff --check`。
+- 测试结果：独立 OpenAI-compatible 分类端点 models 探测返回 200；12 条受控样本有效响应率 `100%`、三字段完全匹配 `12/12`、错误 `0`、平均约 `3304ms/样本`。
+- 证据摘要：切换独立小型分类模型后先得到 `12/12` 有效、`9/12` 完全匹配；加入 Backend scope/冲突规范化后达到 `12/12`。真实 API Key 未进入 Git 或输出。
+- 阻塞项：12 条样本不足以开放 Phase 3；仍需 100-150 条分层黄金集验证高风险漏判为 0、写入误触发为 0，并评估 P95。
+- 下一步：扩展黄金集并重复受控 Shadow；达到正式门禁后才启用只读语义路由。
+
 ## Intent V2：上下文装配与确定性安全/写入策略
 
 - 负责人：ROOT

@@ -95,11 +95,53 @@ export function resolveReadSet(profile: ContextProfile): ContextReadKey[] {
   return [...CONTEXT_READ_SETS[profile]];
 }
 
+export function normalizeSemanticPolicy(
+  resource: IntentResource,
+  operation: IntentOperation,
+  modelScope: IntentScope | null,
+  message: string,
+): { operation: IntentOperation; scope: IntentScope | null; matchedRuleIds: string[] } {
+  const normalized = message.normalize('NFKC').trim();
+  const matchedRuleIds: string[] = [];
+  let resolvedOperation = operation;
+  let scope = explicitScope(normalized);
+
+  if (resource === 'progress' && operation === 'query' && /(怎么样|如何|表现|进展|趋势|变化)/.test(normalized)) {
+    resolvedOperation = 'analyze';
+    matchedRuleIds.push('normalize.progress-analyze.v1');
+  }
+  if (!scope && resource === 'todo' && ['query', 'create'].includes(resolvedOperation)) {
+    scope = 'today';
+    matchedRuleIds.push('scope.todo-default-today.v1');
+  }
+  if (!scope && resource === 'progress' && ['query', 'analyze'].includes(resolvedOperation)) {
+    scope = 'current';
+    matchedRuleIds.push('scope.progress-current.v1');
+  }
+  if (!scope && resource === 'weight' && /(最新|最近一次|现在|当前)/.test(normalized)) {
+    scope = 'latest';
+    matchedRuleIds.push('scope.weight-latest.v1');
+  }
+  if (!scope && ['training', 'diet'].includes(resource) && resolvedOperation === 'query' && /(最近|过去|历史|都练了|都吃了)/.test(normalized)) {
+    scope = 'history';
+    matchedRuleIds.push('scope.history-explicit.v1');
+  }
+  if (!scope && resource === 'memory') scope = 'current';
+  return { operation: resolvedOperation, scope: scope ?? modelScope, matchedRuleIds };
+}
+
 function dateScope(message: string): IntentScope | null {
   if (/(明天|明日)/.test(message)) return 'tomorrow';
   if (/(这周|本周|这星期|这个星期)/.test(message)) return 'week';
   if (/(今天|今日)/.test(message)) return 'today';
   if (/(最近|过去|历史)/.test(message)) return 'history';
+  return null;
+}
+
+function explicitScope(message: string): IntentScope | null {
+  if (/(明天|明日)/.test(message)) return 'tomorrow';
+  if (/(这周|本周|这星期|这个星期)/.test(message)) return 'week';
+  if (/(今天|今日)/.test(message)) return 'today';
   return null;
 }
 

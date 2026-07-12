@@ -35,6 +35,8 @@ export interface ChatProviderConfig {
 export interface ChatCallOptions {
   temperature?: number;
   maxTokens?: number;
+  timeoutMs?: number;
+  maxAttempts?: number;
 }
 
 interface OpenAIChatResponse {
@@ -91,9 +93,11 @@ export async function callChatLlm(
   };
 
   let lastError: Error | undefined;
-  for (let attempt = 1; attempt <= LLM_MAX_ATTEMPTS; attempt++) {
+  const timeoutMs = Number.isFinite(opts.timeoutMs) ? Math.max(1000, Number(opts.timeoutMs)) : LLM_TIMEOUT_MS;
+  const maxAttempts = Number.isInteger(opts.maxAttempts) ? Math.min(5, Math.max(1, Number(opts.maxAttempts))) : LLM_MAX_ATTEMPTS;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(url, {
         method: 'POST',
@@ -132,7 +136,7 @@ export async function callChatLlm(
       clearTimeout(timer);
     }
 
-    if (attempt < LLM_MAX_ATTEMPTS) {
+    if (attempt < maxAttempts) {
       await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
     }
   }

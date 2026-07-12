@@ -6,7 +6,7 @@ import {
   IntentDecisionV2, IntentOperation, IntentResource, IntentScope, READ_ONLY_ROUTES,
   RISK_LEVELS,
 } from './intent-classifier.types';
-import { resolveContextProfile, resolveReadSet } from './intent-policy';
+import { normalizeSemanticPolicy, resolveContextProfile, resolveReadSet } from './intent-policy';
 
 interface SemanticPayload {
   resource?: unknown;
@@ -47,14 +47,19 @@ export class IntentSemanticService {
       },
       { role: 'user', content: JSON.stringify(this.restrictedInput(input)) },
     ], {
-      stepfunBaseUrl: this.config.get('STEPFUN_BASE_URL'),
-      stepfunApiKey: this.config.get('STEPFUN_API_KEY'),
-      stepfunModel: this.config.get('STEPFUN_CHAT_MODEL'),
+      stepfunBaseUrl: this.config.get('INTENT_MODEL_BASE_URL') || this.config.get('STEPFUN_BASE_URL'),
+      stepfunApiKey: this.config.get('INTENT_MODEL_API_KEY') || this.config.get('STEPFUN_API_KEY'),
+      stepfunModel: this.config.get('INTENT_MODEL_NAME') || this.config.get('STEPFUN_CHAT_MODEL'),
       deepseekBaseUrl: this.config.get('DEEPSEEK_BASE_URL'),
       deepseekApiKey: this.config.get('DEEPSEEK_API_KEY'),
       deepseekModel: this.config.get('DEEPSEEK_CHAT_MODEL'),
-    }, { temperature: 0.1, maxTokens: 500 });
-    return this.parse(reply);
+    }, {
+      temperature: 0.1,
+      maxTokens: 500,
+      timeoutMs: this.positiveInteger('INTENT_MODEL_TIMEOUT_MS', 5000),
+      maxAttempts: this.positiveInteger('INTENT_MODEL_MAX_ATTEMPTS', 2),
+    });
+    return this.parse(reply, input.message);
   }
 
   private restrictedInput(input: IntentClassifierInput): Record<string, unknown> {
@@ -75,7 +80,7 @@ export class IntentSemanticService {
     };
   }
 
-  private parse(raw: string): IntentDecisionV2 {
+  private parse(raw: string, message: string): IntentDecisionV2 {
     const payload = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```$/i, '').trim()) as SemanticPayload;
     if (!INTENT_RESOURCES.includes(payload.resource as IntentResource)) throw new Error('Invalid semantic resource');
     if (!INTENT_OPERATIONS.includes(payload.operation as IntentOperation)) throw new Error('Invalid semantic operation');
@@ -86,7 +91,11 @@ export class IntentSemanticService {
     const subIntent = typeof payload.subIntent === 'string' ? payload.subIntent.slice(0, 64) : null;
     const selectedRoute = READ_ONLY_ROUTES.includes(subIntent as never) ? subIntent as any : null;
     const resource = payload.resource as IntentResource;
-    const operation = payload.operation as IntentOperation;
+    const modelOperation = payload.operation as IntentOperation;
+    const normalizedPolicy = normalizeSemanticPolicy(
+      resource, modelOperation, payload.scope as IntentScope | null, message,
+    );
+    const operation = normalizedPolicy.operation;
     const contextProfile = resolveContextProfile(resource, operation);
     const legacyDecision = {
       intent: 'unknown_mixed' as const, subIntent, confidence,
@@ -98,7 +107,7 @@ export class IntentSemanticService {
     };
     return {
       version: 'v2', legacyIntent: 'unknown_mixed', resource,
-      operation, scope: payload.scope as IntentScope | null,
+      operation, scope: normalizedPolicy.scope,
       subIntent, confidence, riskLevel: payload.riskLevel as any,
       requiresContext: Boolean(payload.requiresContext), requiresKnowledge: Boolean(payload.requiresKnowledge),
       requestedWrite: Boolean(payload.requestedWrite),
@@ -107,8 +116,14 @@ export class IntentSemanticService {
       suggestedTools: Array.isArray(payload.suggestedTools)
         ? payload.suggestedTools.filter((value): value is string => typeof value === 'string').slice(0, 8).map((value) => value.slice(0, 80)) : [],
       entities: {}, clarifyingQuestion: legacyDecision.clarifyingQuestion,
-      classifier: 'model', matchedRuleIds: [], selectedRoute, legacyDecision,
+      classifier: normalizedPolicy.matchedRuleIds.length ? 'hybrid' : 'model',
+      matchedRuleIds: normalizedPolicy.matchedRuleIds, selectedRoute, legacyDecision,
       contextProfile, selectedReadSet: resolveReadSet(contextProfile),
     };
+  }
+
+  private positiveInteger(key: string, fallback: number): number {
+    const value = Number(this.config.get<string>(key));
+    return Number.isInteger(value) && value > 0 ? value : fallback;
   }
 }

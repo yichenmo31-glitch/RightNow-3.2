@@ -348,7 +348,14 @@ clarification behavior
 INTENT_CLASSIFIER_VERSION=v1|v2-shadow|v2
 INTENT_MODEL_FALLBACK_READ_ONLY=true|false
 INTENT_MODEL_MIN_CONFIDENCE=0.80
+INTENT_MODEL_BASE_URL=
+INTENT_MODEL_API_KEY=
+INTENT_MODEL_NAME=
+INTENT_MODEL_TIMEOUT_MS=5000
+INTENT_MODEL_MAX_ATTEMPTS=2
 ```
+
+分类模型使用独立 provider 配置；只有未设置 `INTENT_MODEL_*` 时才兼容回退到聊天 provider。密钥只存在于环境文件，不能写入 Git、日志或观测报告。`scope` 和稳定冲突边界由 Backend 规范化，模型主要提供 `resource/operation` 候选。
 
 阶段：
 

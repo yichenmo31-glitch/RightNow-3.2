@@ -145,14 +145,16 @@ async function testSemanticShadow() {
   const config = {
     get(key) {
       const values = {
-        INTENT_CLASSIFIER_VERSION: 'v2-shadow', STEPFUN_BASE_URL: 'https://classifier.invalid/v1',
-        STEPFUN_API_KEY: 'test-only', STEPFUN_CHAT_MODEL: 'classifier-test',
+        INTENT_CLASSIFIER_VERSION: 'v2-shadow',
+        INTENT_MODEL_BASE_URL: 'https://intent-classifier.invalid/v1', INTENT_MODEL_API_KEY: 'intent-test-only',
+        INTENT_MODEL_NAME: 'intent-model-test', INTENT_MODEL_TIMEOUT_MS: '5000', INTENT_MODEL_MAX_ATTEMPTS: '1',
+        STEPFUN_BASE_URL: 'https://chat-provider.invalid/v1', STEPFUN_API_KEY: 'chat-test-only', STEPFUN_CHAT_MODEL: 'chat-model-test',
       };
       return values[key];
     },
   };
-  global.fetch = async (_url, init) => {
-    requests.push(JSON.parse(init.body));
+  global.fetch = async (url, init) => {
+    requests.push({ url: String(url), body: JSON.parse(init.body) });
     return {
       ok: true, status: 200,
       async text() {
@@ -173,10 +175,12 @@ async function testSemanticShadow() {
     });
     assert.equal(result.resource, 'plan');
     assert.equal(result.confidence, 0.72);
-    const semanticInput = JSON.parse(requests[0].messages[1].content);
+    assert.equal(requests[0].url, 'https://intent-classifier.invalid/v1/chat/completions');
+    assert.equal(requests[0].body.model, 'intent-model-test');
+    const semanticInput = JSON.parse(requests[0].body.messages[1].content);
     assert.equal(semanticInput.recentMessages.length, 4);
     assert.deepEqual(semanticInput.state, { hasActivePlan: true });
-    assert.doesNotMatch(requests[0].messages[1].content, /must-not-leak/);
+    assert.doesNotMatch(requests[0].body.messages[1].content, /must-not-leak/);
 
     let shadowCalls = 0;
     const pendingSemantic = { classify: async () => { shadowCalls += 1; return result; } };
