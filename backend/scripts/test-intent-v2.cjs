@@ -30,6 +30,10 @@ assert.deepEqual(
 const progressPolicy = normalizeSemanticPolicy('plan', 'query', null, '我的计划执行得怎么样');
 assert.deepEqual([progressPolicy.resource, progressPolicy.operation, progressPolicy.scope], ['progress', 'analyze', 'current']);
 assert.equal(normalizeSemanticPolicy('weight', 'query', 'history', '上次称重是多少').scope, 'latest');
+assert.equal(normalizeSemanticPolicy('diet', 'query', null, '今晚吃了什么').scope, 'today');
+assert.equal(normalizeSemanticPolicy('plan', 'query', null, '明早练什么').scope, 'tomorrow');
+assert.equal(normalizeSemanticPolicy('plan', 'query', null, '周末怎么安排').scope, 'week');
+assert.equal(normalizeSemanticPolicy('diet', 'query', null, '刚才记录了什么').scope, 'current');
 
 const cases = [
   ['今天计划是啥', 'plan', 'query', 'today', 'today_plan'],
@@ -74,6 +78,9 @@ async function testQueryService() {
   assert.equal(todayPlanDecision.selectedRoute, 'today_plan');
   assert.equal(todayPlanDecision.contextProfile, 'current_plan');
   assert.deepEqual(todayPlanDecision.selectedReadSet, ['active_plan', 'today_todos']);
+  const todayDietDecision = await classifier.classifyV2({ message: '今天吃了多少', useModelFallback: false });
+  assert.equal(todayDietDecision.selectedRoute, 'today_diet');
+  assert.equal(todayDietDecision.requestedWrite, false);
   const risky = await classifier.classifyV2({ message: '膝盖疼今天练什么', useModelFallback: false });
   assert.equal(risky.riskLevel, 'high');
   assert.equal(risky.selectedRoute, null);

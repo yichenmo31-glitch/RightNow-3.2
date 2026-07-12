@@ -97,7 +97,8 @@ export function classifyByRules(input: IntentClassifierInput): IntentDecision | 
     return decision({ intent: 'fitness_advice', subIntent: 'diet_advice', confidence: 0.92, riskLevel: risk, requiresContext: true, requiresKnowledge: true, requiresWriteTool: false, suggestedTools: ['memory.context.assemble', 'knowledge.search'], responseMode: risk === 'high' ? 'short_risk' : 'medium_advice', clarifyingQuestion: null, entities });
   }
   if (FOOD.test(message)) {
-    const explicitWrite = /(记|记录|吃了)/.test(message) && !asksAdvice;
+    const explicitWrite = /(记一下|帮我记|记录一下|保存|吃了)/.test(message) &&
+      !asksAdvice && !/(多少|什么|哪些|查看|看看|查询|查一下|有没有|了吗)/.test(message);
     return decision({ intent: 'diet_log', subIntent: 'food_text_log', confidence: 0.93, riskLevel: risk, requiresContext: true, requiresKnowledge: false, requiresWriteTool: explicitWrite, suggestedTools: ['diet.analyze.text', ...(explicitWrite ? ['diet.log.create', 'diet.gap.today'] : [])], responseMode: 'short_confirm', clarifyingQuestion: null, entities });
   }
   if (TRAINING.test(message)) {

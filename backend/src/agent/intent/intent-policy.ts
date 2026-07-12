@@ -172,17 +172,19 @@ export function normalizeSemanticPolicy(
 }
 
 function dateScope(message: string): IntentScope | null {
-  if (/(明天|明日)/.test(message)) return 'tomorrow';
-  if (/(这周|本周|这星期|这个星期)/.test(message)) return 'week';
-  if (/(今天|今日)/.test(message)) return 'today';
+  if (/(明天|明日|明早|明晚)/.test(message)) return 'tomorrow';
+  if (/(这周|本周|这星期|这个星期|周末)/.test(message)) return 'week';
+  if (/(今天|今日|今晚|今早|今晨)/.test(message)) return 'today';
+  if (/(刚才|刚刚)/.test(message)) return 'current';
   if (/(最近|过去|历史)/.test(message)) return 'history';
   return null;
 }
 
 function explicitScope(message: string): IntentScope | null {
-  if (/(明天|明日)/.test(message)) return 'tomorrow';
-  if (/(这周|本周|这星期|这个星期)/.test(message)) return 'week';
-  if (/(今天|今日)/.test(message)) return 'today';
+  if (/(明天|明日|明早|明晚)/.test(message)) return 'tomorrow';
+  if (/(这周|本周|这星期|这个星期|周末)/.test(message)) return 'week';
+  if (/(今天|今日|今晚|今早|今晨)/.test(message)) return 'today';
+  if (/(刚才|刚刚)/.test(message)) return 'current';
   return null;
 }
 
