@@ -5,6 +5,7 @@ import { classifyByRules } from './intent-rules';
 import { classifyReadOnlyV2 } from './intent-v2-rules';
 import { INTENTS, IntentClassifierInput, IntentDecision, IntentDecisionV2, RESPONSE_MODES, RISK_LEVELS } from './intent-classifier.types';
 import { IntentSemanticService } from './intent-semantic.service';
+import { compareShadowDecisions } from './intent-shadow';
 
 @Injectable()
 export class IntentClassifierService {
@@ -51,11 +52,14 @@ export class IntentClassifierService {
     if (!this.semantic || legacyDecision.riskLevel === 'high' || legacyDecision.requiresWriteTool) return;
     const startedAt = Date.now();
     void this.semantic.classify(input).then((shadow) => {
+      const executed = this.mapLegacyDecision(legacyDecision);
+      const comparison = compareShadowDecisions(executed, shadow);
       this.logger.log(JSON.stringify({
         event: 'intent_v2_shadow', classifierVersion: 'v2-shadow', classifier: shadow.classifier,
         legacyIntent: legacyDecision.intent, resource: shadow.resource, operation: shadow.operation,
         scope: shadow.scope, confidence: shadow.confidence, riskLevel: shadow.riskLevel,
-        selectedRoute: shadow.selectedRoute, differs: shadow.legacyIntent !== legacyDecision.intent,
+        selectedRoute: shadow.selectedRoute, differs: comparison.differs,
+        differingFields: comparison.differingFields,
         meetsReadOnlyThreshold: shadow.confidence >= this.modelMinConfidence(),
         durationMs: Date.now() - startedAt,
       }));

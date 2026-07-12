@@ -1,0 +1,14 @@
+[
+  { "caseId": "SV201", "message": "那今天怎么安排", "resource": "plan", "operation": "query", "scope": "today" },
+  { "caseId": "SV202", "message": "这周要练几天", "resource": "plan", "operation": "query", "scope": "week" },
+  { "caseId": "SV203", "message": "还有哪些事情没做", "resource": "todo", "operation": "query", "scope": "today" },
+  { "caseId": "SV204", "message": "看看今天的待办", "resource": "todo", "operation": "query", "scope": "today" },
+  { "caseId": "SV205", "message": "最近训练表现怎么样", "resource": "progress", "operation": "analyze", "scope": "current" },
+  { "caseId": "SV206", "message": "最近都练了哪些动作", "resource": "training", "operation": "query", "scope": "history" },
+  { "caseId": "SV207", "message": "今天吃的东西有多少热量", "resource": "diet", "operation": "query", "scope": "today" },
+  { "caseId": "SV208", "message": "我最新一次体重是多少", "resource": "weight", "operation": "query", "scope": "latest" },
+  { "caseId": "SV209", "message": "新手怎么安排力量训练", "resource": "training", "operation": "advise", "scope": null },
+  { "caseId": "SV210", "message": "帮我加一个喝水待办", "resource": "todo", "operation": "create", "scope": "today" },
+  { "caseId": "SV211", "message": "把今天的深蹲换成腿举", "resource": "plan", "operation": "update", "scope": "today" },
+  { "caseId": "SV212", "message": "以后回答简短一些", "resource": "memory", "operation": "update", "scope": "current" }
+]

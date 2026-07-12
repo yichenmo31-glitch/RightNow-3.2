@@ -3,6 +3,7 @@ const { classifyReadOnlyV2 } = require('../dist/agent/intent/intent-v2-rules.js'
 const { TodayPlanQueryService } = require('../dist/chat/today-plan-query.service.js');
 const { IntentClassifierService } = require('../dist/agent/intent/intent-classifier.service.js');
 const { IntentSemanticService } = require('../dist/agent/intent/intent-semantic.service.js');
+const { compareShadowDecisions } = require('../dist/agent/intent/intent-shadow.js');
 
 const cases = [
   ['今天计划是啥', 'plan', 'query', 'today', 'today_plan'],
@@ -98,6 +99,14 @@ async function testQueryService() {
 }
 
 async function testSemanticShadow() {
+  const baseDecision = {
+    resource: 'general', operation: 'clarify', scope: null, selectedRoute: null, riskLevel: 'low',
+  };
+  assert.deepEqual(compareShadowDecisions(baseDecision, { ...baseDecision }), { differs: false, differingFields: [] });
+  assert.deepEqual(
+    compareShadowDecisions(baseDecision, { ...baseDecision, resource: 'plan', operation: 'query', scope: 'today', selectedRoute: 'today_plan' }),
+    { differs: true, differingFields: ['resource', 'operation', 'scope', 'selectedRoute'] },
+  );
   const originalFetch = global.fetch;
   const requests = [];
   const config = {
