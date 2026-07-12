@@ -1,20 +1,20 @@
-﻿# P0 Solution: Load RightNow OpenClaw Plugin and Enable Tools
+# P0 方案：加载 RightNow OpenClaw 插件并启用工具
 
-Date: 2026-07-02
+日期：2026-07-02
 
-Server: `root@<your-server-host>`
+服务器：`root@<your-server-host>`
 
-Project: `/root/rightnow`
+项目：`/root/rightnow`
 
-Goal: make the OpenClaw web bot actually use RightNow data tools, memory context, diet/training tools, and knowledge search.
+目标：让 OpenClaw Web 机器人真正使用 RightNow 数据工具、记忆上下文、饮食/训练工具和知识检索。
 
-This document is for the second current blocker: OpenClaw is replying, but the RightNow plugin/tool layer is not fully active.
+> 本文记录早期 Docker/P0 阶段的第二个阻塞问题。当前生产部署已经改为原生 systemd；具体路径和命令应以最新架构与 runbook 为准。
 
-## 1. Problem
+## 1. 问题
 
-The current web bot path already goes through OpenClaw, but OpenClaw logs show that the RightNow plugin is not being loaded cleanly.
+当时 Web 机器人已经通过 OpenClaw 回复，但 OpenClaw 日志显示 RightNow 插件没有被正确加载。
 
-Observed log pattern:
+观察到的日志模式：
 
 ```text
 plugins.allow: plugin not found: rightnow
@@ -23,15 +23,15 @@ ignored plugins.load.paths entry that points at OpenClaw's legacy bundled plugin
 source=/app/extensions/rightnow
 ```
 
-Impact:
+影响：
 
-- Web chat may still get a model reply.
-- But the model may not reliably call RightNow tools.
-- Long-term memory, user context, diet logging, training data, and RAG knowledge tools may not be available inside the OpenClaw agent loop.
+- Web 聊天仍可能得到模型回复。
+- 但模型不一定能可靠调用 RightNow 工具。
+- OpenClaw Agent 循环内可能无法使用长期记忆、用户上下文、饮食记录、训练数据和 RAG 知识工具。
 
-## 2. Relevant Files
+## 2. 相关文件
 
-RightNow plugin source:
+RightNow 插件源码：
 
 ```text
 /root/rightnow/openclaw/extensions/rightnow/openclaw.plugin.json
@@ -41,26 +41,26 @@ RightNow plugin source:
 /root/rightnow/openclaw/extensions/rightnow/src/rightnow-knowledge.js
 ```
 
-OpenClaw gateway deployment:
+OpenClaw Gateway 部署：
 
 ```text
 /root/rightnow/docker-compose.prod.yml
 ```
 
-Live OpenClaw config:
+在线 OpenClaw 配置：
 
 ```text
 /root/.openclaw/openclaw.json
 ```
 
-Backend RPC endpoint used by tools:
+工具使用的 Backend RPC 端点：
 
 ```text
 /root/rightnow/backend/src/agent/agent.controller.ts
 /root/rightnow/backend/src/agent/agent-rpc.service.ts
 ```
 
-Backend tool implementations:
+Backend 工具实现：
 
 ```text
 /root/rightnow/backend/src/agent/tools/memory.tools.ts
@@ -68,45 +68,45 @@ Backend tool implementations:
 /root/rightnow/backend/src/agent/tools/knowledge.tools.ts
 ```
 
-## 3. Target Architecture
+## 3. 目标架构
 
-Expected tool flow:
+预期工具链路：
 
 ```text
-OpenClaw agent
-  -> RightNow plugin tool, for example rightnow_get_context
+OpenClaw Agent
+  -> RightNow 插件工具，例如 rightnow_get_context
   -> POST http://rn-backend:5000/api/agent/rpc
-  -> backend validates AGENT_SERVICE_TOKEN
-  -> backend resolves user/channel identity
-  -> backend reads or writes RightNow database
-  -> result returns to OpenClaw agent
-  -> model uses result in final reply
+  -> Backend 校验 AGENT_SERVICE_TOKEN
+  -> Backend 解析用户/通道身份
+  -> Backend 读取或写入 RightNow 数据库
+  -> 结果返回 OpenClaw Agent
+  -> 模型在最终回复中使用结果
 ```
 
-For knowledge search:
+知识检索链路：
 
 ```text
-OpenClaw agent
+OpenClaw Agent
   -> search_faq / search_core_theory / search_books
-  -> RightNow plugin
-  -> RAG service or backend knowledge path
-  -> search result returns to model
+  -> RightNow 插件
+  -> RAG 服务或 Backend 知识路径
+  -> 检索结果返回模型
 ```
 
-## 4. Product Boundary
+## 4. 产品边界
 
-The plugin should give the bot better context, but it must not break identity isolation.
+插件应该为机器人提供更好的上下文，但不能破坏身份隔离。
 
-Required behavior:
+必需行为：
 
-- Web channel uses the logged-in JWT user id from `/api/chat`.
-- WeChat P0 single-user mode may map official WeChat messages to `test7@qq.com` only later.
-- RightNow tools must not blindly operate on a global user.
-- If a tool cannot resolve a user, it should fail clearly instead of writing to the wrong account.
+- Web 通道使用 `/api/chat` 中已登录 JWT 用户的 userId。
+- 微信 P0 单用户模式可以在后续将官方微信消息映射到 `test7@qq.com`。
+- RightNow 工具不得盲目操作一个全局用户。
+- 工具无法解析用户身份时，必须明确失败，不能写入错误账号。
 
-## 5. Likely Root Cause
+## 5. 可能的根本原因
 
-The compose file builds OpenClaw with:
+当时 Compose 使用以下参数构建 OpenClaw：
 
 ```yaml
 args:
@@ -114,27 +114,27 @@ args:
   OPENCLAW_BUNDLED_PLUGIN_DIR: extensions
 ```
 
-and mounts:
+并挂载：
 
 ```yaml
 ./openclaw/extensions/rightnow:/app/extensions/rightnow:ro
 ```
 
-But current OpenClaw runtime warns that `/app/extensions/rightnow` is treated like a legacy bundled plugin path and ignored.
+但当时的 OpenClaw 运行时将 `/app/extensions/rightnow` 视为旧版内置插件路径并忽略。
 
-So the source code exists, but the runtime plugin discovery path or config style does not match the current OpenClaw loader.
+因此源码虽然存在，但运行时插件发现路径或配置方式与当前 Loader 不匹配。
 
-## 6. Recommended Fix Path
+## 6. 建议的修复路径
 
-Use the official current OpenClaw plugin loading mechanism, not the legacy extension path.
+使用 OpenClaw 当时官方的插件加载机制，不继续使用旧扩展路径。
 
-Because the OpenClaw loader version matters, the follow-up agent should verify against the checked-out OpenClaw source in:
+由于加载方式与 OpenClaw 版本有关，后续操作人员应检查：
 
 ```text
 /root/rightnow/openclaw
 ```
 
-Search for these concepts:
+搜索以下概念：
 
 ```text
 plugins.load.paths
@@ -145,148 +145,148 @@ openclaw.plugin.json
 definePluginEntry
 ```
 
-Then adjust the RightNow plugin placement/config to the loader's current expected format.
+然后按照 Loader 当前期望的格式调整 RightNow 插件位置或配置。
 
-The fix should be made in deployment/config first. Avoid rewriting all tool logic unless plugin registration itself is proven incompatible.
+优先修改部署和配置。除非已经证明插件注册 API 本身不兼容，否则不要重写全部工具逻辑。
 
-## 7. Implementation Checklist
+## 7. 实施检查清单
 
-### Step 1: Confirm Which Plugins Are Loaded
+### 步骤 1：确认已加载的插件
 
-Check gateway logs:
+检查 Gateway 日志：
 
 ```bash
 docker logs rn-openclaw-gateway --tail=200
 ```
 
-Expected final state should include `rightnow` in the loaded plugin list.
+最终状态应在已加载插件列表中包含 `rightnow`。
 
-Current bad state includes:
+错误状态包括：
 
 ```text
 plugin not found: rightnow
 ```
 
-### Step 2: Confirm `/api/agent/rpc` Is Available
+### 步骤 2：确认 `/api/agent/rpc` 可用
 
-Check backend logs after startup:
+Backend 启动后检查日志：
 
 ```bash
 docker logs rn-backend --tail=200
 ```
 
-Expected route:
+预期路由：
 
 ```text
 Mapped {/api/agent/rpc, POST}
 ```
 
-This route is already known to exist now, but validate before testing tools.
+该路由当时已知存在，但仍应在测试工具前验证。
 
-### Step 3: Confirm Token Wiring
+### 步骤 3：确认 Token 接线
 
-Both services must agree on:
+两个服务必须使用相同的：
 
 ```text
 AGENT_SERVICE_TOKEN
 ```
 
-Gateway env:
+Gateway 环境变量：
 
 ```yaml
 AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN}
 RIGHTNOW_API_BASE: http://rn-backend:5000/api
 ```
 
-Backend env:
+Backend 环境变量：
 
 ```yaml
 AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-}
 ```
 
-Inside containers:
+在容器内检查：
 
 ```bash
 docker exec rn-openclaw-gateway printenv | grep -E 'RIGHTNOW|AGENT'
 docker exec rn-backend printenv | grep AGENT_SERVICE_TOKEN
 ```
 
-If the token is empty or different, tools will fail authentication.
+如果 Token 为空或不一致，工具认证会失败。检查时不得把真实值复制到文档、日志或聊天中。
 
-### Step 4: Fix Plugin Discovery
+### 步骤 4：修复插件发现
 
-Use whichever method the current OpenClaw source expects. Candidate solutions:
+采用当前 OpenClaw 源码支持的方式。候选方案：
 
-1. Move/copy the RightNow plugin into the non-legacy plugin directory expected by OpenClaw.
-2. Change `plugins.load.paths` in `/root/.openclaw/openclaw.json` to the supported path format.
-3. Change compose build args or env vars so `rightnow` is bundled at image build time.
-4. If OpenClaw supports package-style plugins, install or link `@openclaw/rightnow` in the expected plugin workspace.
+1. 将 RightNow 插件移动或复制到 OpenClaw 期望的非旧版插件目录。
+2. 将 `/root/.openclaw/openclaw.json` 中的 `plugins.load.paths` 改为受支持的路径格式。
+3. 修改 Compose 构建参数或环境变量，在构建镜像时打包 `rightnow`。
+4. 如果 OpenClaw 支持包形式插件，则在预期插件 workspace 中安装或链接 `@openclaw/rightnow`。
 
-Do not keep a config entry that OpenClaw calls stale. A stale allow/load entry creates false confidence.
+不得保留 OpenClaw 已标记为 stale 的配置项。过期的 allow/load 配置会造成插件已加载的错误印象。
 
-### Step 5: Restart Gateway
+### 步骤 5：重启 Gateway
 
-After discovery/config changes:
+修改插件发现或配置后：
 
 ```bash
 cd /root/rightnow
 docker compose -f docker-compose.prod.yml up -d --build openclaw-gateway
 ```
 
-Then check logs again:
+再次检查日志：
 
 ```bash
 docker logs rn-openclaw-gateway --tail=200
 ```
 
-Expected:
+预期结果：
 
-- no `plugin not found: rightnow`
-- no legacy path ignore warning for the active RightNow plugin path
-- loaded plugin list includes `rightnow`
+- 不再出现 `plugin not found: rightnow`。
+- 生效的 RightNow 插件路径不再出现 legacy path ignore 警告。
+- 已加载插件列表包含 `rightnow`。
 
-## 8. Tool Invocation Validation
+## 8. 工具调用验证
 
-After plugin loads, test from the product path first:
+插件加载后，优先从产品链路测试。
 
-1. Log in as `test7@qq.com / 123456`.
-2. Ask the bot a profile/context question:
+1. 使用演示账号登录。
+2. 向机器人询问档案或上下文：
 
 ```text
 你还记得我的身高体重和今天的训练安排吗？
 ```
 
-Expected:
+预期结果：
 
-- Gateway logs show a RightNow tool call, ideally `rightnow_get_context`.
-- Backend logs show `/api/agent/rpc` being called.
-- Reply references actual profile/plan data if available.
+- Gateway 日志出现 RightNow 工具调用，理想情况下为 `rightnow_get_context`。
+- Backend 日志显示调用 `/api/agent/rpc`。
+- 如果已有数据，回复会引用真实档案或计划。
 
-Then test knowledge:
+然后测试知识检索：
 
 ```text
 减脂平台期应该怎么处理？
 ```
 
-Expected:
+预期结果：
 
-- Gateway logs show `search_faq` or `search_core_theory`.
-- Reply uses configured knowledge base instead of only generic model knowledge.
+- Gateway 日志显示 `search_faq` 或 `search_core_theory`。
+- 回复使用已配置知识库，而不只依赖模型通用知识。
 
-Then test diet:
+再测试饮食分析：
 
 ```text
 我午饭吃了一碗米饭和一份鸡胸肉，帮我估算一下热量。
 ```
 
-Expected:
+预期结果：
 
-- Tool call may use `rightnow_analyze_food_text`.
-- Bot should ask for confirmation before writing a diet record, unless product design chooses automatic logging.
+- 工具可以调用 `rightnow_analyze_food_text`。
+- 除非产品明确选择自动记录，否则机器人应在写入饮食记录前请求确认。
 
-## 9. Important Implementation Risk
+## 9. 重要实现风险
 
-`rightnow-tools.js` currently sends:
+`rightnow-tools.js` 当时发送：
 
 ```js
 const body = {
@@ -297,56 +297,56 @@ const body = {
 };
 ```
 
-This may be insufficient for user identity unless the backend can infer the user from the OpenClaw session or arguments.
+除非 Backend 能从 OpenClaw Session 或参数可靠推导用户身份，否则该信息不足以完成身份解析。
 
-Before calling this done, verify how `agent-rpc.service.ts` resolves user identity.
+完成前必须确认 `agent-rpc.service.ts` 如何解析用户身份。
 
-The safest expected design:
+最安全的设计：
 
-- For web-originated OpenClaw sessions, backend should pass or expose the RightNow `userId` to tool calls.
-- For WeChat P0, backend may map WeChat channel to the single demo user id.
-- Tools should not write records when user identity is empty.
+- 对来自 Web 的 OpenClaw Session，Backend 应将 RightNow `userId` 暴露给工具调用或从可信 Session 推导。
+- 对微信 P0，Backend 可以将微信通道映射到单个演示用户。
+- 用户身份为空时，工具不得写入记录。
 
-If the current OpenClaw plugin API exposes session/user metadata, use that instead of hardcoding `channelUserId: ""`.
+如果 OpenClaw 插件 API 提供 Session 或用户元数据，应使用该元数据，而不是硬编码 `channelUserId: ""`。
 
-## 10. Acceptance Criteria
+当前架构进一步要求：身份只能从规范的 RightNow Session/Agent 推导，模型参数不能覆盖 userId。
 
-This issue is resolved only when all are true:
+## 10. 验收标准
 
-- OpenClaw Gateway logs show `rightnow` plugin loaded.
-- No stale `plugin not found: rightnow` warning remains.
-- A web chat can trigger `rightnow_get_context`.
-- Backend receives `/api/agent/rpc` calls with a resolvable RightNow user.
-- A knowledge question triggers `search_faq`, `search_core_theory`, or equivalent RAG path.
-- A diet text test can analyze calories without crashing.
-- No tool writes data to the wrong user.
+只有以下条件全部满足，问题才算解决：
 
-## 11. Rollback
+- OpenClaw Gateway 日志显示 `rightnow` 插件已加载。
+- 不再存在 stale 的 `plugin not found: rightnow` 警告。
+- Web 聊天可以触发 `rightnow_get_context`。
+- Backend 收到 `/api/agent/rpc`，且能够解析 RightNow 用户。
+- 知识问题触发 `search_faq`、`search_core_theory` 或等效 RAG 路径。
+- 饮食文本测试可以分析热量且不崩溃。
+- 没有工具将数据写入错误用户。
 
-If plugin loading breaks the gateway:
+## 11. 回滚
 
-1. Remove the new plugin load config.
-2. Restart `rn-openclaw-gateway`.
-3. Confirm web chat still gets plain OpenClaw model replies.
+如果插件加载导致 Gateway 故障：
 
-This rollback keeps basic chat alive, but memory/tools/RAG remain incomplete.
+1. 移除新的插件加载配置。
+2. 重启 `rn-openclaw-gateway`。
+3. 确认 Web 聊天仍能获得普通 OpenClaw 模型回复。
 
-## 12. Relationship to WeChat P0
+该回滚保留基础聊天，但 Memory、工具和 RAG 仍不可用。
 
-Fixing this plugin is required before the WeChat P0 food-photo flow is meaningful.
+## 12. 与微信 P0 的关系
 
-The desired future WeChat flow:
+在 RightNow 插件修复前，微信 P0 食物图片流程没有实际业务意义。
+
+期望的未来微信链路：
 
 ```text
-official WeChat ClawBot
-  -> OpenClaw message
-  -> same RightNow/OpenClaw bot kernel
+微信官方 ClawBot
+  -> OpenClaw 消息
+  -> 同一 RightNow/OpenClaw 机器人内核
   -> rightnow_analyze_food_image
-  -> user confirms
+  -> 用户确认
   -> rightnow_log_diet
-  -> web dashboard updates
+  -> Web 仪表板更新
 ```
 
-Without the RightNow plugin, WeChat may chat but cannot reliably sync calories back to RightNow web.
-
-
+没有 RightNow 插件时，微信可能可以聊天，但无法可靠地将热量同步回 RightNow Web。

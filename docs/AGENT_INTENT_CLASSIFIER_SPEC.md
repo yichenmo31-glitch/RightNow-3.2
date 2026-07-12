@@ -1,20 +1,22 @@
-# RightNow Agent Intent Classifier Spec
+# RightNow Agent 意图分类器规范
 
-This document defines the first version of the intent classifier for the RightNow AI coach. It turns a raw user message into a structured routing decision before the agent chooses tools, memory, RAG, and response style.
+本文定义 RightNow AI 教练第一版意图分类器。分类器在 Agent 选择工具、Memory、RAG 和回复风格之前，将用户原始消息转换为结构化路由决策。
 
-## 1. Goal
+> 本文描述 V1 分类契约。V2 的 `resource / operation / scope` 设计及安全门禁见 `INTENT_CLASSIFIER_V2_DESIGN_PLAN.md`。
 
-The classifier should answer five questions:
+## 1. 目标
 
-1. What is the user's main intent?
-2. Is there a more specific sub-intent?
-3. Does this turn require user context?
-4. Does this turn require knowledge retrieval?
-5. Does this turn require a write/action tool?
+分类器需要回答五个问题：
 
-The classifier should be conservative. If uncertain, it should choose `unknown_mixed` and ask for clarification or route through a low-risk path.
+1. 用户的主要意图是什么？
+2. 是否存在更具体的子意图？
+3. 当前轮次是否需要用户上下文？
+4. 当前轮次是否需要知识检索？
+5. 当前轮次是否需要写入或动作工具？
 
-## 2. Input
+分类器应采用保守策略。无法确定时，应选择 `unknown_mixed` 并请求澄清，或进入低风险路径。
+
+## 2. 输入
 
 ```json
 {
@@ -36,18 +38,18 @@ The classifier should be conservative. If uncertain, it should choose `unknown_m
 }
 ```
 
-### Field Notes
+### 字段说明
 
-| Field | Required | Description |
+| 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `message` | yes | Current user message |
-| `channel` | no | `web`, `wechat`, `internal`, etc. |
-| `hasImage` | no | Whether the turn includes an image |
-| `imageType` | no | `food`, `body`, `unknown`, or null |
-| `recentMessages` | no | Small conversation window for ambiguity resolution |
-| `knownContextSummary` | no | Optional lightweight facts already available before full context loading |
+| `message` | 是 | 用户当前消息 |
+| `channel` | 否 | `web`、`wechat`、`internal` 等通道 |
+| `hasImage` | 否 | 当前轮次是否包含图片 |
+| `imageType` | 否 | `food`、`body`、`unknown` 或 null |
+| `recentMessages` | 否 | 用于消解歧义的小型对话窗口 |
+| `knownContextSummary` | 否 | 加载完整上下文前已经可用的轻量事实 |
 
-## 3. Output Schema
+## 3. 输出结构
 
 ```json
 {
@@ -73,35 +75,35 @@ The classifier should be conservative. If uncertain, it should choose `unknown_m
 }
 ```
 
-### Required Fields
+### 必需字段
 
-| Field | Type | Description |
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `intent` | enum | Main routing category |
-| `subIntent` | enum/string/null | More specific category |
-| `confidence` | number | 0 to 1 |
-| `riskLevel` | enum | `low`, `medium`, `high` |
-| `requiresContext` | boolean | Whether to call `memory.context.assemble` |
-| `requiresKnowledge` | boolean | Whether to call `knowledge.search` |
-| `requiresWriteTool` | boolean | Whether a write/action tool may be needed |
-| `suggestedTools` | string[] | Recommended tool order |
-| `responseMode` | enum | Response format |
-| `entities` | object | Extracted useful values |
-| `clarifyingQuestion` | string/null | Only set when clarification is needed |
+| `intent` | enum | 主路由类别 |
+| `subIntent` | enum/string/null | 更具体的类别 |
+| `confidence` | number | 取值范围 0 到 1 |
+| `riskLevel` | enum | `low`、`medium` 或 `high` |
+| `requiresContext` | boolean | 是否调用 `memory.context.assemble` |
+| `requiresKnowledge` | boolean | 是否调用 `knowledge.search` |
+| `requiresWriteTool` | boolean | 是否可能需要写入或动作工具 |
+| `suggestedTools` | string[] | 建议的工具调用顺序 |
+| `responseMode` | enum | 回复格式 |
+| `entities` | object | 提取出的有用值 |
+| `clarifyingQuestion` | string/null | 仅在需要澄清时设置 |
 
-## 4. Main Intent Enum
+## 4. 主意图枚举
 
-| Intent | Meaning |
+| 意图 | 含义 |
 | --- | --- |
-| `diet_log` | User records food, uploads food, or asks to log a meal |
-| `training_log` | User reports training, updates a session, or marks training done |
-| `body_data_update` | User updates weight, measurements, fatigue, pain, sleep, or body state |
-| `fitness_advice` | User asks for training, diet, recovery, fat-loss, or fitness advice |
-| `plan_adjustment` | User asks to modify an existing plan |
-| `social_chat` | Motivation, emotion, casual chat, or companionship |
-| `unknown_mixed` | Ambiguous or multi-intent input |
+| `diet_log` | 用户记录食物、上传食物图片或要求记录一餐 |
+| `training_log` | 用户汇报训练、更新训练过程或标记训练完成 |
+| `body_data_update` | 用户更新体重、围度、疲劳、疼痛、睡眠或身体状态 |
+| `fitness_advice` | 用户咨询训练、饮食、恢复、减脂或健身建议 |
+| `plan_adjustment` | 用户要求修改现有计划 |
+| `social_chat` | 激励、情绪、闲聊或陪伴 |
+| `unknown_mixed` | 含义模糊或包含多个意图的输入 |
 
-## 5. Sub-Intent Suggestions
+## 5. 子意图建议
 
 ### `diet_log`
 
@@ -149,56 +151,56 @@ The classifier should be conservative. If uncertain, it should choose `unknown_m
 - `casual`
 - `accountability`
 
-## 6. Response Mode Enum
+## 6. 回复模式枚举
 
-| Mode | Meaning |
+| 模式 | 含义 |
 | --- | --- |
-| `short_confirm` | Confirmation plus at most one micro-feedback sentence |
-| `short_risk` | Short conservative response for fatigue, pain, or risk |
-| `medium_advice` | Practical advice with a few concrete steps |
-| `plan_adjustment` | Preserve existing plan, then explain local adjustments |
-| `clarify` | Ask one key clarifying question |
-| `social_support` | Warm, light support |
+| `short_confirm` | 确认结果，最多附加一句简短反馈 |
+| `short_risk` | 面向疲劳、疼痛或风险场景的简短保守回复 |
+| `medium_advice` | 提供少量可执行步骤的实用建议 |
+| `plan_adjustment` | 保留现有计划，再说明局部调整 |
+| `clarify` | 只询问一个关键澄清问题 |
+| `social_support` | 温和、轻量的支持性回复 |
 
-## 7. Tool Routing Defaults
+## 7. 默认工具路由
 
-| Intent | requiresContext | requiresKnowledge | requiresWriteTool | Default Tools |
+| 意图 | 需要上下文 | 需要知识 | 需要写工具 | 默认工具 |
 | --- | --- | --- | --- | --- |
-| `diet_log` | true | false | true | `diet.analyze.text`, `diet.analyze.image`, `diet.log.create`, `diet.gap.today` |
-| `training_log` | true | false | true | `training.session.current`, `training.session.update`, `training.session.complete`, `todo.complete` |
-| `body_data_update` | true | risk-dependent | write-dependent | `memory.context.assemble`, body/weight update tool when available |
-| `fitness_advice` | true | true | false | `memory.context.assemble`, `knowledge.search`, optional business read tools |
-| `plan_adjustment` | true | usually true | optional | `memory.context.assemble`, training/diet/todo read tools |
-| `social_chat` | optional | false | false | optional `memory.context.assemble` |
-| `unknown_mixed` | true | case-dependent | false | `memory.context.assemble`, then clarify |
+| `diet_log` | 是 | 否 | 是 | `diet.analyze.text`、`diet.analyze.image`、`diet.log.create`、`diet.gap.today` |
+| `training_log` | 是 | 否 | 是 | `training.session.current`、`training.session.update`、`training.session.complete`、`todo.complete` |
+| `body_data_update` | 是 | 取决于风险 | 取决于是否写入 | `memory.context.assemble`，以及可用的身体/体重更新工具 |
+| `fitness_advice` | 是 | 是 | 否 | `memory.context.assemble`、`knowledge.search`，以及可选业务只读工具 |
+| `plan_adjustment` | 是 | 通常需要 | 可选 | `memory.context.assemble`、训练/饮食/TODO 只读工具 |
+| `social_chat` | 可选 | 否 | 否 | 可选 `memory.context.assemble` |
+| `unknown_mixed` | 是 | 取决于场景 | 否 | `memory.context.assemble`，然后澄清 |
 
-## 8. Risk Rules
+## 8. 风险规则
 
-Set `riskLevel` to `high` when the user mentions:
+用户提到以下情况时，将 `riskLevel` 设为 `high`：
 
-- Pain or injury: knee, waist, shoulder, joint pain
-- Dizziness, fainting, chest pain, severe discomfort
-- Extreme dieting, fasting, or rapid weight-loss demands
-- Recovery period, chronic disease, post-surgery context
+- 疼痛或受伤：膝、腰、肩、关节疼痛。
+- 头晕、昏厥、胸痛或严重不适。
+- 极端节食、禁食或要求快速减重。
+- 康复期、慢性病或术后场景。
 
-High-risk turns should:
+高风险轮次应：
 
-- Prefer `short_risk` or `medium_advice`
-- Use conservative wording
-- Prefer L3 knowledge when advice is needed
-- Avoid aggressive training recommendations
+- 优先使用 `short_risk` 或 `medium_advice`。
+- 使用保守措辞。
+- 需要建议时优先使用 L3 知识。
+- 避免激进的训练建议。
 
-## 9. Classifier Prompt
+## 9. 分类器提示词
 
-Use this prompt for the model fallback when rules are not enough.
+当规则不足时，使用以下提示词作为模型降级分类器：
 
 ```text
-You are the intent classifier for RightNow, an AI fitness coach product.
+你是 RightNow AI 健身教练产品的意图分类器。
 
-Classify the user's latest message into one routing decision.
-Return JSON only. Do not explain.
+将用户最新消息分类为一个路由决策。
+只返回 JSON，不要解释。
 
-Main intents:
+主意图：
 - diet_log
 - training_log
 - body_data_update
@@ -207,15 +209,15 @@ Main intents:
 - social_chat
 - unknown_mixed
 
-Important rules:
-1. If the user is clearly recording food, training, weight, fatigue, pain, or body state, prefer a log/update intent over advice.
-2. If the user asks what to do, how to arrange, whether they should change something, or asks for a plan, prefer fitness_advice or plan_adjustment.
-3. If the user refers to "my previous plan", "the plan you gave me", "adjust it", "make it lighter", prefer plan_adjustment.
-4. If the user mentions pain, injury, knee, waist, shoulder, dizziness, severe fatigue, or recovery period, set riskLevel to high or medium.
-5. Do not invent memory. Only use recent messages and provided known context.
-6. If ambiguous, choose unknown_mixed and provide one clarifying question.
+重要规则：
+1. 如果用户明确在记录饮食、训练、体重、疲劳、疼痛或身体状态，优先选择记录/更新意图，而不是建议意图。
+2. 如果用户询问应该做什么、如何安排、是否应改变某项内容或要求计划，优先选择 fitness_advice 或 plan_adjustment。
+3. 如果用户提到“我之前的计划”“你给我的计划”“调整它”“调轻一点”，优先选择 plan_adjustment。
+4. 如果用户提到疼痛、受伤、膝、腰、肩、头晕、严重疲劳或康复期，将 riskLevel 设为 high 或 medium。
+5. 不得编造记忆，只能使用最近消息和给定的已知上下文。
+6. 如果存在歧义，选择 unknown_mixed，并给出一个澄清问题。
 
-Output schema:
+输出结构：
 {
   "intent": "...",
   "subIntent": "...",
@@ -230,51 +232,51 @@ Output schema:
   "clarifyingQuestion": null
 }
 
-User message:
+用户消息：
 {{message}}
 
-Recent messages:
+最近消息：
 {{recentMessagesJson}}
 
-Known context summary:
+已知上下文摘要：
 {{knownContextJson}}
 
-Image metadata:
+图片元数据：
 {{imageMetadataJson}}
 ```
 
-## 10. Rule-First Heuristics
+## 10. 规则优先启发式
 
-First version should combine rules and model classification.
+第一版应组合确定性规则和模型分类。
 
-### Strong Rules
+### 强规则
 
-| Signal | Intent |
+| 信号 | 意图 |
 | --- | --- |
-| food image uploaded | `diet_log`, `food_image_log` |
-| message contains "吃了", "早餐", "午餐", "晚餐", "加餐" plus food words | `diet_log` |
-| message contains "练完", "做了几组", "重量", "次数", exercise names | `training_log` |
-| message is mostly a number plus "kg", "斤", "体重" | `body_data_update`, `weight_update` |
-| message contains "膝盖疼", "腰疼", "肩不舒服" | `body_data_update` or `fitness_advice` with high risk |
-| message contains "怎么安排", "怎么练", "要不要", "适合吗" | `fitness_advice` |
-| message contains "之前的计划", "调轻", "替换动作", "改成" | `plan_adjustment` |
+| 上传食物图片 | `diet_log`、`food_image_log` |
+| 消息包含“吃了、早餐、午餐、晚餐、加餐”及食物词 | `diet_log` |
+| 消息包含“练完、做了几组、重量、次数”或动作名称 | `training_log` |
+| 消息主要是数字加“kg、斤、体重” | `body_data_update`、`weight_update` |
+| 消息包含“膝盖疼、腰疼、肩不舒服” | 高风险 `body_data_update` 或 `fitness_advice` |
+| 消息包含“怎么安排、怎么练、要不要、适合吗” | `fitness_advice` |
+| 消息包含“之前的计划、调轻、替换动作、改成” | `plan_adjustment` |
 
-### Ambiguity Handling
+### 歧义处理
 
-If a message contains both a record and a question, use:
+如果消息同时包含记录和问题，使用以下优先级：
 
-1. `body_data_update` if there is pain or safety risk
-2. `plan_adjustment` if it refers to an existing plan
-3. `unknown_mixed` if the next action is unclear
-4. Otherwise choose the most actionable intent
+1. 存在疼痛或安全风险时选择 `body_data_update`。
+2. 引用现有计划时选择 `plan_adjustment`。
+3. 下一步动作不清楚时选择 `unknown_mixed`。
+4. 否则选择最可执行的意图。
 
-Example:
+示例：
 
 ```text
 我今天吃多了，还没练，怎么办？
 ```
 
-Recommended:
+建议结果：
 
 ```json
 {
@@ -288,19 +290,19 @@ Recommended:
 }
 ```
 
-It can be answered as advice without forcing a write action.
+该输入可以作为建议回答，不应强制产生写入动作。
 
-## 11. Example Classifications
+## 11. 分类示例
 
-### Food Log
+### 饮食记录
 
-Input:
+输入：
 
 ```text
 我中午吃了鸡胸肉、米饭和一杯拿铁
 ```
 
-Output:
+输出：
 
 ```json
 {
@@ -320,15 +322,15 @@ Output:
 }
 ```
 
-### Training Advice
+### 训练建议
 
-Input:
+输入：
 
 ```text
 新手减脂一周练几次比较合适？
 ```
 
-Output:
+输出：
 
 ```json
 {
@@ -349,15 +351,15 @@ Output:
 }
 ```
 
-### Injury Risk
+### 受伤风险
 
-Input:
+输入：
 
 ```text
 我膝盖不舒服，还能继续跳绳减脂吗？
 ```
 
-Output:
+输出：
 
 ```json
 {
@@ -379,15 +381,15 @@ Output:
 }
 ```
 
-### Plan Adjustment
+### 计划调整
 
-Input:
+输入：
 
 ```text
 把你之前给我的训练计划调轻一点，我最近有点累
 ```
 
-Output:
+输出：
 
 ```json
 {
@@ -408,21 +410,21 @@ Output:
 }
 ```
 
-## 12. Evaluation Criteria
+## 12. 评估标准
 
-Evaluate the classifier separately before connecting it to agent routing.
+在连接 Agent 路由前，应单独评估分类器。
 
-| Metric | Target |
+| 指标 | 目标 |
 | --- | --- |
-| Main intent accuracy | >= 90% for demo set |
-| Risk detection recall | >= 95% for pain/injury/fatigue cases |
-| Write-tool false positive rate | <= 5% |
-| Unknown/mixed handling | Should ask at most one useful clarification |
-| Red-line failures | 0 |
+| 主意图准确率 | 演示测试集 >= 90% |
+| 风险检测召回率 | 疼痛/受伤/疲劳场景 >= 95% |
+| 写工具误触发率 | <= 5% |
+| 未知/混合意图处理 | 最多询问一个有用的澄清问题 |
+| 红线失败 | 0 |
 
-Red-line classifier failures:
+分类器红线失败包括：
 
-1. Pain/injury message classified as ordinary low-risk training advice.
-2. Food/training record classified as generic chat when write intent is explicit.
-3. Plan adjustment classified as a fresh plan without reading existing context.
-4. Classifier invents memory or entities not present in input/context.
+1. 将疼痛或受伤消息分类为普通低风险训练建议。
+2. 在写入意图明确时，将饮食或训练记录分类为普通聊天。
+3. 未读取现有上下文便将计划调整分类为新计划。
+4. 分类器编造输入或上下文中不存在的记忆或实体。
