@@ -530,7 +530,7 @@ npm run dev:frontend
 
 每类执行一次创建/读取；饮食使用虚构测试数据。
 
-通过标准：页面立即更新，刷新后仍存在；请求失败显示可恢复错误状态；微信入口隐藏或标记未启用。
+通过标准：页面立即更新，刷新后仍存在；请求失败显示可恢复错误状态。通道能力按 Web、飞书私聊文本、飞书图片、飞书群聊、飞书主动推送和微信分别标记，不得用一个“多通道已支持”状态掩盖未实现能力。
 
 ### 步骤 5.5：实现聊天诊断信息的开发态可见性
 
@@ -698,15 +698,65 @@ OPENCLAW_DB_HISTORY_WINDOW=16
 
 通过标准：日志只含 requestId、agentId、userId、tool、状态、耗时和必要摘要。
 
-### 步骤 7.8：最终六流程验收
+## 11A. Wave 4C：飞书私聊 MVP
+
+### 步骤 7.8：冻结飞书接入和身份契约
+
+负责人：`ROOT` + `AGENT-OC`
+
+采用单一官方“小爪”飞书应用和独立 `feishu-bridge`。同一官方应用事件只能进入 Bridge，不得同时由 OpenClaw 原生 Feishu ingress 接收。冻结 `(tenantKey, openId) -> userId -> rightnow-<userId> -> rightnow:<userId>:<conversationId>` 映射。
+
+通过标准：架构图、部署拓扑、环境变量和威胁边界一致；模型参数不能设置 tenant、openId、userId、Agent 或 Session 身份。
+
+### 步骤 7.9：实现飞书 Schema 与 8 位绑定码
+
+负责人：`ROOT` + `AGENT-BE`
+
+新增 `FeishuTenant`、`FeishuUserBinding`、`FeishuEventInbox`、`FeishuMessageOutbox` 和通道业务幂等记录。复用通用绑定码入口时仍需满足 8 位、10 分钟有效、只存摘要、一次核销、事务绑定和显式换绑规则。
+
+通过标准：成功、过期、错误、重复核销、跨用户核销、并发核销和换绑用例通过；绑定码不进入日志、ChatMessage、Memory 或模型。
+
+### 步骤 7.10：实现飞书回调、Event ID 幂等与异步 ACK
+
+负责人：`AGENT-OC`，由 `ROOT` 验收。
+
+Bridge 实现 URL challenge、验签/解密、时间窗口、`eventId` 原子 claim 和快速 ACK。首次事件进入异步处理，重复事件直接 ACK。
+
+通过标准：同一 Event ID 并发/串行重放 10 次只处理一次；错误签名、过期请求、未知 tenant 和畸形 payload 被拒绝；回调不等待模型回复。
+
+### 步骤 7.11：实现私聊文本、OpenClaw 路由与回复 Outbox
+
+负责人：`ROOT` + `AGENT-OC`
+
+已绑定消息解析到 Backend 生成的 conversation，再调用规范 Agent/Session。未绑定消息只返回绑定引导。回复先写 Outbox，由 Worker 调飞书 API 并进行有界重试。
+
+通过标准：绑定成功回复、普通私聊、多轮 Session、发送失败重试、进程重启恢复和 A/B 零串读全部通过；没有第二套 ingress 重复回复。
+
+### 步骤 7.12：验证飞书业务写入双层幂等
+
+负责人：`ROOT` + `AGENT-BE`
+
+验证 TODO 纯查询、饮食只分析/明确写入、训练完成/TODO 自动完成。除 Event Inbox 外，使用 `(feishu, eventId, actionType)` 业务唯一键保护确定性写入。
+
+通过标准：事件在任意失败点重试都只产生一个业务 record ID；回复可重试但 DietRecord、TrainingRecord 和 TODO 状态不重复变化。
+
+### 步骤 7.13：飞书安全、删除和开放门禁
 
 负责人：`ROOT`
 
-依次完成：注册与 Agent、RAG 建议、训练写入、饮食直接写入、高风险、领域外。
+检查 App Secret、Encrypt Key、Verification Token、tenant token 和消息正文不进入 Git/日志。账户冻结立即撤销飞书绑定、取消待发送 Outbox 并拒绝新业务消息；删除 Worker 匿名化 Inbox 用户关联。
 
-通过标准：六条全部通过，并可从 requestId 和审计日志还原链路。
+通过标准：飞书文本私聊、绑定码、Event ID/业务幂等、A/B 隔离、删除冻结、重试恢复全部通过后，才允许标记飞书文本 MVP 可开放。图片、群聊和主动推送仍保持关闭。
 
-### 步骤 7.9：最终自动化检查
+### 步骤 7.14：最终 Web 六流程与飞书门禁验收
+
+负责人：`ROOT`
+
+Web 依次完成：注册与 Agent、RAG 建议、训练写入、饮食直接写入、高风险、领域外。若本 release 声称支持飞书，还必须额外完成步骤 7.8-7.13；不能用 Web 六流程代替飞书验收。
+
+通过标准：Web 六条全部通过，并可从 requestId 和审计日志还原链路；飞书发布时还可从 eventId、Inbox、业务幂等记录和 Outbox 还原完整链路。
+
+### 步骤 7.15：最终自动化检查
 
 负责人：`ROOT`
 

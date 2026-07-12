@@ -40,6 +40,7 @@ Thumbs.db
 *.db-journal
 
 # Runtime data and state
+.work/
 openclaw-data/
 openclaw-data2/
 openclaw-runtime/

@@ -21,6 +21,9 @@
     "build:frontend": "npm --workspace frontend run build",
     "build:admin": "npm --workspace admin run build",
     "build:backend": "npm --workspace backend run build",
+    "demo:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-demo.ps1",
+    "demo:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-local-demo.ps1",
+    "demo:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-local-demo.ps1",
     "install:all": "npm install"
   }
 }

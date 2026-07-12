@@ -824,3 +824,28 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 测试：Prisma format/generate/validate 与 Backend build 通过；`test:account-deletion` 覆盖密码、同 key 幂等、不同 key 冲突、四类绑定撤销、pending/旧版本 JWT 拒绝；Chat、Memory 回归继续通过。
 - 安全停止点：Provisioner DELETE 尚未生产部署，上传文件 quarantine 和 job worker 尚未实现，因此 REQUESTED job 不会自动进入外部 cleanup 或删除 User。生产 schema/API 均未发布，未冻结或删除任何生产用户。
 - 下一步：实现上传资源安全 manifest/quarantine 与内部 deletion worker；worker 仅在 Provisioner/上传均完成后进入单事务 DB purge，并补充每阶段失败注入、重复执行和 B/Personal 哨兵测试。
+
+## Wave 4C 飞书私聊 MVP 架构决策
+
+- 负责人：ROOT。
+- 状态：planned（仅完成架构与 runbook，尚未实现飞书 Schema、Bridge、回调或 E2E）。
+- 决策时间：2026-07-12。
+- 产品入口：采用单一 RightNow 官方“小爪”飞书应用。用户在 Web 生成 8 位、默认 10 分钟有效的一次性绑定码，在飞书私聊小爪并发送该码完成绑定；不为每位用户动态创建飞书应用。
+- 服务边界：新增独立 `feishu-bridge` 作为唯一官方应用 ingress，负责 challenge、验签/解密、Event Inbox、快速 ACK、OpenClaw 调用、Message Outbox、token 缓存和飞书发送 API。RightNow Backend 负责绑定与业务事实，OpenClaw 负责 Agent/Session/Memory/工具编排。
+- 身份契约：`(tenantKey, openId) -> userId -> rightnow-<userId> -> rightnow:<userId>:<Backend conversationId>`。Web 与飞书默认不同 Session，但共享 Agent、PostgreSQL Profile/事实和 `MEMORY.md`。
+- 幂等契约：`FeishuEventInbox.eventId` 唯一只保证事件一次进入；饮食、训练和 TODO 等确定性写入另用 `(channel=feishu, eventId, actionType)` 唯一键，重试返回原 record ID。回复和主动推送统一经过 Outbox。
+- MVP 范围：文本私聊、绑定码、文本回复、TODO 查询、饮食只分析/写入和训练完成写入。图片、群聊和主动推送后置，文本与幂等门禁通过前不得开放。
+- 删除门禁：账户冻结必须立即撤销飞书绑定、取消未发送 Outbox 并拒绝新业务消息；删除 Worker 后续匿名化 Inbox 用户关联。企业级 tenant 安装不随单个用户删除。
+- 当前缺口：仓库尚无 `feishu-bridge`、飞书数据模型、Event Inbox/Outbox、飞书凭据模板或回调测试；Chat 持久业务幂等也尚未实现。不得声称飞书已接入。
+- 下一步：先实现账户删除 Worker 与通道幂等基础，再按 runbook 7.8-7.13 完成飞书文本 MVP；随后再做图片、群聊和主动推送。
+
+## 本地 Demo 测试交付与稳定启动
+
+- 负责人：ROOT。
+- 状态：completed。
+- 完成时间：2026-07-12。
+- 文档：将 `RightNow_本地Demo开发者测试指南.md` 纳入仓库为 `docs/development-runbook/LOCAL_DEMO_TESTING_GUIDE.md`，修正本地 PostgreSQL 端口为 `15433`，补充一键启动、停止、冒烟和真实图片编辑说明。
+- 启动器：新增 `scripts/start-local-demo.ps1` 与 `scripts/stop-local-demo.ps1`。启动器使用已构建的 Backend/Frontend 产物，启动本机 PostgreSQL 16（不可用时尝试 Docker Compose），只清理属于当前仓库的 `5000/5173` 监听进程，以 Backend 单进程和 Vite preview 启动；PID/日志位于被忽略的 `.work/local-demo`。
+- 冒烟：新增 `scripts/smoke-local-demo.ps1`，覆盖前端 HTTP、小爪聊天入口契约、演示账号登录、真实教练聊天、TODO/饮食/训练读取；`-IncludeImageEdit` 显式增加一次真实 `step-image-edit-2` 请求，默认不消耗图片额度。
+- 验证：Backend/Frontend 构建通过；完整冒烟 8/8 通过；stop 后 `5000/5173` 均释放，再次 start 后 Backend 401 readiness 与 Frontend 200 readiness 通过。测试仅新增演示账号聊天/图片生成记录，不写饮食、训练或 TODO。
+- Windows 约束：当前环境 Vite/esbuild 在嵌套 PowerShell 构建时存在 IPC 不稳定，因此启动器只消费独立构建产生的 `dist`；使用前先运行 `npm run build:backend` 和 `npm run build:frontend`。
