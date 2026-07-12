@@ -954,3 +954,4 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - Windows 约束：当前环境 Vite/esbuild 在嵌套 PowerShell 构建时存在 IPC 不稳定，因此启动器只消费独立构建产生的 `dist`；使用前先运行 `npm run build:backend` 和 `npm run build:frontend`。
 - 聊天稳定性补充：用户实际输入“今天什么安排”曾遇到一次阶跃瞬时失败并显示 `Internal server error`。本地 direct-chat fallback 超时从 12 秒调整为 30 秒，对网络错误、429、5xx 和空回复最多重试一次；前端 5xx 改为可重试中文提示。冒烟消息改为覆盖“今天什么安排”路径，重启后连续 3 轮均为 7/7。
 - 意图链路文档（2026-07-13）：新增 `docs/INTENT_CLASSIFICATION_COMPLETE_FLOW.md`，按当前代码记录 V1 安全/写入优先、八条 V2 确定性只读、长尾语义只读、分类回退、OpenClaw/direct-chat 回退、`progress/analyze/current` 映射和当前实际可写入矩阵。
+- 意图文档合并（2026-07-13）：将旧 V1 规范和 V2 设计计划中仍有效的契约、上下文 Profile、隐私、测试门禁和实施状态合并到 `INTENT_CLASSIFICATION_COMPLETE_FLOW.md`；`AGENT_INTENT_ROUTING_STRATEGY.md` 收敛为当前产品回复策略并移除过时实施建议；删除两份重复旧文档，后续不再维护平行 V1/V2 规范。

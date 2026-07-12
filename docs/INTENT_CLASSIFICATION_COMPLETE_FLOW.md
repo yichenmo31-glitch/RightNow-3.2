@@ -3,7 +3,14 @@
 更新时间：2026-07-13  
 适用分支：`local-integration`
 
-本文说明当前 Web Chat 从收到用户消息，到意图分类、只读查询、确定性写入、RAG、OpenClaw 和本地模型降级的完整链路。本文以当前代码为准，重点解释 V1、V2、`progress / analyze / current`、两种“回退”以及数据写入之间的关系。
+本文是意图识别的权威技术文档，说明当前 Web Chat 从收到用户消息，到意图分类、只读查询、确定性写入、RAG、OpenClaw 和本地模型降级的完整链路。本文以当前代码为准，并合并原 V1 规范和 V2 设计计划中仍然有效的契约、测试与灰度要求。
+
+文档职责：
+
+- 本文：分类契约、执行顺序、安全门禁、当前能力和演进状态。
+- `AGENT_INTENT_ROUTING_STRATEGY.md`：分类完成后的产品回复形态与内容策略。
+- `AGENT_INTENT_CLASSIFIER_TESTS.csv`：V1/V2 共用黄金测试集。
+- `AGENT_INTENT_V2_SHADOW_SAMPLE.json`：语义 Shadow 观测样本。
 
 相关实现：
 
@@ -14,6 +21,8 @@
 - `backend/src/agent/intent/intent-policy.ts`
 - `backend/src/agent/intent/intent-semantic.service.ts`
 - `backend/src/chat/today-plan-query.service.ts`
+
+原 V1 规范和 V2 分阶段设计计划已经合并到本文，不再保留平行版本；历史内容可通过 Git 查看。
 
 ## 1. 核心结论
 
@@ -454,3 +463,220 @@ v2-readonly = 允许模型补充低风险只读路由
 - 高风险与否定表达的确定性否决。
 - 重试不重复写入的数据库约束。
 - 完整 A/B 用户隔离和审计测试。
+
+## 15. V1 兼容契约
+
+V1 继续作为安全、写入和旧业务行为的兼容层。当前输入契约：
+
+```ts
+interface IntentClassifierInput {
+  message: string;
+  channel?: string;
+  hasImage?: boolean;
+  imageType?: 'food' | 'body' | 'unknown' | null;
+  recentMessages?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  knownContextSummary?: Record<string, unknown>;
+  useModelFallback?: boolean;
+}
+```
+
+当前 V1 输出契约：
+
+```ts
+interface IntentDecision {
+  intent: Intent;
+  subIntent: string | null;
+  confidence: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  requiresContext: boolean;
+  requiresKnowledge: boolean;
+  requiresWriteTool: boolean;
+  suggestedTools: string[];
+  responseMode: ResponseMode;
+  entities: Record<string, unknown>;
+  clarifyingQuestion: string | null;
+  classifier: 'rule' | 'model' | 'fallback';
+}
+```
+
+主意图：
+
+| V1 intent | 当前职责 |
+| --- | --- |
+| `diet_log` | 饮食分析及明确饮食写入 |
+| `training_log` | 训练过程或训练完成表达 |
+| `body_data_update` | 体重、身体状态、恢复和风险表达 |
+| `fitness_advice` | 训练、饮食、恢复和平台期建议 |
+| `plan_adjustment` | 修改既有计划的请求，目前不直接写计划 |
+| `social_chat` | 激励、情绪支持和普通陪伴 |
+| `unknown_mixed` | 无法安全确定或包含多个意图 |
+| `out_of_domain` | 非 RightNow 健身与健康管理任务 |
+
+回复模式：
+
+| responseMode | 用途 |
+| --- | --- |
+| `short_confirm` | 记录或分析结果的简短确认 |
+| `short_risk` | 疼痛、疲劳和风险场景的保守回复 |
+| `medium_advice` | 带少量可执行步骤的建议 |
+| `plan_adjustment` | 保留原计划后说明局部调整 |
+| `clarify` | 询问一个关键澄清问题 |
+| `social_support` | 温和、轻量的支持性回复 |
+
+V1 模型 fallback 能力仍保留在分类服务中，但当前 `ChatService` 调用 `classifyV2()` 时显式传入 `useModelFallback=false`。因此主聊天链路未命中 V1 规则时使用保守 `unknown_mixed`，不会再同步调用旧 V1 分类模型。
+
+## 16. V2 完整数据契约
+
+V2 在 V1 兼容字段之外增加正交业务维度和 Backend 控制字段：
+
+```ts
+interface IntentDecisionV2 {
+  version: 'v2';
+  legacyIntent: Intent;
+  resource: IntentResource;
+  operation: IntentOperation;
+  scope: IntentScope | null;
+  subIntent: string | null;
+  confidence: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  requiresContext: boolean;
+  requiresKnowledge: boolean;
+  requestedWrite: boolean;
+  explicitWriteEvidence: string[];
+  suggestedTools: string[];
+  entities: Record<string, unknown>;
+  clarifyingQuestion: string | null;
+  classifier: 'rule' | 'model' | 'hybrid' | 'fallback';
+  matchedRuleIds: string[];
+  selectedRoute: ReadOnlyIntentRoute | null;
+  contextProfile: ContextProfile;
+  selectedReadSet: ContextReadKey[];
+  legacyDecision: IntentDecision;
+}
+```
+
+重要边界：
+
+- `requestedWrite` 只描述候选意图，不构成写入授权。
+- `suggestedTools` 只是诊断和建议字段，模型不能直接调用工具。
+- `selectedRoute` 只能由 Backend 映射到固定只读路由。
+- `matchedRuleIds` 使用稳定规则 ID，便于回归和审计。
+- `legacyDecision` 保证现有 ChatService 行为继续可用。
+
+## 17. 上下文 Profile 与读取集合
+
+V2 将“用户想做什么”和“需要读取哪些上下文”分离。模型只能选择业务语义；Backend 根据白名单映射上下文。
+
+| contextProfile | Backend 固定读取集合 |
+| --- | --- |
+| `none` | 不读取用户业务上下文 |
+| `current_plan` | active plan、今日 TODO |
+| `fitness_state` | 计划、近期训练/饮食摘要、体重、进展、确认偏好 |
+| `nutrition_state` | 饮食计划、饮食摘要、训练负荷、体重/目标、确认偏好 |
+| `progress_review` | 训练/饮食摘要、体重趋势、TODO 完成率、进展摘要 |
+| `memory_preferences` | 仅 confirmed preferences |
+
+这些是 PostgreSQL 读取能力，不是 workspace 文件路径。模型不能指定表名、userId、Agent ID、Session、文件路径或扩大读取范围。
+
+当前八条确定性查询直接由 `TodayPlanQueryService` 查询必要数据，并未通用执行全部 `selectedReadSet`。`contextProfile` 主要作为策略契约和后续建议类装配边界。
+
+## 18. 风险、领域与多轮边界
+
+确定性安全规则优先处理：
+
+- 胸痛、昏厥、头晕、受伤、术后和极端节食。
+- 账户删除、授权、换绑和通道控制。
+- 明确业务写入和否定/查询冲突。
+- 领域外代码、文档、财务和旅行任务。
+- JWT userId、Agent/Session ownership、通道 Event ID 和业务幂等。
+
+高风险建议即使 RAG 失败，也必须保留 Backend 确定性安全前缀。高风险请求强制 `requestedWrite=false`，不得由语义模型写入长期事实。
+
+V2 结构支持最近 2-4 条必要消息和上一轮摘要，但当前 `ChatService` 调用分类器时传入 `recentMessages: []`。因此“那明天呢”等多轮指代仍属于尚未接入主链路的能力，不能标记为已完成。
+
+## 19. Web 与外部通道边界
+
+分类器契约可以复用于 Web 和后续飞书通道，但身份解析发生在分类之前：
+
+```text
+Web JWT -> userId
+飞书 eventId + tenantKey + openId -> 已绑定 userId
+```
+
+分类器不能看到或决定 App Secret、Token、绑定关系或可覆盖身份的参数。飞书 Event ID 去重和业务写入幂等必须在执行层完成，不能由分类置信度替代。
+
+飞书目前仍是设计能力，尚未进入当前 Chat 主链路的已实现范围。
+
+## 20. 可观测性与隐私
+
+分类诊断只记录最小化字段：
+
+```text
+classifierVersion
+classifier
+legacyIntent
+resource / operation / scope
+confidence / riskLevel
+matchedRuleIds
+selectedRoute
+durationMs
+安全错误类型
+```
+
+不得记录：
+
+- Token、API Key 或绑定码。
+- 完整用户消息。
+- 完整 Profile、Memory 或模型 prompt。
+- 数据库明细或 workspace 内容。
+
+模型失败只记录 `invalid_response`、`rate_limited`、`timeout`、`not_configured` 或 `provider_error` 等安全错误类型。
+
+## 21. 测试与灰度门禁
+
+测试资产：
+
+- `AGENT_INTENT_CLASSIFIER_TESTS.csv`：V1 确定性黄金集。
+- Backend `test:intent`：V1/V2 分类、策略、查询和 Shadow 回归。
+- `AGENT_INTENT_V2_SHADOW_SAMPLE.json`：120 条分层语义观测样本。
+- `test:read-route-isolation`：八条只读路由真实 PostgreSQL A/B 隔离。
+
+语义观测结果：
+
+```text
+120/120 有效响应
+resource 120/120
+operation 120/120
+scope 119/120
+三字段 99.17%
+平均约 2638ms
+```
+
+小并发观测 `24/24` 完全匹配，但 P95 约 `10779ms`，超过 `5000ms` 门禁。因此模型只参与受限只读补充，不开放语义写入。
+
+自动门禁：
+
+```text
+有效响应率 >= 99%
+三字段完全匹配率 >= 93%
+P95 <= 5000ms
+写入误触发 = 0
+高风险漏判 = 0
+```
+
+核心回归必须同时断言分类结果、数据库读写次数、RAG/OpenClaw 调用次数和业务记录数。
+
+## 22. 实施状态与历史演进
+
+| 阶段 | 当前状态 | 说明 |
+| --- | --- | --- |
+| V1 规则分类 | 已实现 | 继续负责安全、领域和确定性写入 |
+| V2 契约与八条确定性查询 | 已实现 | 在外部模型之前短路 |
+| V2 Shadow | 已实现 | 异步观测，不改变执行 |
+| `v2-readonly` | 本地受控启用 | 长尾低风险只读，4500ms 单次尝试和熔断 |
+| 建议类全面迁移到 V2 | 未完成 | 当前仍主要使用 V1 `requiresKnowledge` |
+| 多轮指代分类 | 未接入主链路 | 类型支持，但 ChatService 当前不传最近消息 |
+| 同步语义写入 | 明确关闭 | 写入继续由 V1 和 Backend 确定性实现 |
+| Web/飞书统一执行 | 未完成 | 飞书尚未实现 |
+
+后续修改意图识别时，应更新本文、测试资产和 `development-runbook/progress.md`，不再创建新的 V1/V2 平行规范文档。
