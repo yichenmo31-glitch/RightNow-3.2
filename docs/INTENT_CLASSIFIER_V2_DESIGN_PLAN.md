@@ -90,10 +90,30 @@ interface IntentDecisionV2 {
   clarifyingQuestion: string | null;
   classifier: 'rule' | 'model' | 'hybrid' | 'fallback';
   matchedRuleIds: string[];
+  contextProfile:
+    | 'none'
+    | 'current_plan'
+    | 'fitness_state'
+    | 'nutrition_state'
+    | 'progress_review'
+    | 'memory_preferences';
+  selectedReadSet: string[];
 }
 ```
 
 `requestedWrite` 只描述用户意图，不代表写入授权。Backend 仍需根据明确措辞、资源权限、状态、幂等键和策略白名单作最终决定。
+
+`contextProfile` 与用户意图正交，用于复用上下文装配。分类器不能指定数据库表、文件路径或任意工具；Backend 将白名单 profile 展开为 `selectedReadSet`。例如 `plan/query/today` 使用 `current_plan`，饮食建议使用 `nutrition_state`，阶段分析使用 `progress_review`。
+
+```text
+current_plan       -> active_plan + today_todos
+fitness_state      -> plans + recent training/diet summaries + weight/progress + preferences
+nutrition_state    -> meal plan + diet summary + training load + weight/goal + preferences
+progress_review    -> training/diet summaries + weight trend + TODO completion + progress
+memory_preferences -> confirmed preferences only
+```
+
+业务读取集合代表 PostgreSQL 查询能力，不代表 OpenClaw workspace 文件。动态计划、饮食、训练和体重仍以 PostgreSQL 为权威。
 
 ## 5. 首批只读意图
 

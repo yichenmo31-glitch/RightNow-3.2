@@ -40,13 +40,46 @@ for (const message of [
 
 async function testQueryService() {
   const classifier = new IntentClassifierService({ get: () => undefined });
-  assert.equal((await classifier.classifyV2({ message: '今天练什么', useModelFallback: false })).selectedRoute, 'today_plan');
+  const todayPlanDecision = await classifier.classifyV2({ message: '今天练什么', useModelFallback: false });
+  assert.equal(todayPlanDecision.selectedRoute, 'today_plan');
+  assert.equal(todayPlanDecision.contextProfile, 'current_plan');
+  assert.deepEqual(todayPlanDecision.selectedReadSet, ['active_plan', 'today_todos']);
   const risky = await classifier.classifyV2({ message: '膝盖疼今天练什么', useModelFallback: false });
   assert.equal(risky.riskLevel, 'high');
   assert.equal(risky.selectedRoute, null);
+  assert.equal(risky.requestedWrite, false);
+  assert.ok(risky.matchedRuleIds.includes('safety.high-risk.v1'));
   const mutation = await classifier.classifyV2({ message: '把今天深蹲换成腿举', useModelFallback: false });
   assert.equal(mutation.requestedWrite, true);
   assert.equal(mutation.selectedRoute, null);
+  assert.deepEqual([mutation.resource, mutation.operation, mutation.scope], ['plan', 'update', 'today']);
+  assert.ok(mutation.explicitWriteEvidence.includes('换成'));
+  assert.ok(mutation.matchedRuleIds.includes('write.plan-explicit.v1'));
+  assert.equal(mutation.contextProfile, 'fitness_state');
+
+  const todoCreate = await classifier.classifyV2({ message: '帮我创建明天喝水提醒', useModelFallback: false });
+  assert.deepEqual([todoCreate.resource, todoCreate.operation, todoCreate.scope], ['todo', 'create', 'tomorrow']);
+  assert.equal(todoCreate.requestedWrite, true);
+  assert.ok(todoCreate.explicitWriteEvidence.length > 0);
+
+  const dietWrite = await classifier.classifyV2({ message: '午饭吃了鸡胸肉和米饭', useModelFallback: false });
+  assert.deepEqual([dietWrite.resource, dietWrite.operation, dietWrite.requestedWrite], ['diet', 'create', true]);
+  assert.ok(dietWrite.matchedRuleIds.includes('write.diet-explicit.v1'));
+
+  const trainingComplete = await classifier.classifyV2({ message: '今天练完腿了', useModelFallback: false });
+  assert.deepEqual([trainingComplete.resource, trainingComplete.operation, trainingComplete.requestedWrite], ['training', 'complete', true]);
+  assert.ok(trainingComplete.matchedRuleIds.includes('write.training-complete.v1'));
+
+  const outside = await classifier.classifyV2({ message: '帮我查上海天气', useModelFallback: false });
+  assert.equal(outside.resource, 'general');
+  assert.equal(outside.contextProfile, 'none');
+  assert.deepEqual(outside.selectedReadSet, []);
+  const mixedOutside = await classifier.classifyV2({ message: '用 TypeScript 写今天训练计划', useModelFallback: false });
+  assert.equal(mixedOutside.legacyIntent, 'out_of_domain');
+  assert.equal(mixedOutside.contextProfile, 'none');
+  const ambiguousTraining = await classifier.classifyV2({ message: '我喜欢跑步', useModelFallback: false });
+  assert.equal(ambiguousTraining.requestedWrite, false);
+  assert.deepEqual(ambiguousTraining.explicitWriteEvidence, []);
 
   const calls = [];
   const prisma = {

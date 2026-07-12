@@ -1,5 +1,17 @@
 # RightNow 开发进度
 
+## Intent V2：上下文装配与确定性安全/写入策略
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成时间：2026-07-12
+- 修改文件：`intent-classifier.types.ts`、`intent-policy.ts`、`intent-rules.ts`、`intent-v2-rules.ts`、`intent-semantic.service.ts`、`intent-classifier.service.ts`、`intent-shadow.ts`、V2 测试及设计/架构文档。
+- 执行命令：`npm --workspace backend run test:intent`、`npm --workspace backend run test:chat-conversations`、`npm --workspace backend run test:agent-memory`、`git diff --check`。
+- 测试结果：上下文 profile/read set、动作替换、TODO 创建、饮食写入、训练完成、高风险、领域外夹带和无证据训练表达均通过；V1 32 例 224/224 回归通过。
+- 证据摘要：模型只提供业务分类候选，Backend 生成白名单 `selectedReadSet`；高风险强制撤销写入；明确写入同时具有正确 operation、规则 ID 和证据；“我喜欢跑步”不再描述为可写请求。
+- 阻塞项：无。该变更不开放新的业务执行路由；Phase 3 仍受 Shadow 准确率和供应商稳定性门禁约束。
+- 下一步：扩展 100-150 条分层黄金集，并在更稳定的分类供应商上重新运行 Shadow；达到门禁后才评估只读执行灰度。
+
 ## Intent V2 Phase 2：语义分类 Shadow 能力
 
 - 负责人：ROOT

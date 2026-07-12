@@ -55,11 +55,21 @@ export const INTENT_SCOPES = [
 export const READ_ONLY_ROUTES = [
   'today_plan', 'weekly_plan', 'today_todos', 'pending_todos',
 ] as const;
+export const CONTEXT_PROFILES = [
+  'none', 'current_plan', 'fitness_state', 'nutrition_state', 'progress_review', 'memory_preferences',
+] as const;
+export const CONTEXT_READ_KEYS = [
+  'active_plan', 'today_todos', 'fitness_plan', 'meal_plan', 'hydration_plan',
+  'recent_training_summary', 'recent_diet_summary', 'latest_weight', 'weight_trend',
+  'progress_summary', 'todo_completion_summary', 'goal_summary', 'confirmed_preferences',
+] as const;
 
 export type IntentResource = (typeof INTENT_RESOURCES)[number];
 export type IntentOperation = (typeof INTENT_OPERATIONS)[number];
 export type IntentScope = (typeof INTENT_SCOPES)[number];
 export type ReadOnlyIntentRoute = (typeof READ_ONLY_ROUTES)[number];
+export type ContextProfile = (typeof CONTEXT_PROFILES)[number];
+export type ContextReadKey = (typeof CONTEXT_READ_KEYS)[number];
 
 export interface IntentDecisionV2 {
   version: 'v2';
@@ -80,5 +90,7 @@ export interface IntentDecisionV2 {
   classifier: 'rule' | 'model' | 'hybrid' | 'fallback';
   matchedRuleIds: string[];
   selectedRoute: ReadOnlyIntentRoute | null;
+  contextProfile: ContextProfile;
+  selectedReadSet: ContextReadKey[];
   legacyDecision: IntentDecision;
 }

@@ -6,6 +6,7 @@ import { classifyReadOnlyV2 } from './intent-v2-rules';
 import { INTENTS, IntentClassifierInput, IntentDecision, IntentDecisionV2, RESPONSE_MODES, RISK_LEVELS } from './intent-classifier.types';
 import { IntentSemanticService } from './intent-semantic.service';
 import { compareShadowDecisions } from './intent-shadow';
+import { mapLegacyPolicy } from './intent-policy';
 
 @Injectable()
 export class IntentClassifierService {
@@ -38,13 +39,13 @@ export class IntentClassifierService {
       legacyRule.riskLevel === 'high' ||
       legacyRule.requiresWriteTool
     )) {
-      return this.mapLegacyDecision(legacyRule);
+      return this.mapLegacyDecision(legacyRule, input.message);
     }
     const readOnly = classifyReadOnlyV2(input);
     if (readOnly) return readOnly;
     const legacyDecision = legacyRule ?? await this.classify(input);
     this.runShadow(input, legacyDecision);
-    return this.mapLegacyDecision(legacyDecision);
+    return this.mapLegacyDecision(legacyDecision, input.message);
   }
 
   private runShadow(input: IntentClassifierInput, legacyDecision: IntentDecision): void {
@@ -52,7 +53,7 @@ export class IntentClassifierService {
     if (!this.semantic || legacyDecision.riskLevel === 'high' || legacyDecision.requiresWriteTool) return;
     const startedAt = Date.now();
     void this.semantic.classify(input).then((shadow) => {
-      const executed = this.mapLegacyDecision(legacyDecision);
+      const executed = this.mapLegacyDecision(legacyDecision, input.message);
       const comparison = compareShadowDecisions(executed, shadow);
       this.logger.log(JSON.stringify({
         event: 'intent_v2_shadow', classifierVersion: 'v2-shadow', classifier: shadow.classifier,
@@ -85,25 +86,17 @@ export class IntentClassifierService {
     return Number.isFinite(configured) && configured >= 0 && configured <= 1 ? configured : 0.8;
   }
 
-  private mapLegacyDecision(legacyDecision: IntentDecision): IntentDecisionV2 {
-    const requestedWrite = legacyDecision.requiresWriteTool || legacyDecision.intent === 'plan_adjustment';
-    const operation = legacyDecision.intent === 'plan_adjustment'
-      ? 'update'
-      : legacyDecision.requiresWriteTool ? 'create'
-        : legacyDecision.intent === 'fitness_advice' ? 'advise' : 'clarify';
-    const resource = legacyDecision.intent === 'plan_adjustment' ? 'plan'
-      : legacyDecision.intent === 'diet_log' ? 'diet'
-        : legacyDecision.intent === 'training_log' ? 'training'
-          : legacyDecision.intent === 'body_data_update' ? 'weight'
-            : legacyDecision.intent === 'social_chat' ? 'social' : 'general';
+  private mapLegacyDecision(legacyDecision: IntentDecision, message = ''): IntentDecisionV2 {
+    const policy = mapLegacyPolicy(legacyDecision, message);
     return {
-      version: 'v2', legacyIntent: legacyDecision.intent, resource, operation,
-      scope: null, subIntent: legacyDecision.subIntent, confidence: legacyDecision.confidence,
+      version: 'v2', legacyIntent: legacyDecision.intent, resource: policy.resource, operation: policy.operation,
+      scope: policy.scope, subIntent: legacyDecision.subIntent, confidence: legacyDecision.confidence,
       riskLevel: legacyDecision.riskLevel, requiresContext: legacyDecision.requiresContext,
-      requiresKnowledge: legacyDecision.requiresKnowledge, requestedWrite,
-      explicitWriteEvidence: [], suggestedTools: legacyDecision.suggestedTools,
+      requiresKnowledge: legacyDecision.requiresKnowledge, requestedWrite: policy.requestedWrite,
+      explicitWriteEvidence: policy.explicitWriteEvidence, suggestedTools: legacyDecision.suggestedTools,
       entities: legacyDecision.entities, clarifyingQuestion: legacyDecision.clarifyingQuestion,
-      classifier: legacyDecision.classifier, matchedRuleIds: [], selectedRoute: null,
+      classifier: legacyDecision.classifier, matchedRuleIds: policy.matchedRuleIds, selectedRoute: null,
+      contextProfile: policy.contextProfile, selectedReadSet: policy.selectedReadSet,
       legacyDecision,
     };
   }

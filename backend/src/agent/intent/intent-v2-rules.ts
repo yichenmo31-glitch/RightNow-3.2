@@ -1,5 +1,6 @@
 import { normalizeIntentInput } from './intent-normalizer';
 import { IntentClassifierInput, IntentDecision, IntentDecisionV2, ReadOnlyIntentRoute } from './intent-classifier.types';
+import { resolveContextProfile, resolveReadSet } from './intent-policy';
 
 function readOnlyDecision(
   route: ReadOnlyIntentRoute,
@@ -13,12 +14,14 @@ function readOnlyDecision(
     suggestedTools: [`${resource}.query`], responseMode: 'short_confirm', entities: {},
     clarifyingQuestion: null, classifier: 'rule',
   };
+  const contextProfile = resolveContextProfile(resource, 'query');
   return {
     version: 'v2', legacyIntent: legacyDecision.intent, resource, operation: 'query', scope,
     subIntent: route, confidence: 0.98, riskLevel: 'low', requiresContext: true,
     requiresKnowledge: false, requestedWrite: false, explicitWriteEvidence: [],
     suggestedTools: legacyDecision.suggestedTools, entities: {}, clarifyingQuestion: null,
     classifier: 'rule', matchedRuleIds: [ruleId], selectedRoute: route, legacyDecision,
+    contextProfile, selectedReadSet: resolveReadSet(contextProfile),
   };
 }
 

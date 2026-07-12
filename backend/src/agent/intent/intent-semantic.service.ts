@@ -6,6 +6,7 @@ import {
   IntentDecisionV2, IntentOperation, IntentResource, IntentScope, READ_ONLY_ROUTES,
   RISK_LEVELS,
 } from './intent-classifier.types';
+import { resolveContextProfile, resolveReadSet } from './intent-policy';
 
 interface SemanticPayload {
   resource?: unknown;
@@ -84,6 +85,9 @@ export class IntentSemanticService {
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error('Invalid semantic confidence');
     const subIntent = typeof payload.subIntent === 'string' ? payload.subIntent.slice(0, 64) : null;
     const selectedRoute = READ_ONLY_ROUTES.includes(subIntent as never) ? subIntent as any : null;
+    const resource = payload.resource as IntentResource;
+    const operation = payload.operation as IntentOperation;
+    const contextProfile = resolveContextProfile(resource, operation);
     const legacyDecision = {
       intent: 'unknown_mixed' as const, subIntent, confidence,
       riskLevel: payload.riskLevel as any, requiresContext: Boolean(payload.requiresContext),
@@ -93,8 +97,8 @@ export class IntentSemanticService {
       classifier: 'model' as const,
     };
     return {
-      version: 'v2', legacyIntent: 'unknown_mixed', resource: payload.resource as IntentResource,
-      operation: payload.operation as IntentOperation, scope: payload.scope as IntentScope | null,
+      version: 'v2', legacyIntent: 'unknown_mixed', resource,
+      operation, scope: payload.scope as IntentScope | null,
       subIntent, confidence, riskLevel: payload.riskLevel as any,
       requiresContext: Boolean(payload.requiresContext), requiresKnowledge: Boolean(payload.requiresKnowledge),
       requestedWrite: Boolean(payload.requestedWrite),
@@ -104,6 +108,7 @@ export class IntentSemanticService {
         ? payload.suggestedTools.filter((value): value is string => typeof value === 'string').slice(0, 8).map((value) => value.slice(0, 80)) : [],
       entities: {}, clarifyingQuestion: legacyDecision.clarifyingQuestion,
       classifier: 'model', matchedRuleIds: [], selectedRoute, legacyDecision,
+      contextProfile, selectedReadSet: resolveReadSet(contextProfile),
     };
   }
 }
