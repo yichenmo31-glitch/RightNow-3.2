@@ -24,7 +24,8 @@ export enum View {
   TrainingHistory = 'TRAINING_HISTORY',
   TrainingConfirm = 'TRAINING_CONFIRM',
   CommunityShare = 'COMMUNITY_SHARE',
-  WechatSettings = 'WECHAT_SETTINGS'
+  WechatSettings = 'WECHAT_SETTINGS',
+  BindXiaozhua = 'BIND_XIAOZHUA'
 }
 
 export interface UserState {

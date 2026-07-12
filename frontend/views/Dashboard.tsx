@@ -107,6 +107,13 @@ const Dashboard: React.FC<Props> = ({ onNavigate, isProfileComplete = true, auth
                                     退出登录
                                 </button>
                                 <button
+                                    onClick={() => { setShowMenu(false); onNavigate?.(View.BindXiaozhua); }}
+                                    className="w-full px-4 py-3 text-left text-sm text-gray-400 hover:bg-white/5 flex items-center gap-2 transition-colors border-t border-white/5"
+                                >
+                                    <span className="material-icons-round text-base">pets</span>
+                                    绑定小爪
+                                </button>
+                                <button
                                     onClick={() => { setShowMenu(false); onNavigate?.(View.WechatSettings); }}
                                     className="w-full px-4 py-3 text-left text-sm text-gray-400 hover:bg-white/5 flex items-center gap-2 transition-colors border-t border-white/5"
                                 >
