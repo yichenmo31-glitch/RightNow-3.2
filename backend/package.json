@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "build": "nest build",
-    "test:intent": "npm run build && node scripts/test-intent-classifier.cjs",
+    "test:intent": "npm run build && node scripts/test-intent-classifier.cjs && node scripts/test-intent-v2.cjs",
     "test:openclaw-identity": "npm run build && node scripts/test-openclaw-identity.cjs",
     "test:openclaw-provisioning": "npm run build && node scripts/test-openclaw-provisioning.cjs",
     "test:chat-conversations": "npm run build && node scripts/test-chat-conversations.cjs",

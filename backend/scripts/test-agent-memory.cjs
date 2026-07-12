@@ -249,8 +249,10 @@ function createChatHarness(failure) {
   };
   const push = { deliverExistingToUser: async () => undefined };
   const orchestrator = { captureCandidates: async () => 0 };
-  const classifier = { classify: async () => ({ intent: 'social_chat', subIntent: null, entities: {} }) };
-  const service = new ChatService(prisma, { get: () => undefined }, provisioning, memory, push, openClaw, orchestrator, classifier);
+  const classifier = { classifyV2: async () => ({ legacyDecision: { intent: 'social_chat', subIntent: null, entities: {} }, selectedRoute: null }) };
+  const diet = { analyzeText: async () => null };
+  const todayPlan = { execute: async () => 'plan' };
+  const service = new ChatService(prisma, { get: () => undefined }, provisioning, memory, push, openClaw, orchestrator, classifier, diet, todayPlan);
   return { service, messages };
 }
 

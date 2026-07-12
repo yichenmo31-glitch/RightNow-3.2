@@ -1,5 +1,17 @@
 # RightNow 开发进度
 
+## Intent V2 Phase 1：契约与只读计划查询
+
+- 负责人：ROOT（子代理只读审计设计与测试边界）
+- 状态：completed
+- 开始/完成时间：2026-07-12
+- 修改文件：`backend/src/agent/intent/intent-classifier.types.ts`、`intent-normalizer.ts`、`intent-v2-rules.ts`、`intent-classifier.service.ts`、`backend/src/chat/today-plan-query.service.ts`、`chat.service.ts`、`chat.module.ts`、相关测试脚本及架构/设计文档。
+- 执行命令：`npm run test:intent`、`npm run test:chat-conversations`、`npm run test:agent-memory`、`npm run build:backend`。
+- 测试结果：V1 32 例 224/224 字段断言通过；V2 18 个分类边界及只读聚合检查通过；Chat conversation、写入、RAG、高风险、领域外、纯 TODO 查询和 Memory 全部回归通过。
+- 证据摘要：`今天计划是啥/今天练什么` 命中 `today_plan`；周计划、今日 TODO、未完成 TODO 均使用 PostgreSQL 确定性读取和模板回复；Chat 路由测试确认 OpenClaw、Provisioner、Memory、RAG 和候选事实捕获调用数为 0。
+- 阻塞项：无。Phase 2 语义分类 Shadow、更多只读资源和有限多轮指代仍未实现。
+- 下一步：先以 Shadow 模式实现结构化语义分类和最小化差异指标，不改变业务执行路径；写入继续由确定性门禁控制。
+
 ## 0.1 确认干净基线
 
 - 负责人：ROOT

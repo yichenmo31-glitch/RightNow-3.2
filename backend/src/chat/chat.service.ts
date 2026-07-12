@@ -10,6 +10,7 @@ import { IntentClassifierService } from '../agent/intent/intent-classifier.servi
 import { IntentDecision } from '../agent/intent/intent-classifier.types';
 import { DietService, FoodAnalysis } from '../diet/diet.service';
 import { callChatLlm, ChatTurn } from './llm-chat.helper';
+import { TodayPlanQueryService } from './today-plan-query.service';
 
 const DEFAULT_HISTORY_WINDOW = 16;
 const DEFAULT_SYSTEM_PROMPT =
@@ -42,6 +43,7 @@ export class ChatService {
     private readonly memoryOrchestrator: MemoryOrchestratorService,
     private readonly intentClassifier: IntentClassifierService,
     private readonly dietService: DietService,
+    private readonly todayPlanQueryService: TodayPlanQueryService,
   ) {}
 
   async createConversation(userId: string) {
@@ -89,12 +91,18 @@ export class ChatService {
 
     const conversationId = options.conversationId?.trim() || undefined;
     if (conversationId) await this.assertConversationOwner(userId, conversationId);
-    const intent = await this.intentClassifier.classify({
+    const intentV2 = await this.intentClassifier.classifyV2({
       message: trimmed,
       channel: options.source || 'web',
       recentMessages: [],
       useModelFallback: false,
     });
+    const intent = intentV2.legacyDecision;
+
+    if (intentV2.selectedRoute) {
+      const reply = await this.todayPlanQueryService.execute(userId, intentV2.selectedRoute);
+      return this.persistReply(userId, conversationId, trimmed, reply);
+    }
 
     if (intent.intent === 'out_of_domain') {
       return this.persistReply(userId, conversationId, trimmed, OUT_OF_DOMAIN_REPLY);

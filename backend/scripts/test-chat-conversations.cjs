@@ -2,9 +2,9 @@ const assert = require('node:assert/strict');
 const { ChatService } = require('../dist/chat/chat.service');
 const { todoTools } = require('../dist/agent/tools/todo.tools');
 
-function harness({ owner = true, historyWindow = '0', decision, ragPayload, trainingTodo = true } = {}) {
+function harness({ owner = true, historyWindow = '0', decision, selectedRoute = null, ragPayload, trainingTodo = true } = {}) {
   const rows = [];
-  const calls = { gateway: 0, provisioning: 0, memorySync: 0, candidates: 0, sessionKey: null, queryWhere: null, lastUserMessage: null, systemPrompt: null, weights: [], diets: [], trainings: [], todoUpdates: [], analyses: [], audits: [], userUpdates: [], rag: [] };
+  const calls = { gateway: 0, provisioning: 0, memorySync: 0, candidates: 0, planQueries: [], sessionKey: null, queryWhere: null, lastUserMessage: null, systemPrompt: null, weights: [], diets: [], trainings: [], todoUpdates: [], analyses: [], audits: [], userUpdates: [], rag: [] };
   const chatMessage = {
     async count({ where }) { calls.queryWhere = where; return 0; },
     async findMany({ where }) { calls.queryWhere = where; return []; },
@@ -59,7 +59,12 @@ function harness({ owner = true, historyWindow = '0', decision, ragPayload, trai
     },
   };
   const orchestrator = { captureCandidates: async () => { calls.candidates += 1; return 0; } };
-  const classifier = { classify: async () => decision || ({ intent: 'social_chat', subIntent: null, entities: {} }) };
+  const classifier = {
+    classifyV2: async () => ({
+      legacyDecision: decision || ({ intent: 'social_chat', subIntent: null, entities: {} }),
+      selectedRoute,
+    }),
+  };
   const diet = {
     async analyzeText({ foodName }) {
       calls.analyses.push(foodName);
@@ -72,7 +77,9 @@ function harness({ owner = true, historyWindow = '0', decision, ragPayload, trai
     return { ok: true, async json() { return ragPayload || { source_layer: 'L2', results: { documents: [['知识片段']] } }; } };
   };
   return {
-    service: new ChatService(prisma, config, provisioning, memory, push, openClaw, orchestrator, classifier, diet),
+    service: new ChatService(prisma, config, provisioning, memory, push, openClaw, orchestrator, classifier, diet, {
+      execute: async (userId, route) => { calls.planQueries.push({ userId, route }); return '确定性计划回复'; },
+    }),
     calls,
     rows,
     restore() { global.fetch = originalFetch; },
@@ -102,6 +109,16 @@ async function main() {
   const legacy = harness();
   await legacy.service.history('user-a');
   assert.deepEqual(legacy.calls.queryWhere, { userId: 'user-a', conversationId: null });
+
+  const readOnly = harness({ selectedRoute: 'today_plan' });
+  const planReply = await readOnly.service.send('user-a', '今天计划是啥', { conversationId: 'conv-a' });
+  assert.equal(planReply.content, '确定性计划回复');
+  assert.deepEqual(readOnly.calls.planQueries, [{ userId: 'user-a', route: 'today_plan' }]);
+  assert.equal(readOnly.calls.gateway, 0);
+  assert.equal(readOnly.calls.provisioning, 0);
+  assert.equal(readOnly.calls.memorySync, 0);
+  assert.equal(readOnly.calls.candidates, 0);
+  assert.equal(readOnly.calls.rag.length, 0);
 
   const weight = harness({
     decision: { intent: 'body_data_update', subIntent: 'weight_update', entities: { weightKg: 62.8 } },

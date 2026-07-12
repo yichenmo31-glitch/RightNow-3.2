@@ -42,3 +42,43 @@ export interface IntentDecision {
   clarifyingQuestion: string | null;
   classifier: 'rule' | 'model' | 'fallback';
 }
+
+export const INTENT_RESOURCES = [
+  'plan', 'todo', 'training', 'diet', 'weight', 'progress', 'memory', 'social', 'general',
+] as const;
+export const INTENT_OPERATIONS = [
+  'query', 'analyze', 'advise', 'create', 'update', 'complete', 'delete', 'clarify',
+] as const;
+export const INTENT_SCOPES = [
+  'today', 'tomorrow', 'week', 'current', 'latest', 'history',
+] as const;
+export const READ_ONLY_ROUTES = [
+  'today_plan', 'weekly_plan', 'today_todos', 'pending_todos',
+] as const;
+
+export type IntentResource = (typeof INTENT_RESOURCES)[number];
+export type IntentOperation = (typeof INTENT_OPERATIONS)[number];
+export type IntentScope = (typeof INTENT_SCOPES)[number];
+export type ReadOnlyIntentRoute = (typeof READ_ONLY_ROUTES)[number];
+
+export interface IntentDecisionV2 {
+  version: 'v2';
+  legacyIntent: Intent;
+  resource: IntentResource;
+  operation: IntentOperation;
+  scope: IntentScope | null;
+  subIntent: string | null;
+  confidence: number;
+  riskLevel: RiskLevel;
+  requiresContext: boolean;
+  requiresKnowledge: boolean;
+  requestedWrite: boolean;
+  explicitWriteEvidence: string[];
+  suggestedTools: string[];
+  entities: Record<string, unknown>;
+  clarifyingQuestion: string | null;
+  classifier: 'rule' | 'model' | 'hybrid' | 'fallback';
+  matchedRuleIds: string[];
+  selectedRoute: ReadOnlyIntentRoute | null;
+  legacyDecision: IntentDecision;
+}

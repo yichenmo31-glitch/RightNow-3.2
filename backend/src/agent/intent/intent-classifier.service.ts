@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { callChatLlm } from '../../chat/llm-chat.helper';
 import { classifyByRules } from './intent-rules';
-import { INTENTS, IntentClassifierInput, IntentDecision, RESPONSE_MODES, RISK_LEVELS } from './intent-classifier.types';
+import { classifyReadOnlyV2 } from './intent-v2-rules';
+import { INTENTS, IntentClassifierInput, IntentDecision, IntentDecisionV2, RESPONSE_MODES, RISK_LEVELS } from './intent-classifier.types';
 
 @Injectable()
 export class IntentClassifierService {
@@ -19,6 +20,45 @@ export class IntentClassifierService {
       requiresContext: true, requiresKnowledge: false, requiresWriteTool: false,
       suggestedTools: ['memory.context.assemble'], responseMode: 'clarify', entities: {},
       clarifyingQuestion: '你希望我帮你记录数据、调整计划，还是给一些建议？', classifier: 'fallback',
+    };
+  }
+
+  async classifyV2(input: IntentClassifierInput): Promise<IntentDecisionV2> {
+    const legacyRule = classifyByRules(input);
+    if (legacyRule && (
+      legacyRule.intent === 'out_of_domain' ||
+      legacyRule.intent === 'plan_adjustment' ||
+      legacyRule.riskLevel === 'high' ||
+      legacyRule.requiresWriteTool
+    )) {
+      return this.mapLegacyDecision(legacyRule);
+    }
+    const readOnly = classifyReadOnlyV2(input);
+    if (readOnly) return readOnly;
+    const legacyDecision = legacyRule ?? await this.classify(input);
+    return this.mapLegacyDecision(legacyDecision);
+  }
+
+  private mapLegacyDecision(legacyDecision: IntentDecision): IntentDecisionV2 {
+    const requestedWrite = legacyDecision.requiresWriteTool || legacyDecision.intent === 'plan_adjustment';
+    const operation = legacyDecision.intent === 'plan_adjustment'
+      ? 'update'
+      : legacyDecision.requiresWriteTool ? 'create'
+        : legacyDecision.intent === 'fitness_advice' ? 'advise' : 'clarify';
+    const resource = legacyDecision.intent === 'plan_adjustment' ? 'plan'
+      : legacyDecision.intent === 'diet_log' ? 'diet'
+        : legacyDecision.intent === 'training_log' ? 'training'
+          : legacyDecision.intent === 'body_data_update' ? 'weight'
+            : legacyDecision.intent === 'social_chat' ? 'social' : 'general';
+    return {
+      version: 'v2', legacyIntent: legacyDecision.intent, resource, operation,
+      scope: null, subIntent: legacyDecision.subIntent, confidence: legacyDecision.confidence,
+      riskLevel: legacyDecision.riskLevel, requiresContext: legacyDecision.requiresContext,
+      requiresKnowledge: legacyDecision.requiresKnowledge, requestedWrite,
+      explicitWriteEvidence: [], suggestedTools: legacyDecision.suggestedTools,
+      entities: legacyDecision.entities, clarifyingQuestion: legacyDecision.clarifyingQuestion,
+      classifier: legacyDecision.classifier, matchedRuleIds: [], selectedRoute: null,
+      legacyDecision,
     };
   }
 
