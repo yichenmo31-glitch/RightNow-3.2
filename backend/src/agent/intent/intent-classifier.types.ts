@@ -54,6 +54,7 @@ export const INTENT_SCOPES = [
 ] as const;
 export const READ_ONLY_ROUTES = [
   'today_plan', 'weekly_plan', 'today_todos', 'pending_todos',
+  'today_diet', 'training_history', 'latest_weight', 'current_progress',
 ] as const;
 export const CONTEXT_PROFILES = [
   'none', 'current_plan', 'fitness_state', 'nutrition_state', 'progress_review', 'memory_preferences',

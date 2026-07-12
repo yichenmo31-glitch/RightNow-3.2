@@ -45,6 +45,10 @@ const cases = [
   ['还有什么没完成', 'todo', 'query', 'today', 'pending_todos'],
   ['今天还剩啥', 'todo', 'query', 'today', 'pending_todos'],
   ['未完成任务', 'todo', 'query', 'today', 'pending_todos'],
+  ['今天吃了多少', 'diet', 'query', 'today', 'today_diet'],
+  ['最近练了什么', 'training', 'query', 'history', 'training_history'],
+  ['最新体重是多少', 'weight', 'query', 'latest', 'latest_weight'],
+  ['最近进展怎么样', 'progress', 'query', 'current', 'current_progress'],
 ];
 
 for (const [message, resource, operation, scope, selectedRoute] of cases) {
@@ -117,6 +121,7 @@ async function testQueryService() {
           { title: '喝水 2000ml', category: 'water', completed: true },
         ];
       },
+      groupBy: async () => [{ completed: true, _count: { _all: 3 } }, { completed: false, _count: { _all: 1 } }],
     },
     aiCoachProgress: {
       findUnique: async (args) => {
@@ -130,6 +135,10 @@ async function testQueryService() {
         return { fitnessPlan: { weeklyTrainingPlan: [{ day: 1, focus: '腿部', durationMinutes: 45, tasks: ['深蹲'] }] } };
       },
     },
+    dietRecord: { findMany: async () => [{ name: '鸡胸肉', calories: 200, mealType: '午餐' }] },
+    trainingRecord: { findMany: async () => [{ date: '2026-07-11', description: '腿部训练' }] },
+    weightRecord: { findFirst: async () => ({ date: '2026-07-12', weight: 62.8 }) },
+    user: { findUnique: async () => ({ weight: 63 }) },
   };
   const service = new TodayPlanQueryService(prisma);
   const today = await service.todayPlan('user-a', '2026-07-12');
@@ -147,6 +156,10 @@ async function testQueryService() {
   const weekly = await service.execute('user-b', 'weekly_plan');
   assert.match(weekly, /腿部/);
   assert.equal(calls.at(-1)[1].where.userId, 'user-b');
+  assert.match(await service.execute('user-a', 'today_diet'), /200 千卡/);
+  assert.match(await service.execute('user-a', 'training_history'), /腿部训练/);
+  assert.match(await service.execute('user-a', 'latest_weight'), /62.8 kg/);
+  assert.match(await service.execute('user-a', 'current_progress'), /3\/4/);
 
   const empty = new TodayPlanQueryService({
     todo: { findMany: async () => [] },

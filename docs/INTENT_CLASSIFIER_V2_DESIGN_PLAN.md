@@ -456,4 +456,6 @@ V2 只有同时满足以下条件才能标记完成：
 
 截至 2026-07-12，Phase 1 已实现并启用四个确定性只读路由：`today_plan`、`weekly_plan`、`today_todos`、`pending_todos`。它们在 Chat 主链路中先于 OpenClaw、RAG 和聊天模型短路执行，仅读取 PostgreSQL 并使用 Backend 模板回复；其他意图继续使用 V1 规则和既有门禁。
 
-Phase 2 的结构化语义分类与异步 Shadow 比较能力已经实现，但默认配置保持 `INTENT_CLASSIFIER_VERSION=v2`，尚未在生产或本地 Demo 持续灰度。显式设置 `v2-shadow` 后，仅未形成完整 V2 路由的低风险、非写入请求进入旁路；V1 结果立即照常执行，Shadow 结果不会调用工具或改变响应。诊断日志只包含分类枚举、置信度、差异、阈值结果、错误类型和耗时，不记录消息正文、prompt、Profile 或 Token。Phase 2 仍需积累真实样本差异率后才能完成灰度验收；Phase 3-4 尚未实现。
+Phase 2 的结构化语义分类与异步 Shadow 比较能力已经实现，但默认配置保持 `INTENT_CLASSIFIER_VERSION=v2`，尚未用于同步业务执行。显式设置 `v2-shadow` 后，仅未形成完整 V2 路由的低风险、非写入请求进入旁路；V1 结果立即照常执行，Shadow 结果不会调用工具或改变响应。诊断日志只包含分类枚举、置信度、差异、阈值结果、错误类型和耗时，不记录消息正文、prompt、Profile 或 Token。
+
+为避免远程分类 P95 阻塞用户请求，确定性只读范围已扩展到 `today_diet`、`training_history`、`latest_weight` 和 `current_progress`。这些路由和 Phase 1 的四个计划/TODO 路由一样直接读取 PostgreSQL 并模板回复，不等待语义模型。Phase 3 的“语义结果参与同步执行”仍未启用；写入始终不开放给语义模型。

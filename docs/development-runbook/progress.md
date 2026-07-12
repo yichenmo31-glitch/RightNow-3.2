@@ -1,5 +1,17 @@
 # RightNow 开发进度
 
+## Intent V2：扩展确定性业务查询
+
+- 负责人：ROOT
+- 状态：completed
+- 开始/完成时间：2026-07-12
+- 修改文件：`intent-classifier.types.ts`、`intent-v2-rules.ts`、`today-plan-query.service.ts`、V2 测试及设计/架构文档。
+- 执行命令：`npm --workspace backend run test:intent`、Chat/Memory 回归、`git diff --check`。
+- 测试结果：新增 `today_diet/training_history/latest_weight/current_progress` 四类分类和 PostgreSQL 聚合模板测试；V1 224/224 及原四类只读路由继续通过。
+- 证据摘要：八类常用查询全部在远程模型前短路；按 userId 查询且不写业务表，不调用 OpenClaw、RAG 或 Memory。远程语义结果仍不参与同步执行。
+- 阻塞项：无。进展汇总目前是确定性任务/连续天数摘要，不声称提供模型分析或 RAG 建议。
+- 下一步：补充这些路由的真实数据库 Chat 冒烟；同步语义 Phase 3 继续受 P95 门禁限制。
+
 ## Intent V2：120 条分层 Shadow 黄金集
 
 - 负责人：ROOT
