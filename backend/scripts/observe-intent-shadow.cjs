@@ -7,8 +7,9 @@ const sampleDocument = JSON.parse(fs.readFileSync(
   path.resolve(__dirname, '../../docs/AGENT_INTENT_V2_SHADOW_SAMPLE.json'),
   'utf8',
 ));
+const perGroupLimit = positiveInteger(process.env.SHADOW_PER_GROUP_LIMIT, Number.MAX_SAFE_INTEGER);
 const samples = Array.isArray(sampleDocument) ? sampleDocument : sampleDocument.groups.flatMap((group) =>
-  group.messages.map((message, index) => ({
+  group.messages.slice(0, perGroupLimit).map((message, index) => ({
     caseId: `${group.id}-${String(index + 1).padStart(2, '0')}`,
     message, resource: group.resource, operation: group.operation, scope: group.scope,
   })),
@@ -21,7 +22,15 @@ async function main() {
   const fieldMatches = { resource: 0, operation: 0, scope: 0 };
   const groups = {};
   const durations = [];
-  for (const sample of samples) {
+  let nextIndex = 0;
+  const concurrency = Math.min(5, positiveInteger(process.env.SHADOW_CONCURRENCY, 1));
+  async function worker() {
+    while (nextIndex < samples.length) {
+      const sample = samples[nextIndex++];
+      await runSample(sample);
+    }
+  }
+  async function runSample(sample) {
     const groupId = sample.caseId.replace(/-\d+$/, '');
     groups[groupId] ||= { total: 0, completed: 0, exact: 0, errors: 0 };
     groups[groupId].total += 1;
@@ -55,16 +64,24 @@ async function main() {
       if (process.env.SHADOW_SUMMARY_ONLY !== 'true') console.log(JSON.stringify({ caseId: sample.caseId, errorType: classifyError(error) }));
     }
   }
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
   console.log(JSON.stringify({
     event: 'intent_v2_shadow_sample_summary', ...counts, fieldMatches,
-    groups,
+    groups, concurrency,
     exactRate: counts.completed ? Number((counts.exact / counts.completed).toFixed(4)) : 0,
     averageDurationMs: counts.total ? Math.round(counts.durationMs / counts.total) : 0,
     p95DurationMs: percentile(durations, 0.95),
   }));
   const responseRate = counts.completed / counts.total;
   const exactRate = counts.completed ? counts.exact / counts.completed : 0;
-  if (responseRate < 0.99 || exactRate < 0.93) process.exitCode = 1;
+  const p95DurationMs = percentile(durations, 0.95);
+  const maxP95DurationMs = positiveInteger(process.env.SHADOW_MAX_P95_MS, 5000);
+  if (responseRate < 0.99 || exactRate < 0.93 || p95DurationMs > maxP95DurationMs) process.exitCode = 1;
+}
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function percentile(values, ratio) {
