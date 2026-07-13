@@ -139,6 +139,8 @@ PostgreSQL 负责保存当前体重、饮食、训练、TODO、计划、已确�
 - `DELETE /users/me` 只从 JWT 获取 userId，要求当前密码和安全 `Idempotency-Key`，拒绝 body userId。冻结请求只返回 202/job 状态，不直接删除 User。后续 worker 必须依次完成 OpenClaw/upload quarantine、DB purge、审计匿名化和 finalization，阶段失败保持可重试。
 - 删除后的 AgentAudit 采用匿名最小保留：清空 `userId`、`channelUserId` 和 `argsDigest`，保留 tool、ok、errorCode、durationMs、createdAt。`WechatBindCode` 无 User FK，DB purge 必须显式删除；UploadAsset 行级联不能替代磁盘文件 quarantine。
 - 上传 quarantine 根目录由 `ACCOUNT_DELETION_UPLOAD_QUARANTINE_ROOT` 在服务端固定，必须位于 active uploads 目录之外。只允许当前用户 UploadAsset 映射到 uploads 根内的普通非符号链接文件；外部对象存储资产在对应 provider 删除适配器实现前安全失败。manifest 不包含文件正文，并以 `account-delete-<uuid>` operation ID 支持幂等隔离和恢复。
+- Account deletion Worker 默认关闭，只能通过 `ACCOUNT_DELETION_WORKER_ENABLED=true` 显式启用。单实例内使用 busy gate 串行 drain；Job claim 依赖状态与 `updatedAt` 比较，超过 5 分钟的 `EXTERNAL_CLEANUP` 可重领。外部步骤固定顺序为 Provisioner Agent/workspace/session quarantine，再执行 Upload quarantine；两者使用同一 `externalOperationId`。
+- 只有外部步骤都成功后才能进入 DB purge。审计匿名化、非 FK 绑定码删除、User 级联删除和 Job 进入 `FINALIZING` 位于同一 PostgreSQL 事务；随后单独标记 `COMPLETED`。失败统一进入 `FAILED_RETRYABLE`，错误只保存固定代码；已有 `externalCompletedAt` 或 `dbPurgedAt` 的重试跳过已完成阶段。
 
 ## Intent Classifier V2 Phase 1 契约
 

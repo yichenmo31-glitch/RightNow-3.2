@@ -40,7 +40,30 @@ async function main() {
   assert.equal(await service.ensureAgent('user-2'), 'rightnow-user-2');
   assert.deepEqual(requests.map(({ method }) => method), ['GET', 'POST', 'GET']);
 
-  console.log('OpenClaw provisioning status checks passed: 3 scenarios');
+  const deletionRequests = [];
+  const operationId = 'account-delete-00000000-0000-4000-8000-000000000001';
+  global.fetch = async (url, options = {}) => {
+    deletionRequests.push({ url: String(url), options });
+    return response(JSON.stringify({
+      agentId: 'rightnow-user-3',
+      operationId,
+      changed: true,
+      configured: false,
+      resourcesQuarantined: 2,
+      gatewayReady: true,
+    }));
+  };
+  assert.deepEqual(await service.deprovisionUserAgent('user-3', operationId), { agentId: 'rightnow-user-3', changed: true });
+  assert.equal(deletionRequests[0].url, 'http://127.0.0.1:8787/agents/rightnow-user-3');
+  assert.equal(deletionRequests[0].options.method, 'DELETE');
+  assert.equal(deletionRequests[0].options.headers.Authorization, 'Bearer test-token');
+  assert.deepEqual(JSON.parse(deletionRequests[0].options.body), { operationId, reason: 'account-deletion' });
+
+  global.fetch = async () => response(JSON.stringify({ configured: false }), 'application/json', 200);
+  await assert.rejects(() => service.deprovisionUserAgent('user-3', operationId), /INVALID_RESPONSE/);
+  await assert.rejects(() => service.deprovisionUserAgent('user-3', 'unsafe-operation'), /OPERATION_INVALID/);
+
+  console.log('OpenClaw provisioning checks passed: status, ensure and authenticated idempotent deprovision contracts.');
 }
 
 main().catch((error) => {

@@ -1090,3 +1090,15 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 新增 `test:upload-quarantine`，覆盖两文件隔离、重复调用、完整恢复、重复恢复、第二目标冲突后的第一文件回滚、非法 operation 和 manifest 正文隔离；`test:account-deletion` 冻结回归继续通过。
 - 环境模板新增 `ACCOUNT_DELETION_UPLOAD_QUARANTINE_ROOT`；生产建议 `/var/lib/rightnow/upload-quarantine`，且必须与 uploads 同盘以保证原子 rename。
 - 下一步：为 Backend `OpenClawProvisioningService` 增加认证反注册调用；实现单 worker claim/状态转换，将 Provisioner quarantine 与 Upload quarantine 串行完成后才进入 DB purge。任何外部阶段失败必须恢复 uploads 并保留 User 为 DELETION_PENDING。
+
+## Wave 4E 账户删除 Worker（2026-07-13）
+
+- 状态：completed_local；生产 Provisioner/真实 workspace/uploads E2E 与 purge 保留期策略仍为 pending。
+- `OpenClawProvisioningService.deprovisionUserAgent` 新增认证 DELETE：Agent ID 只能由 Backend userId 推导；operation 必须匹配 `account-delete-<uuid>`；固定发送 `{ operationId, reason: account-deletion }`；严格校验 JSON、agentId、operationId、configured=false 和 gatewayReady=true。
+- Worker 默认关闭；显式启用后单进程 busy gate 串行处理，每次通过状态与 `updatedAt` 原子 claim 一个 Job。崩溃超过 5 分钟的 `EXTERNAL_CLEANUP` 可重领。
+- 固定执行顺序：OpenClaw quarantine -> Upload quarantine -> 标记 `EXTERNAL_QUARANTINED` -> `DB_PURGE` -> 审计匿名化 -> 非 FK 绑定码删除 -> User 级联删除 -> `FINALIZING` -> `COMPLETED`。
+- Provisioner 和 Upload 使用同一 `externalOperationId`，重试保持幂等；`externalCompletedAt` 已存在时跳过两个外部步骤，`dbPurgedAt` 已存在时只完成 finalization。任一步失败进入 `FAILED_RETRYABLE`，仅保存固定错误码。
+- DB purge 事务同时完成 AgentAudit 的 `userId/channelUserId/argsDigest=null`、WechatBindCode 显式删除、User 级联删除和 Job `FINALIZING/dbPurgedAt`，避免 User 已消失而 Job 仍停在 purge 前。
+- 自动化：OpenClaw provisioning 测试覆盖 Bearer DELETE、固定 body、非法 operation 和错误响应；Worker 内存测试覆盖严格顺序、外部失败不触发 uploads/DB、DB 失败重试且外部步骤只执行一次；真实 PostgreSQL 测试覆盖 User/UploadAsset/ImageGenTask 级联、WechatBindCode 清理、审计匿名化和 Job 持久完成。
+- 环境模板新增 `ACCOUNT_DELETION_WORKER_ENABLED=false` 与 `ACCOUNT_DELETION_WORKER_INTERVAL_MS=5000`。生产发布必须先部署并验证 Provisioner DELETE，保持 Worker 关闭；完成隔离测试用户 E2E 后才允许启用。
+- 下一步：使用新建隔离用户在生产候选环境执行真实 Provisioner + Upload quarantine + DB purge 演练，核对 B 用户、Personal workspace 和非目标 uploads 不变；随后定义 quarantine 保留期与离线 purge 运维命令。

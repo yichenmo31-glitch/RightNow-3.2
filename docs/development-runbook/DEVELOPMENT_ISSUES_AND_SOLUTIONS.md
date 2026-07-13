@@ -285,7 +285,7 @@ Agent 配置、workspace、uploads 和 PostgreSQL 分属不同存储系统。账
 
 **当前状态**
 
-Provisioner 反注册原语和账户冻结/Job 已完成设计与部分实现；正式账户删除 Worker 仍是开放注册前门禁，不能标记为全部完成。
+Provisioner 反注册、账户冻结/Job、Upload quarantine 和单 Worker 已在本地实现并通过 mock 与 PostgreSQL 集成测试；生产真实 Agent/workspace/uploads 删除演练、quarantine 保留期和最终运维 purge 仍是开放注册前门禁，不能标记为生产完成。
 
 ## 17. 开发命令和实际仓库脚本不一致
 
@@ -462,7 +462,7 @@ Ark/Legacy 成功路径会保存实际成功层的 provider/model；全部失败
 
 - OpenClaw Memory provider 为 `none`，尚无向量记忆召回证明。
 - 飞书文本私聊、绑定码和 Event ID 幂等目前是架构设计，尚未完成产品实现。
-- 账户删除 Worker 尚未全部完成，是正式开放前门禁。
+- 账户删除 Worker 已本地完成，但生产真实隔离/恢复演练和 quarantine 最终 purge 尚未通过，仍是正式开放前门禁。
 - 本地 Web Demo 使用 direct model fallback，与生产 OpenClaw 完整链路不同。
 - 语义分类器在高并发下 P95 仍可能超过门禁，因此只开放受限只读能力，不开放语义写入。
 

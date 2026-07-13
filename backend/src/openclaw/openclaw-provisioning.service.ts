@@ -110,6 +110,32 @@ export class OpenClawProvisioningService {
     }
   }
 
+  async deprovisionUserAgent(userId: string, operationId: string): Promise<{ agentId: string; changed: boolean }> {
+    if (this.mode() !== 'admin-http') throw new Error('OPENCLAW_DEPROVISION_MODE_UNSUPPORTED');
+    if (!/^account-delete-[0-9a-f-]{36}$/.test(operationId)) throw new Error('OPENCLAW_DEPROVISION_OPERATION_INVALID');
+    const agentId = this.client.toAgentId(userId);
+    const base = (this.config.get<string>('OPENCLAW_ADMIN_URL') || '').trim().replace(/\/+$/, '');
+    const token = (this.config.get<string>('OPENCLAW_ADMIN_TOKEN') || '').trim();
+    if (!base || !token) throw new Error('OPENCLAW_DEPROVISION_NOT_CONFIGURED');
+    let response: Response;
+    try {
+      response = await fetch(`${base}/agents/${encodeURIComponent(agentId)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationId, reason: 'account-deletion' }),
+      });
+    } catch {
+      throw new Error('OPENCLAW_DEPROVISION_UNAVAILABLE');
+    }
+    const contentType = response.headers.get('content-type') || '';
+    const payload: any = contentType.includes('application/json') ? await response.json().catch(() => null) : null;
+    if (!response.ok || !payload || payload.agentId !== agentId || payload.operationId !== operationId || payload.configured !== false || payload.gatewayReady !== true) {
+      throw new Error('OPENCLAW_DEPROVISION_INVALID_RESPONSE');
+    }
+    this.known.delete(agentId);
+    return { agentId, changed: payload.changed === true };
+  }
+
   private async waitForAgent(agentId: string, tries = 20, delayMs = 500): Promise<void> {
     for (let i = 0; i < tries; i++) {
       if (await this.agentExists(agentId)) return;
