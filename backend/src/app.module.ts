@@ -23,6 +23,7 @@ import { EvolutionStageModule } from './evolution-stage/evolution-stage.module';
 import { WechatModule } from './wechat/wechat.module';
 import { PromptsModule } from './prompts/prompts.module';
 import { AgentMemoryModule } from './agent-memory/agent-memory.module';
+import { AccountDeletionModule } from './account-deletion/account-deletion.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AgentMemoryModule } from './agent-memory/agent-memory.module';
     }),
     PrismaModule,
     AgentMemoryModule,
+    AccountDeletionModule,
     AiCoachModule,
     AuthModule,
     UsersModule,

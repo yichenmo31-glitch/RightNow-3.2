@@ -138,6 +138,7 @@ PostgreSQL 负责保存当前体重、饮食、训练、TODO、计划、已确�
 - 账户删除采用持久状态机而不是跨 PostgreSQL/文件系统伪事务。User 先从 `ACTIVE` 转为 `DELETION_PENDING` 并递增 `authVersion`，JWT guard 立即拒绝 pending 或旧版本 Token；同一事务撤销 Agent/所有外部通道绑定入口并创建不依赖 User FK 的 `AccountDeletionJob`。
 - `DELETE /users/me` 只从 JWT 获取 userId，要求当前密码和安全 `Idempotency-Key`，拒绝 body userId。冻结请求只返回 202/job 状态，不直接删除 User。后续 worker 必须依次完成 OpenClaw/upload quarantine、DB purge、审计匿名化和 finalization，阶段失败保持可重试。
 - 删除后的 AgentAudit 采用匿名最小保留：清空 `userId`、`channelUserId` 和 `argsDigest`，保留 tool、ok、errorCode、durationMs、createdAt。`WechatBindCode` 无 User FK，DB purge 必须显式删除；UploadAsset 行级联不能替代磁盘文件 quarantine。
+- 上传 quarantine 根目录由 `ACCOUNT_DELETION_UPLOAD_QUARANTINE_ROOT` 在服务端固定，必须位于 active uploads 目录之外。只允许当前用户 UploadAsset 映射到 uploads 根内的普通非符号链接文件；外部对象存储资产在对应 provider 删除适配器实现前安全失败。manifest 不包含文件正文，并以 `account-delete-<uuid>` operation ID 支持幂等隔离和恢复。
 
 ## Intent Classifier V2 Phase 1 契约
 

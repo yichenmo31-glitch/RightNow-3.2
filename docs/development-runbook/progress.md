@@ -1080,3 +1080,13 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 隐私门禁：Git 跟踪文件 `sk-<20+>` 模式命中 0；错误日志/任务只使用固定错误码。恢复包和 uploads 位于 Git 忽略目录。
 - 工作区仍有 29 行未提交状态，包含 Wave 4D 源码、四份 additive migration、自动化和文档；尚未整理 Git commit。
 - 剩余发布工作：审查并拆分 Git commit；生产数据库/文件备份；生产 migration dry-run；发布 Backend/Frontend；迁移历史图片到生产对象存储或受控持久目录；验证 Nginx 静态路径、回滚和账户删除 Worker 对新增 UploadAsset/文件的处理。
+
+## Wave 4E Upload quarantine 原语（2026-07-13）
+
+- 状态：completed_local（仅文件隔离原语；账户删除 Worker、Provisioner 串联和 DB purge 尚未完成）。
+- 新增 `UploadQuarantineService`：operation ID 固定为 `account-delete-<uuid>`；quarantine root 仅由服务端环境变量决定且必须位于 active uploads 外部；资产路径只由当前用户 UploadAsset URL 解析。
+- 只接受 uploads 根内普通非符号链接文件；外部对象存储 URL、越界路径、非法 operation、目标冲突和恢复源冲突均安全失败。
+- manifest 先于移动写入并在每次 rename 后原子更新，不包含图片正文；中途失败按逆序恢复已移动文件。相同 operation 重复 quarantine/restore 均幂等。
+- 新增 `test:upload-quarantine`，覆盖两文件隔离、重复调用、完整恢复、重复恢复、第二目标冲突后的第一文件回滚、非法 operation 和 manifest 正文隔离；`test:account-deletion` 冻结回归继续通过。
+- 环境模板新增 `ACCOUNT_DELETION_UPLOAD_QUARANTINE_ROOT`；生产建议 `/var/lib/rightnow/upload-quarantine`，且必须与 uploads 同盘以保证原子 rename。
+- 下一步：为 Backend `OpenClawProvisioningService` 增加认证反注册调用；实现单 worker claim/状态转换，将 Provisioner quarantine 与 Upload quarantine 串行完成后才进入 DB purge。任何外部阶段失败必须恢复 uploads 并保留 User 为 DELETION_PENDING。
