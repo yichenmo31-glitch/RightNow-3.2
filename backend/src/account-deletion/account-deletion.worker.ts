@@ -6,6 +6,8 @@ import { UploadQuarantineService } from './upload-quarantine.service';
 
 @Injectable()
 export class AccountDeletionWorker implements OnModuleInit, OnModuleDestroy {
+  private static readonly CLAIM_STALE_MS = 5 * 60 * 1000;
+  private static readonly CLAIM_HEARTBEAT_MS = 30 * 1000;
   private readonly logger = new Logger(AccountDeletionWorker.name);
   private timer?: NodeJS.Timeout;
   private busy = false;
@@ -30,12 +32,12 @@ export class AccountDeletionWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async processNext(): Promise<boolean> {
-    const staleBefore = new Date(Date.now() - 5 * 60 * 1000);
+    const staleBefore = new Date(Date.now() - AccountDeletionWorker.CLAIM_STALE_MS);
     const candidate = await this.prisma.accountDeletionJob.findFirst({
       where: {
         OR: [
-          { status: { in: ['REQUESTED', 'FAILED_RETRYABLE', 'EXTERNAL_QUARANTINED', 'DB_PURGE', 'FINALIZING'] } },
-          { status: 'EXTERNAL_CLEANUP', updatedAt: { lt: staleBefore } },
+          { status: { in: ['REQUESTED', 'FAILED_RETRYABLE'] } },
+          { status: { in: ['EXTERNAL_CLEANUP', 'EXTERNAL_QUARANTINED', 'DB_PURGE', 'FINALIZING'] }, updatedAt: { lt: staleBefore } },
         ],
       },
       orderBy: { requestedAt: 'asc' },
@@ -46,7 +48,21 @@ export class AccountDeletionWorker implements OnModuleInit, OnModuleDestroy {
       data: { status: 'EXTERNAL_CLEANUP', attempts: { increment: 1 }, lastErrorCode: null },
     });
     if (claimed.count !== 1) return false;
-    await this.processJob(candidate.id);
+    const heartbeat = setInterval(() => {
+      void this.prisma.accountDeletionJob.updateMany({
+        where: {
+          id: candidate.id,
+          status: { in: ['EXTERNAL_CLEANUP', 'EXTERNAL_QUARANTINED', 'DB_PURGE', 'FINALIZING'] },
+        },
+        data: { updatedAt: new Date() },
+      }).catch(() => {});
+    }, AccountDeletionWorker.CLAIM_HEARTBEAT_MS);
+    heartbeat.unref?.();
+    try {
+      await this.processJob(candidate.id);
+    } finally {
+      clearInterval(heartbeat);
+    }
     return true;
   }
 

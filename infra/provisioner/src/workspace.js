@@ -66,30 +66,84 @@ export async function quarantineAgentResources({
   const existingManifest = await readFile(manifestPath, "utf8").catch((error) => error.code === "ENOENT" ? null : Promise.reject(error));
   if (existingManifest) {
     const manifest = JSON.parse(existingManifest);
-    if (manifest.agentId !== agentId) throw new TypeError("operationId belongs to another agent");
-    return { operationId, moved: manifest.resources.length, alreadyQuarantined: true, manifest, manifestPath, operationDir };
+    if (manifest.version !== 1 || manifest.operationId !== operationId || manifest.agentId !== agentId || !Array.isArray(manifest.resources)) {
+      throw new TypeError("operationId belongs to another agent or is invalid");
+    }
+    validateMoveManifest(manifest, { workspaceRoot, agentStateRoot, operationDir, agentId });
+    if (manifest.status === "quarantined") {
+      return { operationId, moved: manifest.resources.length, alreadyQuarantined: true, manifest, manifestPath, operationDir };
+    }
+    if (manifest.status !== "moving") throw new TypeError("quarantine manifest status is invalid");
+    return resumeQuarantineMove({ operationId, manifest, manifestPath, operationDir });
   }
 
-  await mkdir(operationDir, { recursive: false, mode: 0o700 });
-  const resources = [];
+  const orphanStat = await lstat(operationDir).catch((error) => error.code === "ENOENT" ? null : Promise.reject(error));
+  if (orphanStat && (!orphanStat.isDirectory() || orphanStat.isSymbolicLink())) throw new TypeError("quarantine operation must be a regular directory");
+  if (orphanStat) {
+    const entries = await readdir(operationDir, { withFileTypes: true });
+    if (entries.some((entry) => !["workspace", "agent-state"].includes(entry.name) || !entry.isDirectory() || entry.isSymbolicLink())) {
+      throw new TypeError("orphan quarantine operation is invalid");
+    }
+  }
   const candidates = [
     { kind: "workspace", root: workspaceRoot, source: workspacePath(workspaceRoot, agentId) },
     { kind: "agent-state", root: agentStateRoot, source: agentStatePath(agentStateRoot, agentId) },
   ];
-  try {
-    for (const candidate of candidates) {
-      const canonicalSource = await existingManagedDirectory(candidate.root, candidate.source, candidate.kind);
-      if (!canonicalSource) continue;
-      const destination = join(operationDir, candidate.kind);
-      await rename(canonicalSource, destination);
-      resources.push({ kind: candidate.kind, source: candidate.source, destination });
+  const resources = [];
+  for (const candidate of candidates) {
+    const canonicalSource = await existingManagedDirectory(candidate.root, candidate.source, candidate.kind);
+    const destination = join(operationDir, candidate.kind);
+    const destinationStat = await lstat(destination).catch((error) => error.code === "ENOENT" ? null : Promise.reject(error));
+    if (canonicalSource && destinationStat) throw new Error("quarantine source and destination both exist");
+    if (destinationStat && (!destinationStat.isDirectory() || destinationStat.isSymbolicLink())) throw new TypeError("quarantine destination must be a regular directory");
+    if (canonicalSource || destinationStat) resources.push({ kind: candidate.kind, source: candidate.source, destination });
+  }
+  if (!orphanStat) await mkdir(operationDir, { recursive: false, mode: 0o700 });
+  const manifest = { version: 1, operationId, agentId, status: "moving", resources };
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx", mode: 0o600 });
+  return resumeQuarantineMove({ operationId, manifest, manifestPath, operationDir });
+}
+
+function validateMoveManifest(manifest, { workspaceRoot, agentStateRoot, operationDir, agentId }) {
+  const expected = new Map([
+    ["workspace", { source: workspacePath(workspaceRoot, agentId), destination: join(operationDir, "workspace") }],
+    ["agent-state", { source: agentStatePath(agentStateRoot, agentId), destination: join(operationDir, "agent-state") }],
+  ]);
+  const seen = new Set();
+  for (const resource of manifest.resources) {
+    const contract = expected.get(resource?.kind);
+    if (!contract || seen.has(resource.kind) || resource.source !== contract.source || resource.destination !== contract.destination) {
+      throw new TypeError("quarantine manifest resource is invalid");
     }
-    const manifest = { version: 1, operationId, agentId, status: "quarantined", quarantinedAt: new Date().toISOString(), resources };
-    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx", mode: 0o600 });
-    return { operationId, moved: resources.length, alreadyQuarantined: false, manifest, manifestPath, operationDir };
+    seen.add(resource.kind);
+  }
+}
+
+async function resumeQuarantineMove({ operationId, manifest, manifestPath, operationDir }) {
+  try {
+    for (const resource of manifest.resources) {
+      const sourceStat = await lstat(resource.source).catch((error) => error.code === "ENOENT" ? null : Promise.reject(error));
+      const destinationStat = await lstat(resource.destination).catch((error) => error.code === "ENOENT" ? null : Promise.reject(error));
+      if (sourceStat && destinationStat) throw new Error("quarantine source and destination both exist");
+      if (!sourceStat && !destinationStat) throw new Error("quarantine source and destination are both missing");
+      if (sourceStat) {
+        if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) throw new TypeError("quarantine source must be a regular directory");
+        await rename(resource.source, resource.destination);
+      } else if (!destinationStat.isDirectory() || destinationStat.isSymbolicLink()) {
+        throw new TypeError("quarantine destination must be a regular directory");
+      }
+    }
+    manifest.status = "quarantined";
+    manifest.quarantinedAt = manifest.quarantinedAt || new Date().toISOString();
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { mode: 0o600 });
+    return { operationId, moved: manifest.resources.length, alreadyQuarantined: false, manifest, manifestPath, operationDir };
   } catch (error) {
-    for (const resource of [...resources].reverse()) {
-      await rename(resource.destination, resource.source).catch(() => {});
+    for (const resource of [...manifest.resources].reverse()) {
+      const sourceStat = await lstat(resource.source).catch(() => null);
+      const destinationStat = await lstat(resource.destination).catch(() => null);
+      if (!sourceStat && destinationStat?.isDirectory() && !destinationStat.isSymbolicLink()) {
+        await rename(resource.destination, resource.source).catch(() => {});
+      }
     }
     await rm(operationDir, { recursive: true, force: true });
     throw error;
@@ -107,10 +161,10 @@ function validateRetentionDays(value) {
   return days;
 }
 
-async function readQuarantineManifest(quarantineRoot, operationId) {
+async function readQuarantineManifest(quarantineRoot, operationId, directoryName = operationId) {
   validateQuarantineOperationId(operationId);
   const root = await realpath(resolve(quarantineRoot));
-  const operationDir = resolve(root, operationId);
+  const operationDir = resolve(root, directoryName);
   if (!operationDir.startsWith(root + sep)) throw new TypeError("quarantine operation escapes root");
   const directoryStat = await lstat(operationDir);
   if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) throw new TypeError("quarantine operation must be a regular directory");
@@ -119,9 +173,12 @@ async function readQuarantineManifest(quarantineRoot, operationId) {
   if (manifest.version !== 1 || manifest.operationId !== operationId || manifest.status !== "quarantined") throw new TypeError("quarantine manifest is invalid");
   validateAgentIdForManifest(manifest.agentId);
   if (!Array.isArray(manifest.resources)) throw new TypeError("quarantine resources are invalid");
+  const manifestOperationDir = resolve(root, operationId);
   for (const resource of manifest.resources) {
     const destination = resolve(String(resource.destination || ""));
-    if (!destination.startsWith(operationDir + sep)) throw new TypeError("quarantine resource escapes operation root");
+    if (!destination.startsWith(manifestOperationDir + sep)) throw new TypeError("quarantine resource escapes operation root");
+    const actualDestination = resolve(operationDir, destination.slice(manifestOperationDir.length + 1));
+    if (!actualDestination.startsWith(operationDir + sep)) throw new TypeError("quarantine resource escapes current operation root");
   }
   const manifestStat = await stat(manifestPath);
   const quarantinedAt = Date.parse(manifest.quarantinedAt || manifestStat.mtime.toISOString());
@@ -161,16 +218,33 @@ export async function purgeQuarantine({ quarantineRoot, operationId, retentionDa
   const tombstonePath = join(tombstoneDir, `${operationId}.json`);
   const operationDir = join(root, operationId);
   const purgingDir = join(root, `${operationId}.purging`);
+  const operationStat = await lstat(operationDir).catch((error) => error.code === "ENOENT" ? null : Promise.reject(error));
+  const purgingStat = await lstat(purgingDir).catch((error) => error.code === "ENOENT" ? null : Promise.reject(error));
+  if (operationStat && purgingStat) throw new TypeError("quarantine purge state is ambiguous");
+  if (operationStat && (!operationStat.isDirectory() || operationStat.isSymbolicLink())) throw new TypeError("quarantine operation must be a regular directory");
+  if (purgingStat && (!purgingStat.isDirectory() || purgingStat.isSymbolicLink())) throw new TypeError("quarantine purging target must be a regular directory");
   const existingTombstone = await readFile(tombstonePath, "utf8").catch((error) => error.code === "ENOENT" ? null : Promise.reject(error));
   if (existingTombstone) {
     const tombstone = JSON.parse(existingTombstone);
-    if (tombstone.operationId !== operationId) throw new TypeError("purge tombstone is invalid");
+    if (tombstone.version !== 1 || tombstone.operationId !== operationId) throw new TypeError("purge tombstone is invalid");
+    validateAgentIdForManifest(tombstone.agentId);
+    if (operationStat) throw new TypeError("purge tombstone conflicts with active quarantine");
+    if (purgingStat) {
+      const item = await readQuarantineManifest(root, operationId, `${operationId}.purging`);
+      if (item.manifest.agentId !== tombstone.agentId) throw new TypeError("purge tombstone agent is invalid");
+      if (dryRun) return { operationId, dryRun, eligible: true, purged: false, alreadyPurged: false };
+      await rm(purgingDir, { recursive: true, force: false });
+      return { operationId, dryRun, eligible: true, purged: true, alreadyPurged: false };
+    }
     return { operationId, dryRun, eligible: true, purged: false, alreadyPurged: true };
   }
-  const item = await readQuarantineManifest(root, operationId);
+  if (!operationStat && !purgingStat) throw new TypeError("quarantine purge state is missing");
+  const item = purgingStat
+    ? await readQuarantineManifest(root, operationId, `${operationId}.purging`)
+    : await readQuarantineManifest(root, operationId);
   const eligible = now - item.quarantinedAt >= days * 86_400_000;
   if (dryRun || !eligible) return { operationId, dryRun, eligible, purged: false, alreadyPurged: false };
-  await rename(operationDir, purgingDir);
+  if (operationStat) await rename(operationDir, purgingDir);
   await mkdir(tombstoneDir, { recursive: true, mode: 0o700 });
   await writeFile(tombstonePath, JSON.stringify({ version: 1, operationId, agentId: item.manifest.agentId, purgedAt: new Date(now).toISOString() }) + "\n", { flag: "wx", mode: 0o600 });
   await rm(purgingDir, { recursive: true, force: false });

@@ -20,9 +20,10 @@ async function main() {
     const quarantined = await service.quarantineUserUploads('user-a', operationId);
     assert.deepEqual(quarantined, { changed: true, fileCount: 2 });
     assert.ok(files.every((filename) => !existsSync(join(uploads, filename))));
-    assert.ok(files.every((filename) => existsSync(join(root, operationId, filename))));
     const manifestText = readFileSync(join(root, operationId, 'manifest.json'), 'utf8');
     assert.ok(!manifestText.includes('private-content'));
+    const manifest = JSON.parse(manifestText);
+    assert.ok(manifest.entries.every((entry) => existsSync(entry.destination)));
     const repeated = await service.quarantineUserUploads('user-a', operationId);
     assert.deepEqual(repeated, { changed: false, fileCount: 2 });
     const restored = service.restoreQuarantine('user-a', operationId);
@@ -36,7 +37,7 @@ async function main() {
     writeFileSync(join(uploads, files[0]), 'rollback-first');
     writeFileSync(join(uploads, files[1]), 'rollback-second');
     mkdirSync(join(root, conflictOperation), { recursive: true });
-    writeFileSync(join(root, conflictOperation, files[1]), 'conflict');
+    writeFileSync(service.destinationPath(join(root, conflictOperation), join(uploads, files[1])), 'conflict');
     await assert.rejects(
       () => service.quarantineUserUploads('user-a', conflictOperation),
       /DESTINATION_CONFLICT/,
@@ -47,7 +48,19 @@ async function main() {
       () => service.quarantineUserUploads('user-a', 'unsafe-operation'),
       /OPERATION_INVALID/,
     );
-    console.log('Upload quarantine tests passed: safe paths, idempotency, restore, content-free manifest and rollback.');
+
+    const tamperedOperation = `account-delete-${randomUUID()}`;
+    const tamperedDir = join(root, tamperedOperation);
+    mkdirSync(tamperedDir, { recursive: true });
+    writeFileSync(join(tamperedDir, 'manifest.json'), JSON.stringify({
+      version: 1,
+      operationId: tamperedOperation,
+      userId: 'user-a',
+      status: 'quarantined',
+      entries: [{ assetId: 'asset-outside', source: join(root, 'outside.png'), destination: join(tamperedDir, 'outside.png'), moved: true }],
+    }));
+    assert.throws(() => service.restoreQuarantine('user-a', tamperedOperation), /MANIFEST_INVALID|PATH_OUTSIDE_ROOT/);
+    console.log('Upload quarantine tests passed: safe paths, idempotency, manifest validation, restore, content-free manifest and rollback.');
   } finally {
     for (const filename of files) rmSync(join(uploads, filename), { force: true });
     rmSync(root, { recursive: true, force: true });

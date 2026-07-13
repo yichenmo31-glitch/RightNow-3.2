@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -7,7 +7,7 @@ import { loadConfig } from "../src/config.js";
 import { provisionAgentConfig } from "../src/config-store.js";
 import { validateAgentId } from "../src/agent-id.js";
 import { createProvisionerServer } from "../src/server.js";
-import { bootstrapWorkspace, workspacePath } from "../src/workspace.js";
+import { bootstrapWorkspace, purgeQuarantine, quarantineAgentResources, workspacePath } from "../src/workspace.js";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "rightnow-provisioner-"));
@@ -315,6 +315,103 @@ test("deprovision quarantines only the target and is idempotent", async () => {
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("quarantine purge resumes both crash windows", async () => {
+  const config = await fixture();
+  await mkdir(config.quarantineRoot, { recursive: true });
+  const now = Date.now();
+  const operations = [
+    "account-delete-00000000-0000-4000-8000-000000000011",
+    "account-delete-00000000-0000-4000-8000-000000000012",
+  ];
+  const canonicalQuarantineRoot = await realpath(config.quarantineRoot);
+  for (const operationId of operations) {
+    const operationDir = join(canonicalQuarantineRoot, operationId);
+    await mkdir(join(operationDir, "workspace"), { recursive: true });
+    await writeFile(join(operationDir, "workspace", "sentinel"), "private");
+    await writeFile(join(operationDir, "manifest.json"), JSON.stringify({
+      version: 1,
+      operationId,
+      agentId: "rightnow-crash-recovery",
+      status: "quarantined",
+      quarantinedAt: new Date(now - 31 * 86_400_000).toISOString(),
+      resources: [{ kind: "workspace", source: join(config.workspaceRoot, "workspace-rightnow-crash-recovery"), destination: join(operationDir, "workspace") }],
+    }));
+    await rename(operationDir, `${operationDir}.purging`);
+  }
+
+  const first = await purgeQuarantine({ quarantineRoot: config.quarantineRoot, operationId: operations[0], retentionDays: 30, dryRun: false, now });
+  assert.deepEqual(first, { operationId: operations[0], dryRun: false, eligible: true, purged: true, alreadyPurged: false });
+  await assert.rejects(stat(join(config.quarantineRoot, `${operations[0]}.purging`)), /ENOENT/);
+
+  const tombstoneDir = join(config.quarantineRoot, "_purged");
+  await mkdir(tombstoneDir, { recursive: true });
+  await writeFile(join(tombstoneDir, `${operations[1]}.json`), JSON.stringify({
+    version: 1,
+    operationId: operations[1],
+    agentId: "rightnow-crash-recovery",
+    purgedAt: new Date(now).toISOString(),
+  }));
+  const second = await purgeQuarantine({ quarantineRoot: config.quarantineRoot, operationId: operations[1], retentionDays: 30, dryRun: false, now });
+  assert.deepEqual(second, { operationId: operations[1], dryRun: false, eligible: true, purged: true, alreadyPurged: false });
+  await assert.rejects(stat(join(config.quarantineRoot, `${operations[1]}.purging`)), /ENOENT/);
+  const repeated = await purgeQuarantine({ quarantineRoot: config.quarantineRoot, operationId: operations[1], retentionDays: 30, dryRun: false, now });
+  assert.equal(repeated.alreadyPurged, true);
+});
+
+test("agent quarantine resumes a partially moved operation", async () => {
+  const config = await fixture();
+  const agentId = "rightnow-partial-move";
+  const operationId = "account-delete-00000000-0000-4000-8000-000000000013";
+  const workspace = (await bootstrapWorkspace({ ...config, agentId })).workspace;
+  const state = join(config.agentStateRoot, agentId);
+  await mkdir(join(state, "sessions"), { recursive: true });
+  await writeFile(join(state, "sessions", "sentinel"), "session");
+  await mkdir(config.quarantineRoot, { recursive: true });
+  const canonicalRoot = await realpath(config.quarantineRoot);
+  const operationDir = join(canonicalRoot, operationId);
+  await mkdir(operationDir, { recursive: true });
+  const workspaceDestination = join(operationDir, "workspace");
+  const stateDestination = join(operationDir, "agent-state");
+  await rename(workspace, workspaceDestination);
+  await writeFile(join(operationDir, "manifest.json"), JSON.stringify({
+    version: 1,
+    operationId,
+    agentId,
+    status: "moving",
+    resources: [
+      { kind: "workspace", source: workspace, destination: workspaceDestination },
+      { kind: "agent-state", source: state, destination: stateDestination },
+    ],
+  }));
+
+  const resumed = await quarantineAgentResources({ ...config, agentId, operationId });
+  assert.equal(resumed.alreadyQuarantined, false);
+  assert.equal(resumed.moved, 2);
+  assert.equal(JSON.parse(await readFile(join(operationDir, "manifest.json"), "utf8")).status, "quarantined");
+  assert.equal((await stat(workspaceDestination)).isDirectory(), true);
+  assert.equal((await stat(stateDestination)).isDirectory(), true);
+});
+
+test("agent quarantine reconstructs an orphan operation without a manifest", async () => {
+  const config = await fixture();
+  const agentId = "rightnow-orphan-move";
+  const operationId = "account-delete-00000000-0000-4000-8000-000000000014";
+  const workspace = (await bootstrapWorkspace({ ...config, agentId })).workspace;
+  const state = join(config.agentStateRoot, agentId);
+  await mkdir(join(state, "sessions"), { recursive: true });
+  await mkdir(config.quarantineRoot, { recursive: true });
+  const operationDir = join(await realpath(config.quarantineRoot), operationId);
+  await mkdir(operationDir, { recursive: true });
+  await rename(workspace, join(operationDir, "workspace"));
+
+  const resumed = await quarantineAgentResources({ ...config, agentId, operationId });
+  assert.equal(resumed.alreadyQuarantined, false);
+  assert.equal(resumed.moved, 2);
+  assert.equal(JSON.parse(await readFile(join(operationDir, "manifest.json"), "utf8")).status, "quarantined");
+  assert.equal((await stat(join(operationDir, "workspace"))).isDirectory(), true);
+  assert.equal((await stat(join(operationDir, "agent-state"))).isDirectory(), true);
 });
 
 test("deprovision restores config and resources when Gateway restart fails", async () => {

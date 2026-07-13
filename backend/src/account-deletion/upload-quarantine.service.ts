@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   lstatSync,
@@ -89,7 +90,7 @@ export class UploadQuarantineService {
       status: 'moving',
       entries: [...unique.values()].map((entry) => ({
         ...entry,
-        destination: join(operationDir, basename(entry.source)),
+        destination: this.destinationPath(operationDir, entry.source),
         moved: false,
       })),
     };
@@ -159,7 +160,27 @@ export class UploadQuarantineService {
     if (parsed.version !== 1 || parsed.userId !== userId || parsed.operationId !== operationId || !Array.isArray(parsed.entries)) {
       throw new Error('UPLOAD_QUARANTINE_MANIFEST_INVALID');
     }
+    const operationDir = dirname(path);
+    for (const entry of parsed.entries) {
+      if (!entry || typeof entry.assetId !== 'string' || typeof entry.source !== 'string' || typeof entry.destination !== 'string' || typeof entry.moved !== 'boolean') {
+        throw new Error('UPLOAD_QUARANTINE_MANIFEST_INVALID');
+      }
+      this.assertSafeSource(entry.source);
+      const canonicalDestination = resolve(entry.destination);
+      const expected = this.destinationPath(operationDir, entry.source);
+      const legacy = join(operationDir, basename(entry.source));
+      if (canonicalDestination !== expected && canonicalDestination !== legacy) throw new Error('UPLOAD_QUARANTINE_MANIFEST_INVALID');
+      if (existsSync(canonicalDestination)) {
+        const stat = lstatSync(canonicalDestination);
+        if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('UPLOAD_QUARANTINE_MANIFEST_INVALID');
+      }
+    }
     return parsed;
+  }
+
+  private destinationPath(operationDir: string, source: string) {
+    const digest = createHash('sha256').update(resolve(source)).digest('hex').slice(0, 16);
+    return join(operationDir, `${digest}-${basename(source)}`);
   }
 
   private writeManifest(path: string, manifest: QuarantineManifest) {

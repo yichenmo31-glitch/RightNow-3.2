@@ -1128,3 +1128,14 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - Backend `OpenClawProvisioningService` 增加 `listQuarantines()` 和 `purgeQuarantine()`，使用现有 admin URL/token，严格校验响应；不暴露浏览器 Controller。
 - Provisioner 测试覆盖未认证 401、安全列表无路径、近期 apply 不删除、31 天 dry-run、31 天 apply、tombstone、重复 purge，并继续验证 B Agent 与 Personal workspace 哨兵不变。全套结果 9 pass、0 fail、1 Windows symlink 权限 skip。
 - 下一步：增加 Backend 离线协调命令，只从已完成且超过保留期的 AccountDeletionJob 生成 OpenClaw dry-run/apply 请求，并持久记录 `openClawQuarantinePurgedAt`；生产首次 apply 必须人工核对 operation/agent 映射。
+
+## Wave 4E 账户删除链路检修（2026-07-13）
+
+- 状态：completed_local；本轮只使用本地 PostgreSQL、loopback fake Provisioner 和临时文件，没有连接生产 OpenClaw，也没有处理真实用户。
+- 修复多 Backend 实例 claim 竞态：处理中状态不再被其他实例立即领取，只能在 5 分钟租约过期后接管；持有 Worker 每 30 秒刷新 `updatedAt`。`REQUESTED/FAILED_RETRYABLE` 仍可立即领取，单实例 busy gate 继续串行执行。
+- 修复 OpenClaw 反注册崩溃窗口：Provisioner 先写 `moving` manifest，再移动 workspace/state，最后标记 `quarantined`；重试可继续部分移动状态，也可重建旧实现留下的“目录已创建或资源已移动但 manifest 尚未写入” orphan operation。
+- 修复 OpenClaw purge 崩溃窗口：仅有 `<operation>.purging` 时可继续写 tombstone 并删除；已有 tombstone 但 `.purging` 数据仍存在时继续删除，不能误报 alreadyPurged；active、purging、tombstone 冲突状态安全失败。
+- 加强 Upload quarantine：目标文件名加入源路径摘要；manifest 恢复/续跑前重新校验 source、destination、普通文件与非 symlink 边界，兼容旧版 basename manifest。E2E 改为依据 manifest 验证服务端目标路径，不依赖文件名实现细节。
+- 新增 Provisioner 回归：部分资源已移动、旧 orphan operation、rename 后未写 tombstone、tombstone 后未删除目录。Provisioner 结果为 12 pass、0 fail、1 Windows symlink 权限 skip。
+- 通过：`test:account-deletion`、`test:account-deletion-worker`、`test:account-deletion-worker-db`、`test:account-deletion-e2e`、`test:upload-quarantine`、`test:account-deletion-quarantine-purge`、`test:openclaw-provisioning`、Backend build、Prisma validate 和 `git diff --check`。
+- 仍未开放生产 Worker。下一步保持不变：增加 Backend OpenClaw quarantine 离线协调命令及 `openClawQuarantinePurgedAt`，先 dry-run 并人工核对 operation/agent 映射；生产 apply 仍需新建隔离用户和独立审批。

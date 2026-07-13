@@ -89,7 +89,18 @@ async function main() {
   assert.ok(!externalFailure.calls.includes('uploads:quarantine'));
   assert.equal(externalFailure.userDeleted, false);
 
-  console.log('Account deletion worker tests passed: strict ordering, retry, external idempotency, audit anonymization and completion.');
+  let claimWhere;
+  const claimWorker = new AccountDeletionWorker({
+    accountDeletionJob: {
+      async findFirst({ where }) { claimWhere = where; return null; },
+    },
+  }, { get() { return 'false'; } }, {}, {});
+  assert.equal(await claimWorker.processNext(), false);
+  assert.deepEqual(claimWhere.OR[0].status.in, ['REQUESTED', 'FAILED_RETRYABLE']);
+  assert.deepEqual(claimWhere.OR[1].status.in, ['EXTERNAL_CLEANUP', 'EXTERNAL_QUARANTINED', 'DB_PURGE', 'FINALIZING']);
+  assert.ok(claimWhere.OR[1].updatedAt.lt instanceof Date);
+
+  console.log('Account deletion worker tests passed: strict ordering, retry, external idempotency, lease-safe claims, audit anonymization and completion.');
 }
 
 main().catch((error) => {
