@@ -287,6 +287,8 @@ Agent 配置、workspace、uploads 和 PostgreSQL 分属不同存储系统。账
 
 Provisioner 反注册、账户冻结/Job、Upload quarantine 和单 Worker 已在本地实现并通过 mock 与 PostgreSQL 集成测试；生产真实 Agent/workspace/uploads 删除演练、quarantine 保留期和最终运维 purge 仍是开放注册前门禁，不能标记为生产完成。
 
+Backend Upload quarantine 已增加默认 dry-run、按完成时间和保留期筛选的离线 purge，以及可恢复崩溃窗口的 tombstone。OpenClaw Agent/workspace/session quarantine 的最终 purge 仍需 Provisioner 独立认证接口，Backend 不得直接访问或递归删除 OpenClaw 状态目录。
+
 ## 17. 开发命令和实际仓库脚本不一致
 
 **遇到的问题**

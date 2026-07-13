@@ -141,6 +141,7 @@ PostgreSQL 负责保存当前体重、饮食、训练、TODO、计划、已确�
 - 上传 quarantine 根目录由 `ACCOUNT_DELETION_UPLOAD_QUARANTINE_ROOT` 在服务端固定，必须位于 active uploads 目录之外。只允许当前用户 UploadAsset 映射到 uploads 根内的普通非符号链接文件；外部对象存储资产在对应 provider 删除适配器实现前安全失败。manifest 不包含文件正文，并以 `account-delete-<uuid>` operation ID 支持幂等隔离和恢复。
 - Account deletion Worker 默认关闭，只能通过 `ACCOUNT_DELETION_WORKER_ENABLED=true` 显式启用。单实例内使用 busy gate 串行 drain；Job claim 依赖状态与 `updatedAt` 比较，超过 5 分钟的 `EXTERNAL_CLEANUP` 可重领。外部步骤固定顺序为 Provisioner Agent/workspace/session quarantine，再执行 Upload quarantine；两者使用同一 `externalOperationId`。
 - 只有外部步骤都成功后才能进入 DB purge。审计匿名化、非 FK 绑定码删除、User 级联删除和 Job 进入 `FINALIZING` 位于同一 PostgreSQL 事务；随后单独标记 `COMPLETED`。失败统一进入 `FAILED_RETRYABLE`，错误只保存固定代码；已有 `externalCompletedAt` 或 `dbPurgedAt` 的重试跳过已完成阶段。
+- Upload quarantine 最终清理只能由离线命令执行，默认 dry-run，保留期必须为 1-3650 天且只选择 `COMPLETED + completedAt<=cutoff + quarantinePurgedAt=null`。清理前校验 operation ID、普通非 symlink 目录及 manifest 的 userId/operation/status；先原子改名为 `.purging`，写入不含正文的 tombstone，再递归删除并记录 `quarantinePurgedAt`。该命令无权清理 OpenClaw quarantine；Agent/workspace/session 的最终 purge 必须由 Provisioner 独立实现。
 
 ## Intent Classifier V2 Phase 1 契约
 

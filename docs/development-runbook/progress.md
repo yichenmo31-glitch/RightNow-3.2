@@ -1109,3 +1109,13 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 测试创建 A/B 两名随机 `.invalid` 用户、A/B 独立文件和一个不属于任何 UploadAsset 的非目标哨兵。Worker 完成后 A User/Asset 消失且 A 文件进入 operation quarantine，Job 为 COMPLETED，A 审计匿名化。
 - B User、B UploadAsset、B 文件及非目标哨兵内容全部保持不变；Provisioner 只收到一次目标 A Agent DELETE。测试结束清理 A/B、Job、匿名审计、文件和 quarantine 目录。
 - 结果：本地端到端顺序 `OpenClaw HTTP quarantine -> Upload rename quarantine -> DB purge -> audit anonymization -> COMPLETED` 通过。
+
+## Wave 4E Upload quarantine 离线 purge（2026-07-13）
+
+- 新增 nullable `AccountDeletionJob.quarantinePurgedAt` 和 additive migration `20260713123000_add_deletion_quarantine_purge_time`，本地已应用并通过 Prisma validate。
+- 新增 `purge:account-deletion-quarantine`，默认 dry-run；`--apply --retention-days <1-3650>` 才执行。仅处理已 COMPLETED、超过保留期且尚未记录 purge 的 Job。
+- 每个候选必须通过 operation ID、根目录边界、普通非 symlink 目录和 manifest 身份/状态校验。目录先原子改名为 `<operation>.purging`，随后写入 `_purged/<operation>.json` tombstone，再删除目录并更新 `quarantinePurgedAt`。
+- tombstone 解决“目录已删除但数据库时间戳尚未写回”的崩溃窗口；重试可根据 tombstone 完成数据库标记。目录和 tombstone 同时缺失时安全失败，不能误报已清理。
+- 新增 `test:account-deletion-quarantine-purge`：45 天 Job 可被 dry-run 发现并 apply；5 天 Job 保持不变；旧 Job 目录删除、tombstone 和时间戳存在；重复 apply 为 0。测试使用 `.work` 临时目录并清理 Job/文件。
+- 本命令只清理 Backend upload quarantine。OpenClaw Agent/workspace/session quarantine 的最终 purge 尚无 Backend 权限，必须由 Provisioner 增加独立认证运维接口并设置单独保留期。
+- 下一步：实现 Provisioner quarantine list/purge 的只读 dry-run 与认证 apply 契约；在生产候选环境先对全新隔离用户执行完整删除与恢复期观察，再批准不可逆 purge。

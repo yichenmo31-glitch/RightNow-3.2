@@ -90,6 +90,7 @@ model AccountDeletionJob {
   requestedAt         DateTime              @default(now())
   externalCompletedAt DateTime?
   dbPurgedAt          DateTime?
+  quarantinePurgedAt  DateTime?
   completedAt         DateTime?
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
