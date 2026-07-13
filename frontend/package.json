@@ -15,7 +15,8 @@
     "db:init": "npm --prefix .. run db:init",
     "build": "vite build",
     "build:api": "npm --prefix .. run build:backend",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:ideal-body-results": "node scripts/test-ideal-body-results.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

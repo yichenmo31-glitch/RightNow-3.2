@@ -66,6 +66,23 @@ export interface BodyFatEstimateResult {
   aggregate: BodyFatEstimateAggregate;
 }
 
+export interface IdentityAnchors {
+  hair?: string;
+  skinTone?: string;
+  faceShape?: string;
+  glasses?: string;
+  facialFeatures?: string;
+  originalOutfit?: string;
+}
+
+export interface EvolutionImageValidationResult {
+  identityMatch: boolean;
+  skinToneMatch: boolean;
+  bodyChangeVisible: boolean;
+  estimatedBodyFat: number | null;
+  confidence: number;
+}
+
 const MIN_PLAUSIBLE = 3;
 const MAX_PLAUSIBLE = 60;
 
@@ -281,7 +298,115 @@ export class AiService {
     };
   }
 
+  async extractIdentityAnchorsFromImage(imageUrl: string): Promise<IdentityAnchors> {
+    const dataUrl = await this.imageUrlToDataUrl(imageUrl);
+    const systemPrompt =
+      '你是图像一致性辅助工具。只描述照片中直接可见、可用于后续保持同一人物的外观特征。' +
+      '禁止推断种族、国籍、健康、疾病、体脂、年龄、性格或其他敏感属性。' +
+      '返回纯 JSON，且只能包含 hair、skinTone、faceShape、glasses、facialFeatures、originalOutfit 六个字符串字段。' +
+      'skinTone 只使用中性的可见明暗和冷暖描述；不确定的字段返回空字符串。';
+    const text = await this.requestVision(
+      '提取这张照片中稳定、直接可见的身份外观锚点。',
+      dataUrl,
+      { temperature: 0, maxOutputTokens: 320 },
+      systemPrompt,
+    );
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = this.parseJsonResponse<Record<string, unknown>>(text);
+    } catch {
+      throw new Error('Vision model returned invalid identity anchors');
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Vision model returned invalid identity anchors');
+    }
+
+    const result: IdentityAnchors = {};
+    const allowedKeys = [
+      'hair',
+      'skinTone',
+      'faceShape',
+      'glasses',
+      'facialFeatures',
+      'originalOutfit',
+    ] as const;
+    for (const key of allowedKeys) {
+      const value = this.normalizeAnchorText(parsed[key]);
+      if (value) result[key] = value;
+    }
+    if (Object.keys(result).length === 0) {
+      throw new Error('Vision model returned empty identity anchors');
+    }
+    return result;
+  }
+
+  async validateEvolutionImage(
+    sourceImage: string,
+    generatedImage: string,
+    expectedSourceFat?: number,
+    targetFat?: number,
+  ): Promise<EvolutionImageValidationResult> {
+    const [sourceDataUrl, generatedDataUrl] = await Promise.all([
+      this.imageUrlToDataUrl(sourceImage),
+      this.imageUrlToDataUrl(generatedImage),
+    ]);
+    const expectedContext = [
+      Number.isFinite(expectedSourceFat) ? `源图参考体脂为 ${expectedSourceFat}%。` : '',
+      Number.isFinite(targetFat) ? `生成图目标体脂为 ${targetFat}%。` : '',
+    ].filter(Boolean).join('');
+    const systemPrompt =
+      '你是健身进化图片质量检查器。第一张是源图，第二张是生成图。' +
+      '只比较可见特征，不推断种族、健康或疾病。identityMatch 表示脸部、头发等身份特征是否仍为同一人；' +
+      'skinToneMatch 判断人物的基础肤色是否仍一致；允许自然光照、曝光、白平衡和轻微色温造成的小幅差异，仅在明显美白、晒黑或基础肤色大幅改变时返回 false。' +
+      'bodyChangeVisible 表示身体轮廓或脂肪分布变化是否清晰可见。' +
+      'estimatedBodyFat 只能是对第二张图片的粗略视觉估计，无法估计则为 null。' +
+      '返回纯 JSON，且只能包含 identityMatch、skinToneMatch、bodyChangeVisible、estimatedBodyFat、confidence。';
+    const text = await this.requestVisionImages(
+      `检查两张图片的一致性和阶段差异。${expectedContext}`,
+      [sourceDataUrl, generatedDataUrl],
+      { temperature: 0, maxOutputTokens: 192 },
+      systemPrompt,
+    );
+    const parsed = this.parseJsonResponse<Record<string, unknown>>(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Vision model returned invalid evolution image validation');
+    }
+
+    const identityMatch = this.requireBoolean(parsed.identityMatch, 'identityMatch');
+    const skinToneMatch = this.requireBoolean(parsed.skinToneMatch, 'skinToneMatch');
+    const bodyChangeVisible = this.requireBoolean(parsed.bodyChangeVisible, 'bodyChangeVisible');
+    const confidence = Number(parsed.confidence);
+    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+      throw new Error('Vision model returned invalid validation confidence');
+    }
+    let estimatedBodyFat: number | null = null;
+    if (parsed.estimatedBodyFat !== null && parsed.estimatedBodyFat !== undefined) {
+      const value = Number(parsed.estimatedBodyFat);
+      if (!Number.isFinite(value) || value < MIN_PLAUSIBLE || value > MAX_PLAUSIBLE) {
+        throw new Error('Vision model returned invalid estimated body fat');
+      }
+      estimatedBodyFat = Number(value.toFixed(1));
+    }
+    return { identityMatch, skinToneMatch, bodyChangeVisible, estimatedBodyFat, confidence };
+  }
+
   // ── Private Helpers ─────────────────────────────────────────────────
+
+  private normalizeAnchorText(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!normalized) return null;
+    const sensitivePattern = /\b(race|racial|ethnicity|ethnic|nationality|health|disease|diagnosis|body\s*fat|weight|age|personality)\b|种族|民族|国籍|健康|疾病|诊断|体脂|体重|年龄|性格/i;
+    if (sensitivePattern.test(normalized)) return null;
+    return normalized.slice(0, 160);
+  }
+
+  private requireBoolean(value: unknown, field: string): boolean {
+    if (typeof value !== 'boolean') {
+      throw new Error(`Vision model returned invalid ${field}`);
+    }
+    return value;
+  }
 
   private clampBodyFat(value: number): number {
     const clamped = Math.max(MIN_PLAUSIBLE, Math.min(MAX_PLAUSIBLE, value));
@@ -449,6 +574,67 @@ export class AiService {
       generationConfig,
       systemPrompt,
     );
+    return text;
+  }
+
+  private async requestVisionImages(
+    prompt: string,
+    imageDataUrls: string[],
+    generationConfig: GeminiGenerationConfig,
+    systemPrompt?: string,
+  ): Promise<string> {
+    if (imageDataUrls.length === 0 || imageDataUrls.length > 2) {
+      throw new Error('Vision comparison requires one or two images');
+    }
+    const apiKey =
+      this.configService.get<string>('STEPFUN_API_KEY')?.trim() ||
+      this.configService.get<string>('DIET_VISION_API_KEY')?.trim() ||
+      '';
+    if (!apiKey) {
+      throw new InternalServerErrorException('Vision API key is not configured');
+    }
+    const baseUrl = (
+      this.configService.get<string>('STEPFUN_BASE_URL') ||
+      this.configService.get<string>('DIET_VISION_BASE_URL') ||
+      'https://api.stepfun.com/v1'
+    ).trim().replace(/\/+$/, '');
+    const model = (
+      this.configService.get<string>('BODY_FAT_VISION_MODEL') ||
+      this.configService.get<string>('DIET_VISION_MODEL') ||
+      'step-1o-turbo-vision'
+    ).trim();
+    const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      { type: 'text', text: prompt },
+      ...imageDataUrls.map((url) => ({ type: 'image_url', image_url: { url } })),
+    ];
+    const messages: Array<{ role: string; content: string | typeof content }> = [];
+    if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+    messages.push({ role: 'user', content });
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages,
+        response_format: { type: 'json_object' },
+        temperature: generationConfig.temperature ?? 0,
+        max_tokens: generationConfig.maxOutputTokens ?? 192,
+      }),
+    });
+    let payload: any = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+    if (!response.ok) {
+      const remoteMessage = payload?.error?.message || `HTTP ${response.status}`;
+      throw new Error(`Vision model request failed: ${remoteMessage}`);
+    }
+    const text = payload?.choices?.[0]?.message?.content;
+    if (typeof text !== 'string' || !text.trim()) {
+      throw new Error('Vision model returned empty response text');
+    }
     return text;
   }
 

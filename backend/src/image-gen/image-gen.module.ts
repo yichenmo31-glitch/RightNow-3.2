@@ -15,13 +15,29 @@ import { ConfigService } from '@nestjs/config';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiModule } from '../ai/ai.module';
+import { AiService } from '../ai/ai.service';
+import sharp from 'sharp';
+import { createHash, randomUUID } from 'crypto';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { buildUploadUrl, UPLOADS_DIR } from '../common/upload.util';
 
 interface IdealBodyGenerateInput {
   prompt?: string;
   currentImageBase64?: string;
   referenceImageBase64?: string;
   size?: string;
+  variant?: string;
+  targetStyle?: string;
+  gender?: string;
+  expectedSourceFat?: number;
+  targetBodyFat?: number;
+  batchId?: string;
 }
+
+const IDEAL_VARIANTS = new Set(['lean', 'athletic', 'strong']);
+const IDEAL_PROMPT_VERSION = 'ideal-v2';
 
 interface ImageProviderConfig {
   /** Provider label for tagging / logging (e.g. "L0:gpt-image-2", "L1:ark-seedream"). */
@@ -51,11 +67,18 @@ interface LegacyImageProviderConfig {
   size: string;
 }
 
+interface GeneratedProviderResult {
+  image: string;
+  provider: string;
+  model: string;
+}
+
 @Injectable()
 export class ImageGenService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly aiService: AiService,
   ) {}
 
   async create(userId: string, data: {
@@ -86,37 +109,72 @@ export class ImageGenService {
     status: string;
     resultImageUrl?: string;
     errorMessage?: string;
-  }) {
-    return this.prisma.imageGenTask.update({
-      where: { id },
+  }, userId: string) {
+    return this.prisma.imageGenTask.updateMany({
+      where: { id, userId },
       data,
     });
   }
 
   async generateIdealBody(userId: string, data: IdealBodyGenerateInput) {
-    const prompt = data.prompt?.trim();
+    const variant = data.variant?.trim();
+    if (variant && !IDEAL_VARIANTS.has(variant)) throw new BadRequestException('Invalid ideal-body variant');
+    const profile = variant ? await this.prisma.evolutionImageProfile.findUnique({ where: { userId }, select: { identityAnchors: true, activeBatchId: true } }) : null;
+    if (variant && (!data.batchId || data.batchId !== profile?.activeBatchId)) throw new BadRequestException('Invalid ideal-body generation batch');
+    const prompt = variant ? this.buildIdealVariantPrompt(variant, data.targetStyle, data.gender, profile?.identityAnchors) : data.prompt?.trim();
     if (!prompt) {
       throw new BadRequestException('Image prompt is required');
     }
 
     // Collect tier-0 (primary) + tier-1 (ark) + tier-2 (legacy) configs.
     const [primary, ark, legacy] = this.getImageProviderConfigs(data.size);
-    const task = await this.createTaskSafely(userId, prompt);
+    const task = await this.createTaskSafely(userId, prompt, variant, data.batchId);
 
     try {
-      const image = await this.requestWithDegradeChain(
+      const normalizedData: IdealBodyGenerateInput = {
+        ...data,
+        currentImageBase64: data.currentImageBase64 ? await this.normalizeImagePayload(data.currentImageBase64) : undefined,
+        referenceImageBase64: data.referenceImageBase64 ? await this.normalizeImagePayload(data.referenceImageBase64) : undefined,
+      };
+      let generated = await this.requestWithDegradeChain(
         primary,
         ark,
         legacy,
         prompt,
-        data,
+        normalizedData,
       );
+      let image = await this.normalizeImagePayload(generated.image);
+      if (normalizedData.currentImageBase64?.trim()) {
+        let validation = await this.aiService.validateEvolutionImage(normalizedData.currentImageBase64, image, data.expectedSourceFat, data.targetBodyFat);
+        const requiresStageDifference = Number.isFinite(data.targetBodyFat);
+        const isRejected = () =>
+          (validation.confidence >= 0.7 && !validation.identityMatch) ||
+          (validation.confidence >= 0.9 && !validation.skinToneMatch) ||
+          (requiresStageDifference && validation.confidence >= 0.9 && !validation.bodyChangeVisible);
+        if (isRejected()) {
+          generated = await this.requestWithDegradeChain(primary, ark, legacy,
+            `${prompt} CORRECTION: match the input person's skin color exactly. Do not change skin brightness, undertone, saturation, warmth, tanning level, exposure, white balance or lighting color. Preserve the exact same identity. Make only the requested body-composition difference visible and change no other feature.`, normalizedData);
+          image = await this.normalizeImagePayload(generated.image);
+          validation = await this.aiService.validateEvolutionImage(normalizedData.currentImageBase64, image, data.expectedSourceFat, data.targetBodyFat);
+          if (isRejected()) {
+            throw new Error('Generated image failed identity or body-change validation');
+          }
+        }
+      }
+
+      const resultImageUrl = await this.persistGeneratedImage(userId, image, {
+        provider: generated.provider,
+        model: generated.model,
+        promptVersion: variant ? IDEAL_PROMPT_VERSION : 'stage-v2',
+      });
 
       // Persist resultImageUrl so stage preview lookup works.
       if (task?.id) {
         await this.updateTaskSafely(task.id, {
           status: 'completed',
-          resultImageUrl: image,
+          resultImageUrl,
+          provider: generated.provider,
+          model: generated.model,
         });
       } else {
         // Even without a task record, try to keep a completed row.
@@ -128,12 +186,14 @@ export class ImageGenService {
         if (fallbackTask) {
           await this.updateTaskSafely(fallbackTask.id, {
             status: 'completed',
-            resultImageUrl: image,
+            resultImageUrl,
+            provider: generated.provider,
+            model: generated.model,
           });
         }
       }
 
-      return { image, taskId: task?.id ?? null };
+      return { image: resultImageUrl, taskId: task?.id ?? null };
     } catch (error) {
       await this.updateTaskSafely(task?.id, {
         status: 'failed',
@@ -141,6 +201,28 @@ export class ImageGenService {
       });
       throw new InternalServerErrorException('Image generation failed. Please try again later.');
     }
+  }
+
+  private buildIdealVariantPrompt(variant: string, targetStyle?: string, gender?: string, identityAnchors?: unknown): string {
+    const physique = variant === 'lean'
+      ? 'LEAN: gently reduce visible subcutaneous fat, slightly narrow the waist and clean up limb contours; preserve current muscle size and natural curves; no pronounced abs, vascularity or added muscle mass'
+      : variant === 'strong'
+        ? 'STRONG: keep a healthy athletic body-fat level and add only moderate, anatomically plausible muscle fullness to shoulders, upper arms, glutes and thighs; limit muscle-volume increase to roughly 5-10%; preserve the original skeleton, height, joints and natural curves; never replace the body or create bodybuilding proportions'
+        : 'ATHLETIC: create a balanced trained physique between LEAN and STRONG; moderately flatter waist, firmer arms and legs, subtle shoulder and core definition, natural muscle volume, no extreme leanness or hypertrophy';
+    const anchorText = identityAnchors ? `Locked identity anchors: ${JSON.stringify(identityAnchors)}.` : '';
+    return `Create one photorealistic fitness edit of the exact person in the input image. ${anchorText} ${physique}. User preference: ${targetStyle || 'athletic'}; gender context: ${gender || 'unspecified'}. HARD IDENTITY INVARIANTS: keep the same face, facial geometry, hairstyle, age appearance and personal identity. HARD SKIN-COLOR INVARIANTS: the output skin color must match the input image exactly; do not change skin brightness, undertone, saturation, warmth, tanning level, exposure, white balance or lighting color. Fitness changes may affect body shape only and must never be expressed by darkening, lightening, warming or recoloring the skin. HARD SCENE INVARIANTS: keep the same clothing, pose, hand and foot placement, body frame, camera angle, crop, background and lighting direction. Edit only body composition and the explicitly permitted muscle definition. Do not swap the face or body, change ethnicity, alter garments, retouch the face, or redesign the scene. Keep natural skin texture and believable long-term fitness progress. Output one full-body realistic photograph.`;
+  }
+
+  private async normalizeImagePayload(dataUrlOrBase64: string): Promise<string> {
+    const trimmed = dataUrlOrBase64.trim();
+    const commaIndex = trimmed.startsWith('data:') ? trimmed.indexOf(',') : -1;
+    const base64 = commaIndex >= 0 ? trimmed.slice(commaIndex + 1) : trimmed;
+    const output = await sharp(Buffer.from(base64.replace(/\s/g, ''), 'base64'))
+      .rotate()
+      .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
+      .png({ compressionLevel: 8 })
+      .toBuffer();
+    return `data:image/png;base64,${output.toString('base64')}`;
   }
 
   // ── Provider Config ─────────────────────────────────────────────────
@@ -249,13 +331,14 @@ export class ImageGenService {
     legacy: LegacyImageProviderConfig | undefined,
     prompt: string,
     data: IdealBodyGenerateInput,
-  ): Promise<string> {
+  ): Promise<GeneratedProviderResult> {
     // Tier 0: Primary
     try {
       this.logProviderAttempt(primary.label);
-      return data.currentImageBase64?.trim()
+      const image = data.currentImageBase64?.trim()
         ? await this.requestImageEdit(primary, prompt, data.currentImageBase64, data.referenceImageBase64)
         : await this.requestImageGeneration(primary, prompt);
+      return { image, provider: primary.label, model: primary.model };
     } catch (err) {
       this.logProviderFail(primary.label, err);
       if (!this.shouldTryFallback(err)) throw err;
@@ -265,10 +348,11 @@ export class ImageGenService {
     if (ark) {
       try {
         this.logProviderAttempt('L1:ark-seedream');
-        return await this.requestArkImageGeneration(ark, prompt, [
+        const image = await this.requestArkImageGeneration(ark, prompt, [
           data.currentImageBase64,
           data.referenceImageBase64,
         ]);
+        return { image, provider: 'L1:ark-seedream', model: ark.model };
       } catch (err) {
         this.logProviderFail('L1:ark-seedream', err);
         if (!this.shouldTryFallback(err)) throw err;
@@ -279,7 +363,8 @@ export class ImageGenService {
     if (legacy) {
       try {
         this.logProviderAttempt('L2:legacy');
-        return await this.requestLegacyImageGeneration(legacy, prompt, data);
+        const image = await this.requestLegacyImageGeneration(legacy, prompt, data);
+        return { image, provider: 'L2:legacy', model: legacy.model };
       } catch (err) {
         this.logProviderFail('L2:legacy', err);
         throw err;
@@ -294,8 +379,7 @@ export class ImageGenService {
   }
 
   private logProviderFail(label: string, error: unknown) {
-    const msg = error instanceof Error ? error.message : 'unknown';
-    console.warn(`[ImageGen] ${label} failed: ${msg}`);
+    console.warn(`[ImageGen] ${label} failed: ${this.toImageErrorCode(error)}`);
   }
 
   // ── Primary Provider (OpenAI-compatible) ────────────────────────────
@@ -502,7 +586,7 @@ export class ImageGenService {
 
     if (!response.ok) {
       const remoteMessage = payload?.error?.message || payload?.message || `HTTP ${response.status}`;
-      throw new Error(`[${label ?? 'unknown'}] Image provider request failed: ${remoteMessage}`);
+      throw new Error(`[${label ?? 'unknown'}] Image provider request failed (HTTP ${response.status}): ${remoteMessage}`);
     }
 
     const first = payload?.data?.[0];
@@ -555,10 +639,10 @@ export class ImageGenService {
 
   // ── Task Bookkeeping ─────────────────────────────────────────────────
 
-  private async createTaskSafely(userId: string, prompt: string): Promise<{ id: string } | null> {
+  private async createTaskSafely(userId: string, prompt: string, variant?: string, batchId?: string): Promise<{ id: string } | null> {
     try {
       return await this.prisma.imageGenTask.create({
-        data: { userId, prompt, targetStyle: 'ideal-body', status: 'processing' },
+        data: { userId, prompt, targetStyle: 'ideal-body', status: 'processing', variant, batchId, promptVersion: variant ? IDEAL_PROMPT_VERSION : undefined },
         select: { id: true },
       });
     } catch {
@@ -568,7 +652,7 @@ export class ImageGenService {
 
   private async updateTaskSafely(
     id: string | undefined,
-    data: { status: string; errorMessage?: string; resultImageUrl?: string },
+    data: { status: string; errorMessage?: string; resultImageUrl?: string; provider?: string; model?: string },
   ) {
     if (!id) return;
     try {
@@ -578,9 +662,63 @@ export class ImageGenService {
     }
   }
 
+  private async persistGeneratedImage(
+    userId: string,
+    normalizedDataUrl: string,
+    metadata: { provider: string; model: string; promptVersion: string },
+  ): Promise<string> {
+    const commaIndex = normalizedDataUrl.indexOf(',');
+    if (!normalizedDataUrl.startsWith('data:image/png;base64,') || commaIndex < 0) {
+      throw new Error('Generated image has an unsupported format');
+    }
+    const buffer = Buffer.from(normalizedDataUrl.slice(commaIndex + 1), 'base64');
+    if (buffer.length === 0 || buffer.length > 12 * 1024 * 1024) {
+      throw new Error('Generated image exceeds the storage size limit');
+    }
+    const imageMetadata = await sharp(buffer).metadata();
+    if (!imageMetadata.width || !imageMetadata.height || imageMetadata.width > 2048 || imageMetadata.height > 2048) {
+      throw new Error('Generated image dimensions are invalid');
+    }
+
+    if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
+    const filename = `generated-${randomUUID()}.png`;
+    const filepath = join(UPLOADS_DIR, filename);
+    const url = buildUploadUrl(filename);
+    writeFileSync(filepath, buffer, { flag: 'wx' });
+    try {
+      await this.prisma.uploadAsset.create({
+        data: {
+          userId,
+          url,
+          kind: 'generated-evolution-image',
+          sha256: createHash('sha256').update(buffer).digest('hex'),
+          mimeType: 'image/png',
+          byteSize: buffer.length,
+          provider: metadata.provider,
+          model: metadata.model,
+          promptVersion: metadata.promptVersion,
+        },
+      });
+      return url;
+    } catch (error) {
+      if (existsSync(filepath)) unlinkSync(filepath);
+      throw error;
+    }
+  }
+
   private toSafeErrorMessage(error: unknown): string {
-    if (error instanceof Error && error.message) return error.message.slice(0, 500);
-    return 'Unknown image generation error';
+    return this.toImageErrorCode(error);
+  }
+
+  private toImageErrorCode(error: unknown): string {
+    const message = error instanceof Error ? error.message : '';
+    if (/429|rate.?limit|too many requests/i.test(message)) return 'IMAGE_PROVIDER_RATE_LIMITED';
+    if (/401|403|api key|unauthori[sz]ed|forbidden/i.test(message)) return 'IMAGE_PROVIDER_AUTH_FAILED';
+    if (/timeout|timed out|524/i.test(message)) return 'IMAGE_PROVIDER_TIMEOUT';
+    if (/identity|body-change validation/i.test(message)) return 'IMAGE_VALIDATION_REJECTED';
+    if (/format|dimension|size limit|unsupported/i.test(message)) return 'IMAGE_STORAGE_VALIDATION_FAILED';
+    if (/500|502|503|504|fetch failed|provider request/i.test(message)) return 'IMAGE_PROVIDER_UNAVAILABLE';
+    return 'IMAGE_GENERATION_FAILED';
   }
 }
 
@@ -622,16 +760,18 @@ class ImageGenController {
 
   @Patch(':id')
   update(
+    @CurrentUser() user: { sub: string },
     @Param('id') id: string,
     @Body() body: { status: string; resultImageUrl?: string; errorMessage?: string },
   ) {
-    return this.service.updateStatus(id, body);
+    return this.service.updateStatus(id, body, user.sub);
   }
 }
 
 // ── Module ────────────────────────────────────────────────────────────
 
 @Module({
+  imports: [AiModule],
   controllers: [ImageGenController],
   providers: [ImageGenService],
   exports: [ImageGenService],

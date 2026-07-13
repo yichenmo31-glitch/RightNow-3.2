@@ -955,3 +955,128 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 聊天稳定性补充：用户实际输入“今天什么安排”曾遇到一次阶跃瞬时失败并显示 `Internal server error`。本地 direct-chat fallback 超时从 12 秒调整为 30 秒，对网络错误、429、5xx 和空回复最多重试一次；前端 5xx 改为可重试中文提示。冒烟消息改为覆盖“今天什么安排”路径，重启后连续 3 轮均为 7/7。
 - 意图链路文档（2026-07-13）：新增 `docs/INTENT_CLASSIFICATION_COMPLETE_FLOW.md`，按当前代码记录 V1 安全/写入优先、八条 V2 确定性只读、长尾语义只读、分类回退、OpenClaw/direct-chat 回退、`progress/analyze/current` 映射和当前实际可写入矩阵。
 - 意图文档合并（2026-07-13）：将旧 V1 规范和 V2 设计计划中仍有效的契约、上下文 Profile、隐私、测试门禁和实施状态合并到 `INTENT_CLASSIFICATION_COMPLETE_FLOW.md`；`AGENT_INTENT_ROUTING_STRATEGY.md` 收敛为当前产品回复策略并移除过时实施建议；删除两份重复旧文档，后续不再维护平行 V1/V2 规范。
+
+## Wave 4D 身材图与进化路径设计
+
+- 负责人：ROOT。
+- 状态：in_progress（核心链路、身份锚点、生成指纹和本地受控文件存储已实现；自动化矩阵与正式发布门禁仍待完成）。
+- 设计时间：2026-07-13。
+- 产品决策：保留首次三选一，将三个版本收敛为 `lean/athletic/strong` 三种可信体型；用户选中的理想态成为 Stage 6 的唯一终点参考。
+- 数据契约：计划新增版本化身份锚点、理想态任务选择、Prompt/策略版本和生成指纹；PostgreSQL 继续作为体脂、阶段、选择和图片元数据的权威来源，图片模型不能决定写入或解锁。
+- 阶段生图：下一阶段预览计划从“最新照 + 起始照”调整为“最新照 + 选定理想图”，起始照作为供应商能力允许时的补充；Stage 6 不再重复生成。
+- 安全与幂等：理想态确认只接受当前 JWT 用户拥有的已完成 task ID，并使用 Idempotency-Key；客户端不得提交 userId、任意图片 URL、目标体脂或解锁状态。
+- 文档：新增 `docs/EVOLUTION_IMAGE_GENERATION_DESIGN.md` 与 `docs/development-runbook/EVOLUTION_IMAGE_IMPLEMENTATION_RUNBOOK.md`，并在总开发 Runbook 增加 Wave 4D 入口。
+- 实施顺序：Schema/迁移 -> 身份锚点 -> 三选一 Prompt 后端化 -> 理想态确认 -> 下一阶段参考图 -> 前端接线 -> 存储迁移与内容降级。
+- 验收门禁：三选一保持可用、Stage 0/6 绑定正确、确认与生成幂等、A/B 零串读、图片失败不回滚业务事实、日志/Git/PostgreSQL 元数据不含 Key 或大型 Base64。
+- 2026-07-13 第一批实现：新增兼容 migration 和 `EvolutionImageProfile`；三选一改为 `lean/athletic/strong` 并由 Backend 固化 Prompt；保留 taskId/variant；新增 ownership + Idempotency-Key 保护的 `ideal-selection`；Stage 6 绑定选中图；下一阶段优先以选中理想图为 reference；移除前端提前 north-star 调用；修复 `PATCH /image-gen/:id` 跨用户更新风险。
+- 第一批验证：Prisma format/validate 通过；Windows 引擎被运行进程锁定后使用 `prisma generate --no-engine` 成功刷新类型；Backend 和 Frontend production build 通过，Frontend 仅保留既有大 chunk 警告。
+- 2026-07-13 第二批推进：新增 `GET /evolution-stage/image-profile` 供刷新恢复选中理想态；`EvolutionStage.previewInputDigest` 保存阶段预览输入指纹，相同最新照、参考理想图、阶段和策略版本不重复生成。确认失败时前端保留当前选择和同一 Idempotency-Key，允许安全重试。
+- 本地数据库：仓库既有数据库未建立 Prisma migration baseline，`migrate deploy` 以 P3005 安全停止且未改库；两份已审查的纯新增 migration SQL 改用 `prisma db execute` 成功应用。正式环境仍必须走审查后的 migration 发布流程，不能照搬本地命令。
+- 运行验证：停止仓库所属旧 Demo 进程，常规 Prisma Client 生成、Backend/Frontend production build 和一键启动全部成功；新构建已运行于 `127.0.0.1:5173` 与 `127.0.0.1:5000/api`。
+- 2026-07-13 身份与阶段图修复：新增首次照片身份锚点提取，严格限制为头发、肤色、脸型、眼镜、可见面部特征和原始穿着；三选一与阶段图从 PostgreSQL 读取同一锚点并锁定肤色/身份。生成结果通过双图视觉校验身份、肤色和身体变化，不合格时带纠错指令自动重试一次，第二次仍不合格则任务失败且不展示。
+- 体脂表现：体脂描述区间改为半开区间，35% 不再误命中 30-35%；阶段 Prompt 同时注入当前与目标体脂，并要求腰腹、上臂、大腿和下颌线连续变化，禁止相邻阶段套用同一外观。
+- 图片来源：进化页面中间阶段不再从照片时间线静默复用；只有阶段自身真实达标图或 AI 预览才展示，否则明确显示“待生成”，并标注“真实达标 / AI 预览 / 待生成”。
+- 校验热修复：首次接入时误将 `bodyChangeVisible` 强制用于没有数值体脂目标的三选一，导致三张各重试一次后全部失败。现改为三选一只校验身份与肤色；仅阶段图强制身体差异，且校验置信度达到 0.65 才拒绝，避免低置信视觉判断误杀。Backend 重建并重启 Demo 成功。
+- 强壮版失败修复：真实任务证据显示 `lean/athletic` 完成、`strong` 初次和纠错重试均被身份/肤色门禁拒绝。强壮 Prompt 收敛为在原身体骨架上适度增加肩臂腿围，禁止换身体和大幅增肌；前端部分失败卡片改为明确“生成失败”，不再无限显示加载动画。身份和肤色校验门禁保持不变。
+- 肤色与首阶段补充：视觉校验改为严格肤色/色温判断，肉眼明显变深、变浅、偏红、偏黄、晒黑或美白均拒绝；strong 两次不合格时第三卡明确显示第二张“运动体型备选”，确认仍使用 athletic 任务，不伪造 strong 结果。理想态确认成功后立即异步触发 Stage 1 预览，解决首次进化路径第二阶段长期“待生成”。
+- 三选一稳定性调整：按产品反馈移除备选来源标注；任一后位 variant 失败时由相邻已成功结果补位，确保三卡可操作。三套 Prompt 重写为同一身份/场景硬约束下的 LEAN/ATHLETIC/STRONG 连续梯度，strong 增肌限制约 5-10%。肤色校验允许曝光、白平衡和轻微色温差异，只在高置信明显美白/晒黑或基础肤色大幅改变时拒绝；身份门禁继续保持。
+- Prompt 肤色约束增强：三套 variant 的共享 Prompt 明确锁定肤色亮度、底色、饱和度、冷暖、晒黑程度、曝光、白平衡和光源颜色；健身变化只能改变身体形态，禁止通过肤色或光照变化表现“更健美”。校验失败后的纠错 Prompt 同步使用相同硬约束。
+- Stage 1 待生成修复：任务证据显示选中理想图宽度 4160px，超过图片编辑接口 reference 最大宽度 4096px，供应商直接拒绝。Backend 图片边界新增 Sharp 归一化，current/reference 和生成结果统一限制最长边 2048px 后再调用、校验和保存，避免后续阶段反复触发尺寸错误。
+- 异步等待体验：三选一生成中新增“先进入 APP，生成完成后提醒我”；Backend 任务继续执行，App 每 5 秒读取三个 variant 最新状态，全部结束且至少一张成功后显示“理想身材已生成 / 去选择”。重新进入时恢复最新任务结果并按相邻成功图补位，不重复发起三次生成。Stage 1 身体变化校验仅在置信度达到 0.9 时拒绝，减少低置信误杀。
+- 异步提示热修复：原轮询 effect 只依赖登录用户，点击跳过仅写 localStorage，未触发轮询重启。新增 React `imageGenerationPending` 状态并纳入 effect 依赖，点击后立即轮询。首页取消 `userFaceImage/userImage` 冒充理想背景，Stage 6 取消照片时间线末图 fallback；只有用户确认的 `idealBodyImage` 或 Backend Stage 6 图片才显示最终状态。
+- Stage 1 写回修复：尺寸归一化后模型任务已 completed，但后台 `saveBase64Image` 因 `backend/uploads` 不存在而 ENOENT，导致 `previewImageUrl` 未写回。保存前现显式递归创建 uploads；`GET /evolution-stage` 自动补生成前先检查同用户无 variant 的 processing 任务，避免刷新页面并发重复创建。
+- Stage 1 断点恢复：若 Stage 1 缺图但已有同用户最近 completed 的阶段生图任务，`GET /evolution-stage` 优先将该任务结果保存到 uploads 并补写 `previewImageUrl`/digest，而不是再次消耗模型请求；当前请求响应同步返回恢复后的 URL。
+- Stage 1 展示与提示修复：Stage 1 URL 已写回 `/uploads/...`，但 Vite preview 未配置 uploads 代理，5173 请求图片失败。`server` 与 `preview` 现共享 `/api`、`/uploads` proxy。生成通知轮询增加 cancelled 竞态保护，且已存在确认理想图时强制隐藏顶部提示，避免选择后旧轮询结果重新悬浮。
+- 顶部提示条件修正：不能以账户是否存在历史 `idealBodyImage` 判断当前批次提示，否则重新生成的新批次会被旧理想图隐藏。提示现仅由当前批次 `imageGenerationPending && idealImagesReady` 控制；确认当前批次后两者清零，旧轮询由 cancelled 保护不能重新显示。
+## Wave 4D 理想图批次状态与跨标签页恢复修复（2026-07-13）
+
+- 为 `EvolutionImageProfile` 增加 `activeBatchId/selectedBatchId`，为 `ImageGenTask` 增加 `batchId`；当前批次未选择时，旧选择保留为历史但不再进入主页或 Stage 6 展示。
+- 三图生成先由 Backend 创建批次；任务创建、轮询、恢复和选择均限定同一批次，选择接口拒绝非当前批次任务。
+- App 每 5 秒从 Backend 同步 profile 与当前批次任务，解决多标签页和刷新后的 React/localStorage 状态漂移；顶部提示仅在已登录的 APP 页面出现，选择后立即消失。
+- `EvolutionEngine` 不再依赖本地 pending 标记恢复结果，直接按 Backend `activeBatchId` 恢复三张完成图片，修复点击“去选择”后错误重新生图并显示“待生成/服务不可用”。
+- 本地迁移 `20260713113000_add_evolution_image_batches` 已应用；Prisma validate、Backend build、Frontend build、`git diff --check` 通过（仅既有大 chunk 与 CRLF 警告）。
+- 真实浏览器验收：未选择当前批次时主页理想图数量为 0；批次完成后显示“理想身材已生成/去选择”；进入选择页后提示消失，三张图片均可见，页面不含“待生成”或“图片生成服务暂时不可用”。临时演示批次数据在验收后删除。
+
+## Wave 4D 生成图片受控文件存储（2026-07-13）
+
+- 新生成的理想图和阶段图在视觉校验后统一转换为最长边不超过 2048px 的 PNG，校验 MIME、像素和 12 MiB 上限，再以随机 UUID 文件名写入 `uploads`；图片服务对前端和阶段服务只返回 `/uploads/...` URL。
+- `ImageGenTask.resultImageUrl`、`EvolutionImageProfile.selectedIdealImageUrl`、`User.idealBodyImage` 和 Stage 预览新写入均保存 URL，不再保存大型 Data URL；读取继续兼容历史 Data URL。
+- `UploadAsset` 增加 SHA-256、MIME、字节数、provider、model 和 promptVersion 元数据，文件写入后若元数据事务失败会删除文件，避免静默留下无归属结果。
+- 图片任务记录同步保存 provider/model；供应商失败日志和任务错误改为固定错误码，不再保存原始供应商响应、请求 ID 或凭据片段。
+- 本地纯增量 migration `20260713120000_add_generated_image_asset_metadata` 已应用。Prisma generate/validate 与 Backend build 通过；Frontend build 沿用同一 API URL 契约并通过。
+- 下一步：补齐 provider mock 自动化，覆盖三 variant、批次 ownership、选择幂等、Stage 6 零重生图、存储元数据与 PostgreSQL 无新增大型 Base64；随后执行 A/B 图片隔离验收。
+
+## Wave 4D 图片流程自动化第一批（2026-07-13）
+
+- 新增 `npm --workspace backend run test:evolution-images`，使用内存 Prisma 替身与合成 1px PNG，不调用网络、不读取真实照片、不消耗图片额度。
+- 选择契约覆盖：Backend 创建 UUID 批次；仅当前批次 completed task 可选择；B 用户任务不能由 A 确认；旧批次任务被拒绝；同一 Idempotency-Key/同 payload 返回原结果；同 key/不同 task 返回冲突。
+- Stage 6 覆盖：确认事务将选中 URL 精确写入 Profile、User 和 Stage 6；测试注入会抛错的图片服务并断言调用数为 0，证明确认路径不会重新生成 Stage 6。
+- 存储覆盖：合成 PNG 写入随机 `/uploads/generated-<uuid>.png`，UploadAsset 包含 SHA-256、MIME、字节数、provider/model/promptVersion，元数据不含 Base64；测试结束删除生成文件。
+- 隐私覆盖：API Key、429 和任意请求标识错误分别归一为固定错误码，不保留原始错误正文。
+- 回归结果：`test:evolution-images`、`test:upload-prefix`、`test:account-deletion`、Backend build、Frontend build、Prisma validate 和 `git diff --check` 全部通过；Frontend 仅有既有大 chunk 警告。
+- 尚未声明：三 variant provider mock 降级链、真实 PostgreSQL A/B 图片隔离、身份锚点重新校准、真实供应商生成和生产对象存储尚未验收。
+- 下一步：将 provider 调用抽成可注入适配器或增加受控 fetch mock，覆盖三 variant 并行、部分失败补位、全部失败和降级链；之后使用新建 A/B 隔离用户做 PostgreSQL ownership 验收。
+
+### Provider mock 补充
+
+- `test:evolution-images` 现通过受控 `fetch` mock 返回合成 PNG，直接执行真实 `ImageGenService.generateIdealBody` 编排；`lean/athletic/strong` 三请求并行完成，各自创建当前批次任务、受控文件和 UploadAsset。
+- 断言三个 `ImageGenTask.resultImageUrl` 与三个 API 结果均为 `/uploads/generated-<uuid>.png`，不以 `data:` 开头；任务保存 variant、batchId、completed 状态及 provider/model。
+- 并行完成顺序不作为契约，测试按 variant 集合校验；所有合成文件在测试结束后删除。
+- 当时仍待覆盖的 Ark/Legacy 降级和 PostgreSQL A/B 隔离已在下一批完成；前端部分/全部失败 UI 状态仍待自动化。
+
+## Wave 4D Provider 降级与 PostgreSQL A/B 隔离（2026-07-13）
+
+- provider mock 新增三条路径：Primary HTTP 503 后 Ark 成功、Primary HTTP 503 后 Legacy 成功、Primary/Ark/Legacy 全部失败。
+- 测试发现并修复真实缺陷：供应商同时返回 HTTP 503 和错误正文时，旧异常只保留正文，降级判断看不到状态码并提前终止。内部异常现保留 HTTP status 供策略判断，外部日志和任务表仍只记录固定错误码。
+- Ark/Legacy 成功路径断言最终 `ImageGenTask` 与 `UploadAsset` 的 provider/model 对应实际成功层；全失败路径断言任务为 failed、错误为 `IMAGE_PROVIDER_UNAVAILABLE`、零 UploadAsset、零原始请求标识残留。
+- 新增 `test:evolution-image-isolation`，连接本地真实 PostgreSQL，创建两名随机 `.invalid` 隔离用户和虚构图片 URL；验证 A/B task list/detail/update、Profile、选择和 Stage ownership。
+- A 无法读取、更新或确认 B 的图片任务；A 确认后仅 A 初始化七阶段并绑定 Stage 6，B Profile 保持未选择且 Stage 行数为 0。测试不调用模型、不创建图片文件，`finally` 级联删除两名临时用户。
+- 验证结果：provider 降级自动化和真实 PostgreSQL A/B 隔离均通过。
+- 下一步：补身份锚点首次提取/重复幂等/显式重新校准与敏感字段过滤测试；随后覆盖前端部分失败补位和全部失败状态。
+
+## Wave 4D 身份锚点生命周期与安全边界（2026-07-13）
+
+- `POST /evolution-stage/image-profile/prepare` 新增显式 `recalibrate=true` 契约；普通重复调用直接返回现有版本且不调用视觉模型，只有显式重新校准才重新提取并将 `identityAnchorVersion` 加一。
+- 提取前验证 `startImage` ownership：只接受当前用户的 `userImage`、`userFaceImage`、既有 Profile startImage 或当前用户 UploadAsset URL；任意 URL 和其他用户资产在模型调用前返回 404。
+- AI 输出继续只保留六个允许字段，并新增敏感内容过滤；允许字段字符串中若包含种族、民族、国籍、健康、疾病、诊断、体脂、体重、年龄或性格等中英文描述，整项丢弃。控制字符和重复空白被清理，单项最多 160 字符。
+- 畸形模型 JSON 统一转换为身份锚点域错误，不向上层暴露解析器细节。
+- `test:evolution-images` 覆盖首次提取、普通重复幂等、显式重新校准、ownership 前置拒绝、允许字段、额外字段、敏感内容、控制字符和畸形 JSON。
+- `test:evolution-image-isolation` 使用真实 PostgreSQL UploadAsset 验证 A 可提取自己的资产、不能以 B 的 URL 重新校准，且被拒绝时 AI 调用计数不变；测试数据最终级联清理。
+- 下一步：把三卡部分失败补位逻辑抽成可测试纯函数，覆盖首卡失败、中卡失败、末卡失败和全部失败；随后运行 Wave 4D 最终门禁清单。
+
+## Wave 4D 三卡部分失败状态自动化（2026-07-13）
+
+- 新增 `fillIdealBodyResultSlots` 纯函数并统一用于首次生成完成和刷新恢复，移除两处不一致的手写补位逻辑。
+- 补位规则为最近成功结果，等距优先左侧；首卡、中卡、末卡、两卡失败均能稳定展示，三卡全失败保持全空并进入整体失败状态。
+- 补位复用完整成功结果对象，不改写 `taskId` 或 `variant`；用户点击补位卡确认时仍提交实际成功任务身份，不伪造失败 variant。
+- 新增 `npm --workspace frontend run test:ideal-body-results`，覆盖三卡成功、首/中/末单卡失败、仅中卡成功、全部失败及真实任务身份保留。
+- 本轮回归：前端纯函数测试、图片服务/身份锚点/provider 降级测试、真实 PostgreSQL A/B 隔离、Frontend build、Prisma validate 和 `git diff --check` 全部通过。
+- 下一步：运行 Wave 4D 最终门禁清单和源码/数据库 Base64、凭据、临时文件扫描；根据结果决定是否将本地 Wave 4D 标记 completed，正式发布仍需独立 migration/release 验收。
+
+### 最终扫描阶段性结果
+
+- 临时 A/B 隔离用户残留为 0；合成测试文件均已删除。
+- 本地数据库仍有 44 条历史 `ImageGenTask.resultImageUrl` 使用旧 Data URL；这是兼容读取范围，不能据此声称 PostgreSQL 已完成历史 Base64 清理。当前没有受控 `/uploads/generated-*` 真实供应商记录，因为自动化全部使用内存 Prisma/mock 且不消耗额度。
+- 新代码路径已将后续生成结果写为受控 URL，但还需要一份可审计、可恢复、默认 dry-run 的历史迁移工具，将任务、Profile、User 和 Stage 对同一旧图片的引用一致替换后，才能关闭本地数据库存储门禁。
+
+## Wave 4D 历史 Data URL 迁移（2026-07-13）
+
+- 新增 `migrate:evolution-images`：默认 dry-run；`--apply` 才写入；支持 `--user-id` 分批范围和 `--restore <backup.json>` 反向恢复。命令输出仅含计数和恢复包路径，不输出图片正文。
+- 迁移从 Task result/source、User ideal/current/face、ImageProfile selected/start、Stage preview/actual 和 EvolutionRecord imageUrl 收集 Data URL，按 `(userId, SHA-256)` 去重；图片规范化为最大 2048px PNG并写入随机文件名。
+- 每张图先在 Git 忽略的 `.work/evolution-image-migration/` 写入权限受限恢复条目，再在单个 PostgreSQL 事务中创建 UploadAsset 并替换同用户全部精确引用。事务失败会删除新文件；restore 只恢复仍指向该迁移 URL 的字段，避免覆盖迁移后的新数据。
+- 新增 `test:evolution-image-migration`，使用隔离用户验证 scoped dry-run、跨 Task/User/Profile/Stage/Record 的事务一致替换、文件与 Asset、完整 restore 和最终级联清理。
+- 本地第一批迁移 44 个历史 Task 结果；恢复包：`.work/evolution-image-migration/2026-07-13T03-25-54-603Z-f8d0c4f2-9cf7-4326-a8e4-d19b9a3f76ae.json`。
+- 扩展全引用扫描后第二批迁移 16 个按用户去重的资料/起始/阶段图片；恢复包：`.work/evolution-image-migration/2026-07-13T03-28-13-098Z-6cb961c2-2214-4234-bd42-90deb0836702.json`。
+- 迁移后 Task result/source、User ideal/current/face、Profile selected/start、Stage preview/actual、EvolutionRecord 的 Data URL 计数全部为 0；迁移 Asset 共 60 个，缺失文件为 0；再次 dry-run 为 0。
+- 读取冒烟：随机迁移 PNG 经 Backend `:5000/uploads/...` 和 Frontend `:5173/uploads/...` 均返回 200 `image/png`。
+- 下一步：执行 Wave 4D 汇总门禁与 Git/日志敏感信息扫描；本地完成不代表生产迁移或对象存储发布完成，生产仍需独立备份、dry-run、release 和回滚验收。
+
+## Wave 4D 本地汇总门禁（2026-07-13）
+
+- 状态：completed_local；生产 migration/release 仍为 pending，不能据此声称生产已发布。
+- 通过命令：`test:ideal-body-results`、`test:evolution-images`、`test:evolution-image-isolation`、`test:evolution-image-migration`、Backend build、Frontend build、Prisma validate、`git diff --check`。
+- 数据门禁：全部目标图片字段 Data URL 为 0；迁移 Asset 60、缺失文件 0；全库 migration dry-run 为 0；隔离测试用户残留 0。
+- 静态读取门禁：Backend 与 Frontend `/uploads` 均返回 200 `image/png`。
+- 隐私门禁：Git 跟踪文件 `sk-<20+>` 模式命中 0；错误日志/任务只使用固定错误码。恢复包和 uploads 位于 Git 忽略目录。
+- 工作区仍有 29 行未提交状态，包含 Wave 4D 源码、四份 additive migration、自动化和文档；尚未整理 Git commit。
+- 剩余发布工作：审查并拆分 Git commit；生产数据库/文件备份；生产 migration dry-run；发布 Backend/Frontend；迁移历史图片到生产对象存储或受控持久目录；验证 Nginx 静态路径、回滚和账户删除 Worker 对新增 UploadAsset/文件的处理。

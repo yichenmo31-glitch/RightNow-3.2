@@ -56,6 +56,7 @@ model User {
   trainingSessions         TrainingSession[]
   evolutionStages          EvolutionStage[]
   evolutionAssessments     EvolutionAssessment[]
+  evolutionImageProfile    EvolutionImageProfile?
   wechatBinding            WechatBinding?
   agentChannelBindings     AgentChannelBinding[]
   agentBindTokens          AgentBindToken[]
@@ -279,13 +280,22 @@ model CheckIn {
 }
 
 model UploadAsset {
-  id        String   @id @default(cuid())
-  userId    String
-  url       String
-  kind      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  userId        String
+  url           String
+  kind          String
+  sha256        String?
+  mimeType      String?
+  byteSize      Int?
+  provider      String?
+  model         String?
+  promptVersion String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, sha256])
 }
 
 model EvolutionRecord {
@@ -304,20 +314,21 @@ model EvolutionRecord {
 }
 
 model EvolutionStage {
-  id              String    @id @default(cuid())
-  userId          String
-  stageIndex      Int
-  targetBodyFat   Float
-  title           String
-  previewImageUrl String?
-  isUnlocked      Boolean   @default(false)
-  unlockedAt      DateTime?
-  actualImageUrl  String?
-  qualifiedCount  Int       @default(0)
-  lastQualifiedAt DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid())
+  userId             String
+  stageIndex         Int
+  targetBodyFat      Float
+  title              String
+  previewImageUrl    String?
+  isUnlocked         Boolean   @default(false)
+  unlockedAt         DateTime?
+  actualImageUrl     String?
+  qualifiedCount     Int       @default(0)
+  lastQualifiedAt    DateTime?
+  previewInputDigest String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, stageIndex])
   @@index([userId, stageIndex])
@@ -339,6 +350,28 @@ model EvolutionAssessment {
   record             EvolutionRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model EvolutionImageProfile {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  identityAnchors         Json?
+  identityAnchorVersion   Int      @default(0)
+  startImageUrl           String?
+  startBodyFat            Float?
+  targetBodyFat           Float?
+  selectedIdealTaskId     String?
+  selectedIdealImageUrl   String?
+  selectedIdealVariant    String?
+  activeBatchId           String?
+  selectedBatchId         String?
+  selectionIdempotencyKey String?
+  selectionPayloadDigest  String?
+  promptVersion           String   @default("ideal-v2")
+  strategyVersion         String   @default("v2-selected-ideal")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Post {
@@ -421,11 +454,18 @@ model ImageGenTask {
   prompt         String?
   resultImageUrl String?
   errorMessage   String?
+  provider       String?
+  model          String?
+  promptVersion  String?
+  inputDigest    String?
+  variant        String?
+  batchId        String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([userId, batchId, createdAt])
 }
 
 model FitnessPlan {

@@ -1,6 +1,7 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { createHash, randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
-import { readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { extname, join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService, BodyFatEstimateResult } from '../ai/ai.service';
@@ -93,7 +94,7 @@ export class EvolutionStageService {
 
     await this.initializeStages(userId, user.gender);
 
-    const [stages, latestAssessment] = await Promise.all([
+    const [stages, latestAssessment, imageProfile] = await Promise.all([
       this.prisma.evolutionStage.findMany({
         where: { userId },
         orderBy: { stageIndex: 'asc' },
@@ -103,7 +104,46 @@ export class EvolutionStageService {
         orderBy: { createdAt: 'desc' },
         select: { bodyFatEstimate: true },
       }),
+      this.prisma.evolutionImageProfile.findUnique({
+        where: { userId },
+        select: { startImageUrl: true, selectedIdealImageUrl: true },
+      }),
     ]);
+
+    const firstFutureStage = stages.find((stage) => stage.stageIndex === 1);
+    if (imageProfile?.selectedIdealImageUrl && imageProfile.startImageUrl && !firstFutureStage?.previewImageUrl) {
+      const completedTask = await this.prisma.imageGenTask.findFirst({
+        where: { userId, variant: null, status: 'completed', resultImageUrl: { not: null } },
+        orderBy: { updatedAt: 'desc' },
+        select: { resultImageUrl: true },
+      });
+      if (completedTask?.resultImageUrl && firstFutureStage) {
+        try {
+          const recoveredUrl = this.ensureStoredImageUrl(completedTask.resultImageUrl);
+          await this.prisma.evolutionStage.update({
+            where: { id: firstFutureStage.id },
+            data: { previewImageUrl: recoveredUrl, previewInputDigest: 'recovered-completed-task' },
+          });
+          firstFutureStage.previewImageUrl = recoveredUrl;
+          firstFutureStage.previewInputDigest = 'recovered-completed-task';
+          this.logger.log(`Recovered Stage 1 preview from completed task for user ${userId}`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'unknown';
+          this.logger.warn(`Completed Stage 1 preview recovery failed: ${message}`);
+        }
+      } else {
+        const activeTask = await this.prisma.imageGenTask.findFirst({
+          where: { userId, variant: null, status: 'processing', createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) } },
+          select: { id: true },
+        });
+        if (!activeTask) {
+          this.generateNextStagePreview(userId, imageProfile.startImageUrl).catch((error) => {
+            const message = error instanceof Error ? error.message : 'unknown';
+            this.logger.warn(`Missing Stage 1 preview regeneration failed: ${message}`);
+          });
+        }
+      }
+    }
 
     const currentBodyFat =
       latestAssessment?.bodyFatEstimate ?? this.calculateBodyFatFromUser(user);
@@ -119,6 +159,104 @@ export class EvolutionStageService {
     }));
 
     return { stages: stageItems, currentBodyFat };
+  }
+
+  async confirmIdealSelection(
+    userId: string,
+    input: { imageTaskId?: string; variant?: string },
+    idempotencyKey?: string,
+  ) {
+    const key = idempotencyKey?.trim() ?? '';
+    if (key.length < 16 || key.length > 128) throw new BadRequestException('Invalid Idempotency-Key');
+    const variant = input.variant?.trim() ?? '';
+    if (!['lean', 'athletic', 'strong'].includes(variant)) throw new BadRequestException('Invalid ideal-body variant');
+    const task = await this.prisma.imageGenTask.findFirst({
+      where: { id: input.imageTaskId, userId, status: 'completed', variant, resultImageUrl: { not: null } },
+    });
+    if (!task?.resultImageUrl) throw new NotFoundException('Completed ideal-body task not found');
+    const digest = createHash('sha256').update(`${task.id}:${variant}`).digest('hex');
+    const existing = await this.prisma.evolutionImageProfile.findUnique({ where: { userId } });
+    if (!task.batchId || task.batchId !== existing?.activeBatchId) {
+      throw new ConflictException('Ideal-body task is not part of the active generation batch');
+    }
+    if (existing?.selectionIdempotencyKey === key) {
+      if (existing.selectionPayloadDigest !== digest) throw new ConflictException('Idempotency-Key payload conflict');
+      return this.buildSelectionResponse(existing.selectedIdealImageUrl!, variant);
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { userImage: true, gender: true } });
+    if (!user) throw new NotFoundException('User not found');
+    await this.initializeStages(userId, user.gender);
+    const endpoints = await this.resolveStageEndpoints(userId, user.gender);
+    await this.prisma.$transaction([
+      this.prisma.evolutionImageProfile.upsert({
+        where: { userId },
+        create: { userId, startImageUrl: user.userImage, startBodyFat: endpoints.start, targetBodyFat: endpoints.target, activeBatchId: task.batchId, selectedBatchId: task.batchId, selectedIdealTaskId: task.id, selectedIdealImageUrl: task.resultImageUrl, selectedIdealVariant: variant, selectionIdempotencyKey: key, selectionPayloadDigest: digest },
+        update: { startImageUrl: user.userImage, startBodyFat: endpoints.start, targetBodyFat: endpoints.target, selectedBatchId: task.batchId, selectedIdealTaskId: task.id, selectedIdealImageUrl: task.resultImageUrl, selectedIdealVariant: variant, selectionIdempotencyKey: key, selectionPayloadDigest: digest },
+      }),
+      this.prisma.user.update({ where: { id: userId }, data: { idealBodyImage: task.resultImageUrl } }),
+      this.prisma.evolutionStage.update({ where: { userId_stageIndex: { userId, stageIndex: 0 } }, data: { previewImageUrl: user.userImage, isUnlocked: true } }),
+      this.prisma.evolutionStage.update({ where: { userId_stageIndex: { userId, stageIndex: 6 } }, data: { previewImageUrl: task.resultImageUrl } }),
+    ]);
+    const startImage = user.userImage || existing?.startImageUrl;
+    if (startImage) {
+      this.generateNextStagePreview(userId, startImage).catch((error) => {
+        const message = error instanceof Error ? error.message : 'unknown';
+        this.logger.warn(`Initial stage preview generation failed: ${message}`);
+      });
+    }
+    return this.buildSelectionResponse(task.resultImageUrl, variant);
+  }
+
+  async getImageProfile(userId: string) {
+    const profile = await this.prisma.evolutionImageProfile.findUnique({ where: { userId } });
+    if (!profile) return null;
+    return { selectedIdealImageUrl: profile.selectedIdealImageUrl, variant: profile.selectedIdealVariant, promptVersion: profile.promptVersion, strategyVersion: profile.strategyVersion, activeBatchId: profile.activeBatchId, selectedBatchId: profile.selectedBatchId, hasCurrentSelection: Boolean(profile.activeBatchId && profile.selectedBatchId === profile.activeBatchId) };
+  }
+
+  async beginImageBatch(userId: string) {
+    const batchId = randomUUID();
+    await this.prisma.$transaction([
+      this.prisma.evolutionImageProfile.upsert({
+        where: { userId },
+        create: { userId, activeBatchId: batchId },
+        update: { activeBatchId: batchId },
+      }),
+      this.prisma.evolutionStage.updateMany({
+        where: { userId, stageIndex: 6 },
+        data: { previewImageUrl: null },
+      }),
+    ]);
+    return { batchId };
+  }
+
+  async prepareImageProfile(userId: string, startImage: string, recalibrate = false) {
+    if (!startImage?.trim()) throw new BadRequestException('Start image is required');
+    const normalizedImage = startImage.trim();
+    const [existing, user, ownedAsset] = await Promise.all([
+      this.prisma.evolutionImageProfile.findUnique({ where: { userId } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { userImage: true, userFaceImage: true } }),
+      this.prisma.uploadAsset.findFirst({ where: { userId, url: normalizedImage }, select: { id: true } }),
+    ]);
+    if (!user) throw new NotFoundException('User not found');
+    const isOwnedImage = Boolean(
+      normalizedImage === user.userImage ||
+      normalizedImage === user.userFaceImage ||
+      normalizedImage === existing?.startImageUrl ||
+      ownedAsset,
+    );
+    if (!isOwnedImage) throw new NotFoundException('Owned start image not found');
+    if (existing?.identityAnchors && !recalibrate) return { identityAnchorVersion: existing.identityAnchorVersion };
+    const anchors = await this.aiService.extractIdentityAnchorsFromImage(normalizedImage);
+    const profile = await this.prisma.evolutionImageProfile.upsert({
+      where: { userId },
+      create: { userId, startImageUrl: normalizedImage, identityAnchors: anchors as Prisma.InputJsonValue, identityAnchorVersion: 1 },
+      update: { startImageUrl: normalizedImage, identityAnchors: anchors as Prisma.InputJsonValue, identityAnchorVersion: { increment: 1 } },
+    });
+    return { identityAnchorVersion: profile.identityAnchorVersion };
+  }
+
+  private async buildSelectionResponse(selectedIdealImageUrl: string, variant: string) {
+    return { selectedIdealImageUrl, variant };
   }
 
   // ── Assess Upload ────────────────────────────────────────────────────
@@ -324,7 +462,7 @@ export class EvolutionStageService {
         });
 
         if (genResult.image) {
-          northStarUrl = this.saveBase64Image(genResult.image);
+          northStarUrl = this.ensureStoredImageUrl(genResult.image);
           await this.prisma.evolutionStage.updateMany({
             where: { userId, stageIndex: 6 },
             data: { previewImageUrl: northStarUrl },
@@ -461,45 +599,56 @@ export class EvolutionStageService {
       }
 
       // Get the user's start photo as reference image.
-      const startRecord = await this.prisma.evolutionRecord.findFirst({
+      const [startRecord, imageProfile] = await Promise.all([this.prisma.evolutionRecord.findFirst({
         where: { userId },
         orderBy: { createdAt: 'asc' },
         select: { imageUrl: true },
-      });
+      }), this.prisma.evolutionImageProfile.findUnique({ where: { userId }, select: { selectedIdealImageUrl: true, identityAnchors: true } })]);
 
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         select: { gender: true },
       });
 
+      const latestAssessment = await this.prisma.evolutionAssessment.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' }, select: { bodyFatEstimate: true } });
+
       const bodyDesc = this.lookupBodyDescription(user?.gender ?? null, nextStage.targetBodyFat);
 
       const prompt = [
         `Transform this fitness progress photo to show the same person at exactly ${nextStage.targetBodyFat}% body fat.`,
         `Target look: ${bodyDesc}.`,
+        `Current estimated body fat is ${latestAssessment?.bodyFatEstimate ?? 'unknown'}%; the visual change to ${nextStage.targetBodyFat}% must be clearly noticeable but anatomically believable.`,
         'Keep everything else identical: face, skin tone, hair, clothing style, posture,',
         'background, and lighting.',
         'The only change is body composition — reduce body fat to match the target.',
         'Photorealistic. No face distortion. No background changes.',
+        imageProfile?.identityAnchors ? `Locked identity anchors: ${JSON.stringify(imageProfile.identityAnchors)}.` : '',
       ].join(' ');
 
       const dataUrl = await this.imageUrlToDataUrl(recordImageUrl);
-      const referenceBase64 = startRecord?.imageUrl
-        ? await this.imageUrlToDataUrl(startRecord.imageUrl)
+      const referenceUrl = imageProfile?.selectedIdealImageUrl || startRecord?.imageUrl;
+      const inputDigest = createHash('sha256')
+        .update(`${recordImageUrl}:${referenceUrl || ''}:${nextStage.id}:${nextStage.targetBodyFat}:stage-preview-v2`)
+        .digest('hex');
+      if (nextStage.previewInputDigest === inputDigest && nextStage.previewImageUrl) return;
+      const referenceBase64 = referenceUrl
+        ? await this.imageUrlToDataUrl(referenceUrl)
         : undefined;
 
       const genResult = await this.imageGenService.generateIdealBody(userId, {
         prompt,
         currentImageBase64: dataUrl,
         referenceImageBase64: referenceBase64,
+        expectedSourceFat: latestAssessment?.bodyFatEstimate,
+        targetBodyFat: nextStage.targetBodyFat,
       });
 
       if (!genResult.image) return;
 
-      const savedUrl = this.saveBase64Image(genResult.image);
+      const savedUrl = this.ensureStoredImageUrl(genResult.image);
       await this.prisma.evolutionStage.update({
         where: { id: nextStage.id },
-        data: { previewImageUrl: savedUrl },
+        data: { previewImageUrl: savedUrl, previewInputDigest: inputDigest },
       });
 
       this.logger.log(
@@ -524,9 +673,13 @@ export class EvolutionStageService {
         return aLo - bLo;
       },
     );
-    for (const range of ranges) {
+    for (let index = 0; index < ranges.length; index++) {
+      const range = ranges[index]!;
       const [lo, hi] = range.split('-').map(Number);
-      if (bodyFat >= lo && bodyFat <= hi) return table[range];
+      const isLast = index === ranges.length - 1;
+      if (bodyFat >= lo && (bodyFat < hi || (isLast && bodyFat <= hi))) {
+        return `${table[range]} 目标体脂 ${bodyFat.toFixed(1)}%，腰腹、上臂、大腿和下颌线的变化幅度必须与该数值连续对应，不能套用相邻阶段的同一外观。`;
+      }
     }
     // Fallback: first range if below, last range if above.
     if (bodyFat < Number(ranges[0]!.split('-')[0])) return table[ranges[0]!]!;
@@ -539,7 +692,8 @@ export class EvolutionStageService {
   private async initializeStages(userId: string, gender: string | null) {
     const { start, target } = await this.resolveStageEndpoints(userId, gender);
     const targets = this.buildStageTargets(gender, start, target);
-    const stageZeroPreviewImage = await this.getLatestGeneratedIdealImage(userId);
+    const profile = await this.prisma.evolutionImageProfile.findUnique({ where: { userId }, select: { startImageUrl: true, selectedIdealImageUrl: true } });
+    const stageZeroPreviewImage = profile?.startImageUrl;
 
     await Promise.all(
       targets.map((targetBodyFat, stageIndex) =>
@@ -559,6 +713,7 @@ export class EvolutionStageService {
           update: {
             targetBodyFat,
             title: STAGE_TITLES[stageIndex] ?? `Stage ${stageIndex + 1}`,
+            ...(stageIndex === 6 && profile?.selectedIdealImageUrl ? { previewImageUrl: profile.selectedIdealImageUrl } : {}),
           },
         }),
       ),
@@ -790,9 +945,14 @@ export class EvolutionStageService {
       base64Data = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
     }
     const filename = `gen-stage-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
+    if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
     const filepath = join(UPLOADS_DIR, filename);
     writeFileSync(filepath, Buffer.from(base64Data.replace(/\s/g, ''), 'base64'));
     return buildUploadUrl(filename);
+  }
+
+  private ensureStoredImageUrl(image: string): string {
+    return image.startsWith('data:') ? this.saveBase64Image(image) : image;
   }
 
   private isGenStageUrl(url: string): boolean {

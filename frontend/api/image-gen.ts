@@ -8,7 +8,10 @@ export interface ImageGenTask {
   prompt?: string;
   resultImageUrl?: string;
   errorMessage?: string;
+  variant?: 'lean' | 'athletic' | 'strong';
+  batchId?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface IdealBodyGeneratePayload {

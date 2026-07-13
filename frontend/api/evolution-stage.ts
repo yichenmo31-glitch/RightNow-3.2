@@ -35,6 +35,9 @@ export interface NorthStarResponse {
   stages: EvolutionStage[];
   northStarUrl?: string;
 }
+export type IdealVariant = 'lean' | 'athletic' | 'strong';
+export interface IdealSelectionResponse { selectedIdealImageUrl: string; variant: IdealVariant }
+export interface EvolutionImageProfileResponse extends Partial<IdealSelectionResponse> { promptVersion: string; strategyVersion: string; activeBatchId?: string; selectedBatchId?: string; hasCurrentSelection: boolean }
 
 function toNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -138,5 +141,21 @@ export const evolutionStageApi = {
   async northStar(startImageUrl: string): Promise<NorthStarResponse> {
     const { data } = await client.post<unknown>('/evolution-stage/north-star', { startImageUrl });
     return data as NorthStarResponse;
+  },
+  async confirmIdealSelection(imageTaskId: string, variant: IdealVariant, idempotencyKey: string): Promise<IdealSelectionResponse> {
+    const { data } = await client.post<IdealSelectionResponse>('/evolution-stage/ideal-selection', { imageTaskId, variant }, { headers: { 'Idempotency-Key': idempotencyKey } });
+    return data;
+  },
+  async imageProfile(): Promise<EvolutionImageProfileResponse | null> {
+    const { data } = await client.get<EvolutionImageProfileResponse | null>('/evolution-stage/image-profile');
+    return data;
+  },
+  async prepareImageProfile(startImage: string, recalibrate = false): Promise<{ identityAnchorVersion: number }> {
+    const { data } = await client.post<{ identityAnchorVersion: number }>('/evolution-stage/image-profile/prepare', { startImage, recalibrate });
+    return data;
+  },
+  async beginImageBatch(): Promise<{ batchId: string }> {
+    const { data } = await client.post<{ batchId: string }>('/evolution-stage/image-profile/batch');
+    return data;
   },
 };

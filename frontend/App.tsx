@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { View } from './types';
-import { authApi, TOKEN_KEY, aiCoachApi, userApi, evolutionStageApi } from './api';
+import { authApi, TOKEN_KEY, aiCoachApi, userApi, evolutionStageApi, imageGenApi } from './api';
 import type { AuthUser } from './api';
 import { assessBodyFatFromImages } from './services/gemini';
 import Login from './views/Login';
@@ -58,6 +58,11 @@ const App: React.FC = () => {
     gender: 'male' | 'female';
   } | null>(null);
   const [isRunningVisualAssessment, setIsRunningVisualAssessment] = useState(false);
+  const [idealImagesReady, setIdealImagesReady] = useState(false);
+  const [hasCurrentIdealSelection, setHasCurrentIdealSelection] = useState(false);
+  const [imageGenerationPending, setImageGenerationPending] = useState(
+    () => localStorage.getItem('rightnow_image_generation_pending') === 'true',
+  );
 
   const [customPhotos, setCustomPhotos] = useState<string[]>([]);
   const [shareData, setShareData] = useState<any>(null);
@@ -102,6 +107,9 @@ const App: React.FC = () => {
     setVisualAssessment(null);
     setPendingVisualAssessment(null);
     setIsRunningVisualAssessment(false);
+    setImageGenerationPending(false);
+    setIdealImagesReady(false);
+    setHasCurrentIdealSelection(false);
     setCustomPhotos([]);
     localStorage.removeItem(USER_IMAGE_KEY);
     localStorage.removeItem(USER_FACE_IMAGE_KEY);
@@ -149,6 +157,42 @@ const App: React.FC = () => {
       localStorage.removeItem(IDEAL_BODY_IMAGE_KEY);
     }
   }, [idealBodyImage, authUser?.id, authUser?.idealBodyImage]);
+
+  useEffect(() => {
+    if (!authUser) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const [profile, tasks] = await Promise.all([
+          evolutionStageApi.imageProfile(),
+          imageGenApi.list(),
+        ]);
+        if (cancelled) return;
+        const activeBatchId = profile?.activeBatchId;
+        const hasSelection = profile?.hasCurrentSelection === true;
+        setHasCurrentIdealSelection(hasSelection);
+        setImageGenerationPending(Boolean(activeBatchId && !hasSelection));
+        if (hasSelection && profile?.selectedIdealImageUrl) {
+          setIdealBodyImage(profile.selectedIdealImageUrl);
+          setIdealImagesReady(false);
+          localStorage.removeItem('rightnow_image_generation_pending');
+          return;
+        }
+        if (!activeBatchId) {
+          setIdealImagesReady(false);
+          return;
+        }
+        const variants = ['lean', 'athletic', 'strong'];
+        const latest = variants.map((variant) => tasks.find((task) => task.variant === variant && task.batchId === activeBatchId));
+        if (latest.every((task) => task && (task.status === 'completed' || task.status === 'failed')) && latest.some((task) => task?.status === 'completed')) {
+          setIdealImagesReady(true);
+        }
+      } catch { /* retry on next interval */ }
+    };
+    check();
+    const timer = window.setInterval(check, 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [authUser?.id]);
 
   useEffect(() => {
     if (!pendingVisualAssessment || isRunningVisualAssessment) {
@@ -314,7 +358,6 @@ const App: React.FC = () => {
     if (isComplete) {
       // Normal flow: Co-creation
       setCurrentView(View.Evolution);
-      if (image) { evolutionStageApi.northStar(image).catch(() => {}); }
     } else {
       // Skipped flow: Go to Dashboard (Incomplete State)
       setCurrentView(View.Dashboard);
@@ -344,7 +387,7 @@ const App: React.FC = () => {
       case View.Onboarding:
         return <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Dashboard:
-        return <Dashboard onNavigate={setCurrentView} isProfileComplete={isProfileComplete} authUser={authUser} onLogout={handleLogout} idealImage={idealBodyImage || userFaceImage || userImage} />;
+        return <Dashboard onNavigate={setCurrentView} isProfileComplete={isProfileComplete} authUser={authUser} onLogout={handleLogout} idealImage={confirmedIdealBodyImage} />;
       case View.Evolution:
         return <EvolutionEngine
           userImage={userImage}
@@ -355,11 +398,11 @@ const App: React.FC = () => {
           onComplete={(generatedImg?: string | null) => {
             if (generatedImg) {
               setIdealBodyImage(generatedImg);
-            } else if (userFaceImage) {
-              setIdealBodyImage(userFaceImage);
-            } else if (userImage) {
-              setIdealBodyImage(userImage);
+              setHasCurrentIdealSelection(true);
             }
+            localStorage.removeItem('rightnow_image_generation_pending');
+            setImageGenerationPending(false);
+            setIdealImagesReady(false);
 
             setHasUnreadAI(false);
             setCoachTrigger(false);
@@ -378,6 +421,11 @@ const App: React.FC = () => {
             setCurrentView(View.Dashboard);
           }}
           onNavigate={setCurrentView}
+          onSkipWaiting={() => {
+            localStorage.setItem('rightnow_image_generation_pending', 'true');
+            setImageGenerationPending(true);
+            setCurrentView(View.Dashboard);
+          }}
         />;
       case View.Stats:
         return <DataDashboard onNavigate={setCurrentView} />;
@@ -463,7 +511,7 @@ const App: React.FC = () => {
         return <CheckInShare onClose={() => setCurrentView(View.Dashboard)} />;
 
       default:
-        return <Dashboard authUser={authUser} isProfileComplete={isProfileComplete} idealImage={idealBodyImage || userFaceImage || userImage} />;
+        return <Dashboard authUser={authUser} isProfileComplete={isProfileComplete} idealImage={confirmedIdealBodyImage} />;
     }
   };
 
@@ -534,9 +582,28 @@ const App: React.FC = () => {
         return `视觉评估完成：当前体脂约 ${visualAssessment.currentBodyFat}% ，目标 ${visualAssessment.targetBodyFat}% 。按每周约 0.5% 变化，预计约 ${weeks} 周可达成。`;
       })()
     : undefined;
+  const confirmedIdealBodyImage = hasCurrentIdealSelection && idealBodyImage && idealBodyImage !== userImage && idealBodyImage !== userFaceImage
+    ? idealBodyImage
+    : undefined;
+  const showIdealSelectionBanner = Boolean(
+    authUser &&
+    idealImagesReady &&
+    imageGenerationPending &&
+    currentView !== View.Splash &&
+    currentView !== View.Login &&
+    currentView !== View.Register &&
+    currentView !== View.Onboarding &&
+    currentView !== View.Evolution,
+  );
 
   return (
     <div className="antialiased bg-black text-white min-h-screen">
+      {showIdealSelectionBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-sm bg-[#B8FF00] text-black px-4 py-3 rounded-lg shadow-xl flex items-center justify-between gap-3">
+          <span className="text-sm font-bold">理想身材已生成</span>
+          <button onClick={() => { setIdealImagesReady(false); setCurrentView(View.Evolution); }} className="text-sm font-black underline">去选择</button>
+        </div>
+      )}
       {!shouldHideAdvisor && <FloatingAdvisor
         currentView={currentView}
         hasNotification={hasUnreadAI}

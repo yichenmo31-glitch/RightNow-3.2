@@ -777,6 +777,18 @@ git status --short
 
 通过标准：所有命令退出码为 0；无意外生成文件或密钥。
 
+## 11B. Wave 4D：身材图与进化路径衔接
+
+负责人：`ROOT` + `AGENT-BE` + `AGENT-FE`
+
+设计事实源为 `docs/EVOLUTION_IMAGE_GENERATION_DESIGN.md`，具体实施、迁移、测试和回滚步骤见 `docs/development-runbook/EVOLUTION_IMAGE_IMPLEMENTATION_RUNBOOK.md`。
+
+本 Wave 保留首次三选一，但将三个版本收敛为 `lean/athletic/strong` 三种可信体型；新增持久化身份锚点和理想态确认契约，将用户选中的图片绑定为 Stage 6，并让下一阶段预览以“最新真实照 + 选定理想图”为主要输入。
+
+开放门禁：理想态确认必须由 JWT ownership 和 Idempotency-Key 保护；Stage 6 不得重复生图；阶段图片失败不得回滚体脂评估或阶段解锁；A/B 用户图片任务、身份锚点和阶段数据必须零串读；正式环境不得继续把大型 Base64 写入 PostgreSQL。
+
+状态：in_progress。核心链路与本地受控文件存储已实现；自动化矩阵、A/B 隔离和正式发布门禁未完成前，不得标记 Wave 4D completed。
+
 ## 12. 每一步的进度记录格式
 
 在 `progress.md` 中逐步追加：

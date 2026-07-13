@@ -38,8 +38,9 @@ type StageImageContext = {
   firstImage?: string;
   currentImage?: string;
   goalImage?: string;
-  timeline: string[];
 };
+
+type StageImageSource = '真实达标' | 'AI 预览' | '待生成';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -119,38 +120,19 @@ function buildImageContext(records: EvolutionRecordItem[]): StageImageContext {
   const timeline = uniqImages([...recordImages, localCurrent]);
   const firstImage = recordImages[0] ?? timeline[0];
   const currentImage = recordImages[recordImages.length - 1] ?? timeline[timeline.length - 1];
-  const goalImage = uniqImages([localGoal])[0] ?? timeline[timeline.length - 1];
+  const goalImage = localGoal && localGoal !== localCurrent ? localGoal : undefined;
 
   return {
     firstImage,
     currentImage,
     goalImage,
-    timeline,
   };
-}
-
-function pickTimelineImage(stageIndex: number, context: StageImageContext): string | undefined {
-  if (context.timeline.length === 0) {
-    return undefined;
-  }
-
-  if (stageIndex <= 0) {
-    return context.firstImage ?? context.timeline[0];
-  }
-
-  if (stageIndex >= 6) {
-    return context.goalImage ?? context.timeline[context.timeline.length - 1];
-  }
-
-  return context.timeline[Math.min(stageIndex, context.timeline.length - 1)];
 }
 
 function hydrateStageImages(stages: EvolutionStage[], context: StageImageContext): EvolutionStage[] {
   return [...stages]
     .sort((a, b) => a.stageIndex - b.stageIndex)
     .map((stage) => {
-      const candidateImage = pickTimelineImage(stage.stageIndex, context);
-      const preferredGoal = stage.stageIndex === 6 ? context.goalImage : undefined;
       const stageActual =
         stage.actualImageUrl && isLikelyUserPhoto(stage.actualImageUrl)
           ? stage.actualImageUrl
@@ -161,31 +143,27 @@ function hydrateStageImages(stages: EvolutionStage[], context: StageImageContext
           : undefined;
 
       if (stage.stageIndex === 0) {
-        const stageZeroImage =
-          context.firstImage ||
-          stageActual ||
-          stagePreview ||
-          candidateImage;
+        const stageZeroImage = stageActual || context.firstImage;
 
         return {
           ...stage,
-          previewImageUrl: stagePreview || stageZeroImage,
-          actualImageUrl: stage.isUnlocked ? stageZeroImage : stageActual,
+          previewImageUrl: stagePreview,
+          actualImageUrl: stageZeroImage,
         };
       }
 
-      const preferredImage =
-        preferredGoal ||
-        stageActual ||
-        stagePreview ||
-        candidateImage;
+      if (stage.stageIndex === 6) {
+        return {
+          ...stage,
+          previewImageUrl: stagePreview || context.goalImage,
+          actualImageUrl: stageActual,
+        };
+      }
 
       return {
         ...stage,
-        previewImageUrl: stagePreview || preferredImage,
-        actualImageUrl: stage.isUnlocked
-          ? preferredGoal || stageActual || candidateImage
-          : stageActual,
+        previewImageUrl: stagePreview,
+        actualImageUrl: stageActual,
       };
     });
 }
@@ -202,18 +180,31 @@ function buildFallbackStages(
   return Array.from({ length: 7 }, (_, index) => {
     const value = Number((safeCurrent - step * index).toFixed(1));
     const targetBodyFat = index === 6 ? safeTarget : Number(Math.max(safeTarget, value).toFixed(1));
-    const candidateImage = pickTimelineImage(index, imageContext);
+    const actualImageUrl = index === 0 ? imageContext.firstImage : undefined;
+    const previewImageUrl = index === 6 ? imageContext.goalImage : undefined;
 
     return {
       stageIndex: index,
       targetBodyFat,
       title: FALLBACK_STAGE_TITLES[index],
-      previewImageUrl: candidateImage,
-      isUnlocked: index <= 1,
-      actualImageUrl: index <= 1 ? candidateImage : undefined,
-      qualifiedCount: index === 0 ? 2 : index === 1 ? 1 : 0,
+      previewImageUrl,
+      isUnlocked: index === 0,
+      actualImageUrl,
+      qualifiedCount: index === 0 ? 2 : 0,
     };
   });
+}
+
+function getStageImageSource(stage: EvolutionStage): StageImageSource {
+  if (stage.actualImageUrl) {
+    return '真实达标';
+  }
+
+  if (stage.previewImageUrl) {
+    return 'AI 预览';
+  }
+
+  return '待生成';
 }
 
 function buildDisplayBodyFatByStage(
@@ -311,7 +302,7 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
     const hasUserPhoto =
       Boolean(imageContext.currentImage) ||
       Boolean(imageContext.goalImage) ||
-      imageContext.timeline.length > 0;
+      Boolean(imageContext.firstImage);
 
     try {
       if (stagesResult.status !== 'fulfilled') {
@@ -385,7 +376,7 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
       <div
         className={`absolute inset-0 flex items-center justify-center text-[11px] text-white/45 tracking-wide ${imageUrl ? 'opacity-0' : 'opacity-100'}`}
       >
-        等待你的照片
+        待生成
       </div>
     </>
   );
@@ -470,6 +461,7 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
             const isCurrent = conf.id === 0;
             const isNextStage = conf.id === 1;
             const imageUrl = stage.actualImageUrl || stage.previewImageUrl;
+            const imageSource = getStageImageSource(stage);
 
             if (isGoal) {
               return (
@@ -496,6 +488,7 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
                   <div className="mt-5 bg-[#120a00]/90 backdrop-blur-md px-6 py-2.5 rounded-xl border border-[#FFD700]/40 text-center shadow-[0_10px_30px_rgba(255,215,0,0.2)] relative z-20">
                     <h3 className="text-[#FFD700] font-black text-[15px] tracking-widest drop-shadow-[0_0_8px_rgba(255,215,0,0.8)]">{stage.title}</h3>
                     <p className="text-[#FFD700]/70 text-[10px] tracking-wider mt-1 font-bold">目标: {bodyFat}% 体脂</p>
+                    <p className="text-white/45 text-[9px] tracking-wider mt-1">{imageSource}</p>
                   </div>
                 </div>
               );
@@ -514,6 +507,7 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
                         {bodyFat}%<span className="text-[12px] not-italic ml-1 opacity-80">体脂</span>
                       </h3>
                       <p className="text-white/80 text-[10px] uppercase font-bold tracking-[0.2em] mt-0.5">{stage.title}</p>
+                      <p className="text-white/45 text-[9px] tracking-wider mt-1">{imageSource}</p>
                     </div>
                   </div>
                   <div className="absolute -bottom-10 w-2 h-2 rounded-full bg-[#B8FF00] shadow-[0_0_15px_#B8FF00] border-2 border-[#B8FF00]"></div>
@@ -539,6 +533,7 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
                         <span className="material-icons-round text-[10px] text-[#B8FF00]">check_circle</span>
                         <span className="text-[9px] text-[#B8FF00] font-bold tracking-widest">已解锁</span>
                       </div>
+                      <p className="text-white/45 text-[9px] tracking-wider mt-1">{imageSource}</p>
                     </div>
                   </div>
                 </div>
@@ -558,6 +553,7 @@ const EvolutionProgress: React.FC<Props> = ({ onBack, currentFat: propCurrentFat
                         <span className="material-icons-round text-[10px] text-[#B8FF00]">lock_open</span>
                         <span className="text-[9px] text-[#B8FF00] font-bold tracking-widest">下阶段目标 {stage.qualifiedCount}/2</span>
                       </div>
+                      <p className="text-white/45 text-[9px] tracking-wider mt-1">{imageSource}</p>
                     </div>
                   </div>
                 </div>

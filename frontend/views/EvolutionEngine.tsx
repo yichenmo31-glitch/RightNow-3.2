@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View } from '../types';
 import { generateIdealBodyAll3 } from '../services/gemini';
+import type { IdealBodyVariantResult } from '../services/gemini';
+import { evolutionStageApi } from '../api/evolution-stage';
 import type { AuthUser } from '../api';
+import { imageGenApi } from '../api';
+import { fillIdealBodyResultSlots } from '../utils/ideal-body-results.mjs';
 
 interface Props {
   userImage?: string | null;
@@ -11,16 +15,20 @@ interface Props {
   authUser?: AuthUser | null;
   onComplete: (generatedImage?: string | null, visualAssessment?: { currentBodyFat: number; targetBodyFat: number } | null) => void;
   onNavigate?: (view: View) => void;
+  onSkipWaiting?: () => void;
 }
 
-const CARD_LABELS = ['数字美塑', '维度显化', '量子融合'];
-const CARD_SUBTITLES = ['精准面部移植', '身材维度重塑', '意识量子叠加'];
+const CARD_LABELS = ['自然精瘦', '运动体型', '强壮塑形'];
+const CARD_SUBTITLES = ['自然减脂', '均衡线条', '力量轮廓'];
 const CARD_ROTATIONS = [-6, 0, 6];
 
 const EvolutionEngine: React.FC<Props> = ({
-  userImage, bodyStyle, gender, onComplete,
+  userImage, bodyStyle, gender, onComplete, onSkipWaiting,
 }) => {
-  const [images, setImages] = useState<Array<string | null>>([null, null, null]);
+  const [images, setImages] = useState<Array<IdealBodyVariantResult | null>>([null, null, null]);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [selectionKey, setSelectionKey] = useState(() => crypto.randomUUID());
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(true);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -33,12 +41,13 @@ const EvolutionEngine: React.FC<Props> = ({
     setErrorMessage(null);
     setErrorDetail(null);
     try {
+      if (userImage) await evolutionStageApi.prepareImageProfile(userImage);
       const results = await generateIdealBodyAll3({
         currentImageBase64: userImage || undefined,
         targetStyle: bodyStyle || 'athletic',
         gender: gender || 'male',
       });
-      setImages(results);
+      setImages(fillIdealBodyResultSlots(results));
     } catch (error: any) {
       const status = Number(error?.status || 0);
       const message = String(error?.message || '');
@@ -57,7 +66,28 @@ const EvolutionEngine: React.FC<Props> = ({
     setIsGenerating(false);
   };
 
-  useEffect(() => { generate(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const resumeOrGenerate = async () => {
+      try {
+        const [profile, tasks] = await Promise.all([evolutionStageApi.imageProfile(), imageGenApi.list()]);
+        if (profile?.activeBatchId && !profile.hasCurrentSelection) {
+          const variants = ['lean', 'athletic', 'strong'] as const;
+          const latest = variants.map((variant) => tasks.find((task) => task.variant === variant && task.batchId === profile?.activeBatchId));
+          if (latest.every((task) => task && (task.status === 'completed' || task.status === 'failed'))) {
+            const restored = latest.map((task, index) => task?.status === 'completed' && task.resultImageUrl
+              ? { image: task.resultImageUrl, taskId: task.id, variant: variants[index] }
+              : null);
+            setImages(fillIdealBodyResultSlots(restored));
+            setIsGenerating(false);
+            localStorage.removeItem('rightnow_image_generation_pending');
+            return;
+          }
+        }
+      } catch { /* start a fresh batch below */ }
+      await generate();
+    };
+    resumeOrGenerate();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="h-screen bg-[#030303] flex flex-col overflow-hidden">
@@ -96,7 +126,13 @@ const EvolutionEngine: React.FC<Props> = ({
               return (
                 <div
                   key={i}
-                  onClick={() => !isGenerating && images[i] && setSelectedIdx(i)}
+                  onClick={() => {
+                    if (!isGenerating && images[i]) {
+                      setSelectedIdx(i);
+                      setSelectionKey(crypto.randomUUID());
+                      setConfirmError(null);
+                    }
+                  }}
                   className={`relative transition-all duration-300 ${!isGenerating && images[i] ? 'cursor-pointer' : 'cursor-default'}`}
                   style={{
                     transform: `rotate(${isSelected ? 0 : CARD_ROTATIONS[i]}deg) scale(${isSelected ? 1.1 : 0.95})`,
@@ -109,12 +145,17 @@ const EvolutionEngine: React.FC<Props> = ({
                       ? 'border-[#B8FF00] shadow-[0_0_28px_rgba(184,255,0,0.55)]'
                       : 'border-white/15'
                   }`}>
-                    {isGenerating || images[i] === null ? (
+                    {isGenerating ? (
                       <div className={`w-full h-full bg-gradient-to-br from-[#0f1a0f] to-[#0a0a0a] flex items-center justify-center ${isGenerating ? 'animate-pulse' : ''}`}>
                         <div className="w-8 h-8 rounded-full border-2 border-[#B8FF00]/30 border-t-[#B8FF00] animate-spin" />
                       </div>
+                    ) : images[i] === null ? (
+                      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center px-2 text-center">
+                        <span className="material-icons-round text-white/30 text-2xl">image_not_supported</span>
+                        <span className="mt-2 text-[10px] text-white/40">生成失败</span>
+                      </div>
                     ) : (
-                      <img src={images[i]!} alt={CARD_LABELS[i]} className="w-full h-full object-cover" />
+                      <img src={images[i]!.image} alt={CARD_LABELS[i]} className="w-full h-full object-cover" />
                     )}
                   </div>
 
@@ -139,6 +180,11 @@ const EvolutionEngine: React.FC<Props> = ({
 
       {/* Bottom Actions */}
       <div className="px-5 pb-8 space-y-2.5">
+        {isGenerating && onSkipWaiting && (
+          <button onClick={onSkipWaiting} className="w-full py-3.5 rounded-full text-sm font-bold border border-white/15 bg-white/10 text-white">
+            先进入 APP，生成完成后提醒我
+          </button>
+        )}
         {errorMessage && !isGenerating && (
           <button
             onClick={() => onComplete(null, null)}
@@ -151,8 +197,17 @@ const EvolutionEngine: React.FC<Props> = ({
         {/* Confirm */}
         {!errorMessage && (
           <button
-            onClick={() => selectedIdx !== null && onComplete(images[selectedIdx], null)}
-            disabled={selectedIdx === null || isGenerating || !images[selectedIdx]}
+            onClick={async () => {
+              if (selectedIdx === null || !images[selectedIdx] || isConfirming) return;
+              setIsConfirming(true);
+              try {
+                const selected = images[selectedIdx]!;
+                const confirmed = await evolutionStageApi.confirmIdealSelection(selected.taskId, selected.variant, selectionKey);
+                onComplete(confirmed.selectedIdealImageUrl, null);
+              } catch { setConfirmError('选择保存失败，请重试。'); }
+              finally { setIsConfirming(false); }
+            }}
+            disabled={selectedIdx === null || isGenerating || isConfirming || !images[selectedIdx]}
             className={`w-full py-3.5 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all ${
               selectedIdx !== null && !isGenerating && images[selectedIdx]
                 ? 'bg-[#B8FF00] text-black shadow-[0_0_25px_rgba(184,255,0,0.3)]'
@@ -163,6 +218,7 @@ const EvolutionEngine: React.FC<Props> = ({
             <span className="material-icons-round text-lg">arrow_forward</span>
           </button>
         )}
+        {confirmError && <p className="text-center text-xs text-red-300">{confirmError}</p>}
 
         {/* Regenerate */}
         <button

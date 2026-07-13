@@ -11,23 +11,19 @@ export default defineConfig(({ mode }) => {
     const base = env.VITE_BASE_PATH || '/';
     const apiRoutePattern =
       '^/api/(auth|users|weight|diet|training|training-sessions|todos|checkins|evolution|evolution-stage|posts|comments|friendships|groups|chat|agent|upload|image-gen|fitness-plan|ai-coach|prompts|wechat)(?:/|$)';
+    const proxy = {
+      [apiRoutePattern]: { target: apiTarget, changeOrigin: true },
+      '/uploads': { target: apiTarget, changeOrigin: true },
+    };
     return {
       base,
       server: {
         port: 5173,
         strictPort: true,
         host: 'localhost',
-        proxy: {
-          [apiRoutePattern]: {
-            target: apiTarget,
-            changeOrigin: true,
-          },
-          '/uploads': {
-            target: apiTarget,
-            changeOrigin: true,
-          },
-        },
+        proxy,
       },
+      preview: { proxy },
       plugins: [react()],
       resolve: {
         alias: {
