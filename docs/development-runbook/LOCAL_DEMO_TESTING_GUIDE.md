@@ -1,6 +1,6 @@
 # RightNow 3.2 本地 Demo 开发者测试指南
 
-更新时间：2026-07-12
+更新时间：2026-07-13
 
 ## 1. 文件位置
 
@@ -134,6 +134,15 @@ npm run demo:start
 npm run demo:stop
 ```
 
+需要清除演示过程中累积的聊天、饮食、训练、TODO、图片任务和本地上传文件时，先停止 Demo，再执行：
+
+```powershell
+npm run demo:stop
+npm run demo:reset
+```
+
+`demo:reset` 只允许连接回环地址上的 `rightnow_fitness` 数据库，且账户删除 Worker 必须关闭。命令只重建固定演示账号 `test7@qq.com`，不会删除 buddy、admin 或其他用户；重建后会写入当天的少量 TODO、饮食、训练、体重和计划基线数据。该操作不可恢复，不要在保存了需要保留的演示记录时执行。
+
 PID 和日志写入被 Git 忽略的 `.work/local-demo/`。如果端口被其他项目占用，脚本会停止并报告 PID，不会终止外部进程。
 
 需要重新安装依赖时，先单独执行：
@@ -194,7 +203,7 @@ npm run demo:smoke
 npm run demo:smoke:full
 ```
 
-该命令会消费一次真实 `step-image-edit-2` 请求。测试图仅为本地生成的 64x64 图形，不包含用户照片。
+该命令会消费一次真实图片编辑请求。测试输入使用仓库内 `frontend/public/assets/ori.png` 的固定 Demo 人物素材，不读取测试人员照片；生成结果仍会经过身份与肤色一致性校验。
 
 ### 双用户只读隔离
 

@@ -24,6 +24,7 @@
     "test:account-deletion-e2e": "npm run build && node --env-file=.env scripts/test-account-deletion-e2e.cjs",
     "purge:account-deletion-quarantine": "node --env-file=.env scripts/purge-account-deletion-quarantine.cjs",
     "test:account-deletion-quarantine-purge": "npm run build && node --env-file=.env scripts/test-account-deletion-quarantine-purge.cjs",
+    "demo:reset": "node --env-file=.env scripts/reset-local-demo.cjs --apply --confirm-email test7@qq.com",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",

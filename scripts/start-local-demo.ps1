@@ -76,7 +76,7 @@ $frontendOut = Join-Path $runtimeDir 'frontend.out.log'
 $frontendErr = Join-Path $runtimeDir 'frontend.err.log'
 Remove-Item -LiteralPath $backendOut, $backendErr, $frontendOut, $frontendErr -Force -ErrorAction SilentlyContinue
 
-$backend = Start-Process -FilePath 'node.exe' -ArgumentList 'dist/main.js' `
+$backend = Start-Process -FilePath 'node.exe' -ArgumentList '--env-file=.env', 'dist/main.js' `
   -WorkingDirectory $backendDir -RedirectStandardOutput $backendOut `
   -RedirectStandardError $backendErr -WindowStyle Hidden -PassThru
 $frontend = Start-Process -FilePath 'npm.cmd' `

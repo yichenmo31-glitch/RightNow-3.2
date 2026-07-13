@@ -1139,3 +1139,12 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 新增 Provisioner 回归：部分资源已移动、旧 orphan operation、rename 后未写 tombstone、tombstone 后未删除目录。Provisioner 结果为 12 pass、0 fail、1 Windows symlink 权限 skip。
 - 通过：`test:account-deletion`、`test:account-deletion-worker`、`test:account-deletion-worker-db`、`test:account-deletion-e2e`、`test:upload-quarantine`、`test:account-deletion-quarantine-purge`、`test:openclaw-provisioning`、Backend build、Prisma validate 和 `git diff --check`。
 - 仍未开放生产 Worker。下一步保持不变：增加 Backend OpenClaw quarantine 离线协调命令及 `openClawQuarantinePurgedAt`，先 dry-run 并人工核对 operation/agent 映射；生产 apply 仍需新建隔离用户和独立审批。
+
+## 本地 Demo 三项交付收尾（2026-07-13）
+
+- 已将账户删除链路检修整理为独立提交 `c73b687 fix(account): harden deletion recovery`。
+- 新增 `npm run demo:reset`：固定重建 `test7@qq.com`，恢复当天 TODO、饮食、训练、体重和计划基线；只允许回环地址的 `rightnow_fitness` 数据库，要求删除 Worker 关闭和固定邮箱确认。旧 UploadAsset 文件仅在无其他用户引用时删除。
+- reset dry-run 命中固定演示账号和 4 个旧本地文件；实际 apply 成功删除 4 个旧文件并重建演示账号；缺少确认邮箱的 apply 按预期以 `DEMO_RESET_CONFIRM_EMAIL_REQUIRED` 拒绝。
+- 修复 Demo 启动器环境加载：Backend 改为 `node --env-file=.env dist/main.js`，避免 preview 子进程只加载部分配置导致聊天 provider 被误判为未配置。
+- 修复完整图片冒烟输入：旧 64x64 蓝色方块会被身份一致性门禁正确拒绝；现改用仓库固定 Demo 人物素材 `frontend/public/assets/ori.png`，真实调用图片编辑 provider 且不降低身份/肤色校验。
+- 最终结果：Backend/Frontend production build 与 Chat 回归通过；`demo:start` readiness 为 Backend 401、Frontend 200；`demo:smoke:full` 的前端、小爪入口、登录、聊天、TODO、饮食、训练和真实图片编辑 8/8 通过。验收后再次 stop/reset，删除冒烟生成的 1 个文件并恢复干净基线，Demo 已重新启动。

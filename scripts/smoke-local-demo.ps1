@@ -68,29 +68,21 @@ if ($trainingRaw.success -ne $true -or -not ($trainingRaw.PSObject.Properties.Na
 Pass 'Training read'
 
 if ($IncludeImageEdit) {
-  Add-Type -AssemblyName System.Drawing
-  $bitmap = [System.Drawing.Bitmap]::new(64, 64)
-  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  $graphics.Clear([System.Drawing.Color]::White)
-  $graphics.FillRectangle([System.Drawing.Brushes]::Blue, 16, 16, 32, 32)
-  $graphics.Dispose()
-  $stream = [System.IO.MemoryStream]::new()
-  $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
-  $bitmap.Dispose()
-  $image = 'data:image/png;base64,' + [Convert]::ToBase64String($stream.ToArray())
-  $stream.Dispose()
+  $fixturePath = Join-Path $repoRoot 'frontend\public\assets\ori.png'
+  if (-not (Test-Path -LiteralPath $fixturePath)) { throw 'Image-edit fixture is missing.' }
+  $image = 'data:image/png;base64,' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($fixturePath))
 
   $imageRaw = Invoke-RestMethod -Method Post -Uri "$apiBase/image-gen/ideal-body" -Headers $headers `
     -ContentType 'application/json' -Body (@{
-      prompt = 'Create a clean blue fitness illustration on a white background.'
+      prompt = 'Preserve the exact same person, face, skin tone, body shape, pose, background and lighting. Change only the shorts color to navy blue.'
       currentImageBase64 = $image
       size = '1024x1024'
     } | ConvertTo-Json) -TimeoutSec 180
   $imageResult = Unwrap $imageRaw
   if (-not ([string]$imageResult.image).Trim()) { throw 'Image edit did not return an image.' }
-  Pass 'StepFun image edit'
+  Pass 'Real provider image edit'
 } else {
-  Write-Host 'SKIP  StepFun image edit (run with -IncludeImageEdit to consume one real request)' -ForegroundColor Yellow
+  Write-Host 'SKIP  Real provider image edit (run with -IncludeImageEdit to consume one real request)' -ForegroundColor Yellow
 }
 
 Write-Host "Local Demo smoke completed: $($results.Count) checks passed."

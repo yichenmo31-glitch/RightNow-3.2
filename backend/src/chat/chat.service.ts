@@ -174,14 +174,20 @@ export class ChatService {
         role: message.role === 'tool' ? 'user' : message.role,
         content: message.content,
       }));
-      const direct = await callChatLlm(directMessages, {
-        stepfunBaseUrl: this.configService.get<string>('STEPFUN_BASE_URL'),
-        stepfunApiKey: this.configService.get<string>('STEPFUN_API_KEY'),
-        stepfunModel: this.configService.get<string>('STEPFUN_CHAT_MODEL'),
-        deepseekBaseUrl: this.configService.get<string>('DEEPSEEK_BASE_URL'),
-        deepseekApiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
-        deepseekModel: this.configService.get<string>('DEEPSEEK_CHAT_MODEL'),
-      });
+      let direct;
+      try {
+        direct = await callChatLlm(directMessages, {
+          stepfunBaseUrl: this.configService.get<string>('STEPFUN_BASE_URL'),
+          stepfunApiKey: this.configService.get<string>('STEPFUN_API_KEY'),
+          stepfunModel: this.configService.get<string>('STEPFUN_CHAT_MODEL'),
+          deepseekBaseUrl: this.configService.get<string>('DEEPSEEK_BASE_URL'),
+          deepseekApiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
+          deepseekModel: this.configService.get<string>('DEEPSEEK_CHAT_MODEL'),
+        });
+      } catch (directError) {
+        this.logger.error(`Direct chat fallback failed: ${this.chatErrorCode(directError)}`);
+        throw directError;
+      }
       assistantReply = direct.reply;
     }
     const baseAssistantContent = intent.riskLevel === 'high'
@@ -489,6 +495,16 @@ export class ChatService {
     const configured = Number(this.configService.get<string>('OPENCLAW_DB_HISTORY_WINDOW'));
     if (!Number.isInteger(configured)) return DEFAULT_HISTORY_WINDOW;
     return Math.min(100, Math.max(0, configured));
+  }
+
+  private chatErrorCode(error: unknown): string {
+    const message = error instanceof Error ? error.message : '';
+    if (/empty reply/i.test(message)) return 'CHAT_PROVIDER_EMPTY_REPLY';
+    if (/non-JSON/i.test(message)) return 'CHAT_PROVIDER_INVALID_RESPONSE';
+    if (/429|rate/i.test(message)) return 'CHAT_PROVIDER_RATE_LIMITED';
+    if (/timed out|abort/i.test(message)) return 'CHAT_PROVIDER_TIMEOUT';
+    if (/No chat provider configured/i.test(message)) return 'CHAT_PROVIDER_NOT_CONFIGURED';
+    return 'CHAT_PROVIDER_UNAVAILABLE';
   }
 
   private async assertConversationOwner(userId: string, conversationId: string): Promise<void> {
