@@ -7,6 +7,8 @@ import { validateAgentId } from "./agent-id.js";
 import { deprovisionAgentConfig, provisionAgentConfig } from "./config-store.js";
 import {
   bootstrapWorkspace,
+  listQuarantines,
+  purgeQuarantine,
   quarantineAgentResources,
   restoreQuarantinedResources,
   workspacePath,
@@ -80,9 +82,25 @@ export function createProvisionerServer(config, dependencies = {}) {
   const execFileImpl = dependencies.execFile || execFile;
   const fetchImpl = dependencies.fetch || fetch;
   const sleep = dependencies.sleep || ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+  const now = dependencies.now || (() => Date.now());
   return createServer(async (request, response) => {
     if (!tokenMatches(request.headers.authorization, config.token)) return respond(response, 401, { error: "unauthorized" });
     try {
+      if (request.method === "GET" && request.url === "/quarantine") {
+        return respond(response, 200, { quarantines: await listQuarantines({ quarantineRoot: config.quarantineRoot, now: now() }) });
+      }
+      if (request.method === "POST" && request.url === "/quarantine/purge") {
+        const body = await readJson(request);
+        const allowed = new Set(["operationId", "retentionDays", "dryRun"]);
+        if (Object.keys(body).some((key) => !allowed.has(key))) throw new TypeError("purge paths are server-controlled");
+        return respond(response, 200, await purgeQuarantine({
+          quarantineRoot: config.quarantineRoot,
+          operationId: String(body.operationId || ""),
+          retentionDays: body.retentionDays,
+          dryRun: body.dryRun,
+          now: now(),
+        }));
+      }
       const statusMatch = request.method === "GET" && request.url?.match(/^\/agents\/(rightnow-[a-z0-9][a-z0-9_-]*)$/);
       if (statusMatch) return respond(response, 200, await agentStatus(config, validateAgentId(statusMatch[1])));
       const memoryMatch = request.method === "PUT" && request.url?.match(/^\/agents\/(rightnow-[a-z0-9][a-z0-9_-]*)\/memory$/);

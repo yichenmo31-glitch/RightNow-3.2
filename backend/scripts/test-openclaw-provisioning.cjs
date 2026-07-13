@@ -63,6 +63,22 @@ async function main() {
   await assert.rejects(() => service.deprovisionUserAgent('user-3', operationId), /INVALID_RESPONSE/);
   await assert.rejects(() => service.deprovisionUserAgent('user-3', 'unsafe-operation'), /OPERATION_INVALID/);
 
+  const quarantineRequests = [];
+  global.fetch = async (url, options = {}) => {
+    quarantineRequests.push({ url: String(url), options });
+    if (String(url).endsWith('/quarantine')) {
+      return response(JSON.stringify({ quarantines: [{ operationId, agentId: 'rightnow-user-3', status: 'quarantined', quarantinedAt: new Date(0).toISOString(), ageDays: 31, resourceCount: 2 }] }));
+    }
+    return response(JSON.stringify({ operationId, dryRun: true, eligible: true, purged: false, alreadyPurged: false }));
+  };
+  const quarantines = await service.listQuarantines();
+  assert.equal(quarantines.length, 1);
+  assert.equal(quarantines[0].operationId, operationId);
+  assert.equal(quarantineRequests[0].options.headers.Authorization, 'Bearer test-token');
+  assert.deepEqual(await service.purgeQuarantine(operationId, 30, true), { operationId, dryRun: true, eligible: true, purged: false, alreadyPurged: false });
+  assert.deepEqual(JSON.parse(quarantineRequests[1].options.body), { operationId, retentionDays: 30, dryRun: true });
+  await assert.rejects(() => service.purgeQuarantine(operationId, 0, true), /RETENTION_INVALID/);
+
   console.log('OpenClaw provisioning checks passed: status, ensure and authenticated idempotent deprovision contracts.');
 }
 

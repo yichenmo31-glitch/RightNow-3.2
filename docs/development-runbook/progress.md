@@ -1119,3 +1119,12 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 新增 `test:account-deletion-quarantine-purge`：45 天 Job 可被 dry-run 发现并 apply；5 天 Job 保持不变；旧 Job 目录删除、tombstone 和时间戳存在；重复 apply 为 0。测试使用 `.work` 临时目录并清理 Job/文件。
 - 本命令只清理 Backend upload quarantine。OpenClaw Agent/workspace/session quarantine 的最终 purge 尚无 Backend 权限，必须由 Provisioner 增加独立认证运维接口并设置单独保留期。
 - 下一步：实现 Provisioner quarantine list/purge 的只读 dry-run 与认证 apply 契约；在生产候选环境先对全新隔离用户执行完整删除与恢复期观察，再批准不可逆 purge。
+
+## Wave 4E OpenClaw quarantine 运维接口（2026-07-13）
+
+- Provisioner 新增认证 `GET /quarantine`：扫描固定 quarantine root，校验普通非 symlink operation 目录及 manifest，返回安全摘要；不返回 workspace/session 路径、文件名或正文。新 manifest 写入 `quarantinedAt`，旧 manifest 兼容使用文件 mtime。
+- 新增认证 `POST /quarantine/purge`：body 只允许 `operationId/retentionDays/dryRun`；保留期限制 1-3650 天。未到期时即使 apply 也返回 eligible=false 且不修改目录。
+- 达到保留期后，apply 将 operation 原子改名为 `.purging`，写入 `_purged/<operation>.json` tombstone，再递归删除。重复调用返回 alreadyPurged；所有路径由服务端 quarantine root 推导。
+- Backend `OpenClawProvisioningService` 增加 `listQuarantines()` 和 `purgeQuarantine()`，使用现有 admin URL/token，严格校验响应；不暴露浏览器 Controller。
+- Provisioner 测试覆盖未认证 401、安全列表无路径、近期 apply 不删除、31 天 dry-run、31 天 apply、tombstone、重复 purge，并继续验证 B Agent 与 Personal workspace 哨兵不变。全套结果 9 pass、0 fail、1 Windows symlink 权限 skip。
+- 下一步：增加 Backend 离线协调命令，只从已完成且超过保留期的 AccountDeletionJob 生成 OpenClaw dry-run/apply 请求，并持久记录 `openClawQuarantinePurgedAt`；生产首次 apply 必须人工核对 operation/agent 映射。

@@ -222,10 +222,12 @@ test("new agent returns 500 when Gateway restart or health readiness fails", asy
 test("deprovision quarantines only the target and is idempotent", async () => {
   const config = await fixture();
   const restarts = [];
+  let currentTime = Date.now();
   const server = createProvisionerServer(config, {
     execFile: (_file, _args, _options, callback) => { restarts.push(true); callback(null); },
     fetch: async () => new Response(null, { status: 200 }),
     sleep: async () => {},
+    now: () => currentTime,
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
@@ -276,6 +278,40 @@ test("deprovision quarantines only the target and is idempotent", async () => {
     assert.equal(restarts.length, 3);
     assert.equal(await readFile(bMemory, "utf8"), bBefore);
     assert.equal(await readFile(join(personal, "sentinel"), "utf8"), personalBefore);
+
+    const unauthorizedList = await fetch(`http://127.0.0.1:${port}/quarantine`);
+    assert.equal(unauthorizedList.status, 401);
+    const list = await fetch(`http://127.0.0.1:${port}/quarantine`, { headers });
+    assert.equal(list.status, 200);
+    const listed = await list.json();
+    assert.equal(listed.quarantines.length, 1);
+    assert.equal(listed.quarantines[0].operationId, "delete-user-a-0001");
+    assert.equal(listed.quarantines[0].agentId, "rightnow-user-a");
+    assert.equal(listed.quarantines[0].resourceCount, 2);
+    assert.equal(JSON.stringify(listed).includes(config.quarantineRoot), false);
+
+    const purgeEndpoint = `http://127.0.0.1:${port}/quarantine/purge`;
+    const tooRecent = await fetch(purgeEndpoint, {
+      method: "POST", headers, body: JSON.stringify({ operationId: "delete-user-a-0001", retentionDays: 30, dryRun: false }),
+    });
+    assert.deepEqual(await tooRecent.json(), { operationId: "delete-user-a-0001", dryRun: false, eligible: false, purged: false, alreadyPurged: false });
+    assert.equal((await stat(join(config.quarantineRoot, "delete-user-a-0001"))).isDirectory(), true);
+    currentTime += 31 * 86_400_000;
+    const dryRun = await fetch(purgeEndpoint, {
+      method: "POST", headers, body: JSON.stringify({ operationId: "delete-user-a-0001", retentionDays: 30, dryRun: true }),
+    });
+    assert.deepEqual(await dryRun.json(), { operationId: "delete-user-a-0001", dryRun: true, eligible: true, purged: false, alreadyPurged: false });
+    assert.equal((await stat(join(config.quarantineRoot, "delete-user-a-0001"))).isDirectory(), true);
+    const purged = await fetch(purgeEndpoint, {
+      method: "POST", headers, body: JSON.stringify({ operationId: "delete-user-a-0001", retentionDays: 30, dryRun: false }),
+    });
+    assert.deepEqual(await purged.json(), { operationId: "delete-user-a-0001", dryRun: false, eligible: true, purged: true, alreadyPurged: false });
+    await assert.rejects(stat(join(config.quarantineRoot, "delete-user-a-0001")), /ENOENT/);
+    assert.equal((await stat(join(config.quarantineRoot, "_purged", "delete-user-a-0001.json"))).isFile(), true);
+    const repeatedPurge = await fetch(purgeEndpoint, {
+      method: "POST", headers, body: JSON.stringify({ operationId: "delete-user-a-0001", retentionDays: 30, dryRun: false }),
+    });
+    assert.equal((await repeatedPurge.json()).alreadyPurged, true);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

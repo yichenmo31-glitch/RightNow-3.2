@@ -136,6 +136,46 @@ export class OpenClawProvisioningService {
     return { agentId, changed: payload.changed === true };
   }
 
+  async listQuarantines(): Promise<Array<{ operationId: string; agentId: string; status: string; quarantinedAt: string; ageDays: number; resourceCount: number }>> {
+    const { base, token } = this.adminConnection('OPENCLAW_QUARANTINE_LIST');
+    const response = await fetch(`${base}/quarantine`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+    if (!response?.ok || !(response.headers.get('content-type') || '').includes('application/json')) throw new Error('OPENCLAW_QUARANTINE_LIST_INVALID_RESPONSE');
+    const payload: any = await response.json().catch(() => null);
+    if (!Array.isArray(payload?.quarantines)) throw new Error('OPENCLAW_QUARANTINE_LIST_INVALID_RESPONSE');
+    return payload.quarantines.map((item: any) => {
+      if (!item || !/^account-delete-[0-9a-f-]{36}$/.test(item.operationId) || !/^rightnow-[a-z0-9][a-z0-9_-]*$/.test(item.agentId) || item.status !== 'quarantined' || !Number.isInteger(item.ageDays) || !Number.isInteger(item.resourceCount)) {
+        throw new Error('OPENCLAW_QUARANTINE_LIST_INVALID_RESPONSE');
+      }
+      return { operationId: item.operationId, agentId: item.agentId, status: item.status, quarantinedAt: String(item.quarantinedAt), ageDays: item.ageDays, resourceCount: item.resourceCount };
+    });
+  }
+
+  async purgeQuarantine(operationId: string, retentionDays: number, dryRun: boolean) {
+    if (!/^account-delete-[0-9a-f-]{36}$/.test(operationId)) throw new Error('OPENCLAW_QUARANTINE_PURGE_OPERATION_INVALID');
+    if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 3650) throw new Error('OPENCLAW_QUARANTINE_PURGE_RETENTION_INVALID');
+    if (typeof dryRun !== 'boolean') throw new Error('OPENCLAW_QUARANTINE_PURGE_MODE_INVALID');
+    const { base, token } = this.adminConnection('OPENCLAW_QUARANTINE_PURGE');
+    const response = await fetch(`${base}/quarantine/purge`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operationId, retentionDays, dryRun }),
+    }).catch(() => null);
+    if (!response?.ok || !(response.headers.get('content-type') || '').includes('application/json')) throw new Error('OPENCLAW_QUARANTINE_PURGE_INVALID_RESPONSE');
+    const payload: any = await response.json().catch(() => null);
+    if (!payload || payload.operationId !== operationId || payload.dryRun !== dryRun || typeof payload.eligible !== 'boolean' || typeof payload.purged !== 'boolean' || typeof payload.alreadyPurged !== 'boolean') {
+      throw new Error('OPENCLAW_QUARANTINE_PURGE_INVALID_RESPONSE');
+    }
+    return { operationId, dryRun, eligible: payload.eligible, purged: payload.purged, alreadyPurged: payload.alreadyPurged };
+  }
+
+  private adminConnection(errorPrefix: string) {
+    if (this.mode() !== 'admin-http') throw new Error(`${errorPrefix}_MODE_UNSUPPORTED`);
+    const base = (this.config.get<string>('OPENCLAW_ADMIN_URL') || '').trim().replace(/\/+$/, '');
+    const token = (this.config.get<string>('OPENCLAW_ADMIN_TOKEN') || '').trim();
+    if (!base || !token) throw new Error(`${errorPrefix}_NOT_CONFIGURED`);
+    return { base, token };
+  }
+
   private async waitForAgent(agentId: string, tries = 20, delayMs = 500): Promise<void> {
     for (let i = 0; i < tries; i++) {
       if (await this.agentExists(agentId)) return;

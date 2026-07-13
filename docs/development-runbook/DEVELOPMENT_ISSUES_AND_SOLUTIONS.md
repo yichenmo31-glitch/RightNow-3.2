@@ -289,6 +289,8 @@ Provisioner 反注册、账户冻结/Job、Upload quarantine 和单 Worker 已�
 
 Backend Upload quarantine 已增加默认 dry-run、按完成时间和保留期筛选的离线 purge，以及可恢复崩溃窗口的 tombstone。OpenClaw Agent/workspace/session quarantine 的最终 purge 仍需 Provisioner 独立认证接口，Backend 不得直接访问或递归删除 OpenClaw 状态目录。
 
+Provisioner 现已提供认证的 quarantine 安全列表和单 operation dry-run/apply purge；Backend 只通过 admin token 调用，不直接接触 OpenClaw 目录。生产仍需增加从已完成删除 Job 到 operation 的离线协调记录，并在首次不可逆清理前人工核对隔离用户和保留期。
+
 ## 17. 开发命令和实际仓库脚本不一致
 
 **遇到的问题**
