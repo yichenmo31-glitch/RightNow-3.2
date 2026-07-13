@@ -1,6 +1,6 @@
 # RightNow 3.2 开发问题与解决方案
 
-更新时间：2026-07-12  
+更新时间：2026-07-13
 适用分支：`local-integration`
 
 本文记录 RightNow 3.2 开发、联调和本地 Demo 阶段实际遇到的问题，以及已经采用的解决方案。内容来自 `progress.md`、架构决策、测试结果和 Git 提交，不包含密钥、Token、真实用户数据或 workspace 正文。
@@ -304,7 +304,159 @@ Provisioner 反注册原语和账户冻结/Job 已完成设计与部分实现；
 
 使用真实脚本后 Memory、Prisma、Backend 和 Frontend 门禁均通过。
 
-## 18. 仍未解决或不应过度声明的事项
+## 18. 身材图片与进化路径不稳定
+
+### 18.1 三张理想图出现身份和肤色漂移
+
+**遇到的问题**
+
+最初的三选一只依赖宽泛 Prompt，模型可能改变脸部、发型、肤色、服装、背景或拍摄光线。三个版本看起来像不同的人，肤色也会出现明显变深、变浅或偏色。若对肤色设置过严的自动校验，又会因正常曝光和白平衡差异频繁误杀图片。
+
+**解决方案**
+
+- 首次使用用户拥有的照片提取结构化身份锚点，只保留 `hair、skinTone、faceShape、glasses、facialFeatures、originalOutfit` 六类直接可见特征。
+- 普通调用复用既有锚点；只有显式 `recalibrate=true` 才重新提取并递增版本。
+- 锚点提取前验证图片 ownership，拒绝任意 URL 和其他用户的 UploadAsset。
+- Prompt 锁定人物、脸部、发型、基础肤色、服装、姿势、相机角度和背景，体型版本只允许改变身体组成和肌肉轮廓。
+- 生成后使用源图和结果图做双图一致性校验；身份不一致时自动纠正重试一次。
+- 肤色只在高置信、明显美白、晒黑或基础肤色大幅变化时拒绝，允许自然曝光、白平衡和轻微色温差异。
+- 对允许字段中的种族、国籍、健康、疾病、体脂、体重、年龄和性格等敏感内容再次过滤，不能只依赖模型遵守 Prompt。
+
+**验证结果**
+
+自动化覆盖首次提取、重复幂等、显式重新校准、敏感字段过滤、畸形 JSON 和 A/B 图片 ownership；跨用户重新校准会在调用视觉模型前被拒绝。
+
+### 18.2 `lean / athletic / strong` 差异不足，29% 与 35% 看起来相同
+
+**遇到的问题**
+
+旧体脂区间边界存在重叠，边界值可能落入错误描述；Prompt 只写“变瘦或变强”，没有明确腰腹、上臂、大腿和下颌线等连续变化。模型容易只调整光线或肤色，29% 与 35% 的身体轮廓几乎没有区别。
+
+**解决方案**
+
+- 将体脂描述改为不重叠的半开区间，35% 不再误命中 30%-35% 描述。
+- 阶段 Prompt 同时提供当前体脂和目标体脂，并要求腰腹厚度、腰线、上臂、大腿、下颌线和肌肉可见度出现连续、可信的变化。
+- 三种最终体型固定为 `lean / athletic / strong`；`strong` 只允许在原骨架上增加约 5%-10% 的肩、臂、臀腿肌肉体积，禁止换身体或生成比赛级体型。
+- 只有阶段图需要强制 `bodyChangeVisible`；没有数值目标的三选一不使用该门禁，避免三张图全部被错误拒绝。
+- 阶段差异校验达到高置信阈值才拒绝，差异不足时最多纠正重试一次。
+
+**验证结果**
+
+三种 variant 和阶段 Prompt 已由 Backend 固化；provider mock 验证三个任务分别保存真实 variant、provider、model 和 Prompt 版本。
+
+### 18.3 第三张图失败、三张图长期加载或错误复用
+
+**遇到的问题**
+
+真实调用中可能出现前两张成功、第三张因身份校验或供应商错误失败。旧页面会让失败卡片一直显示加载状态，或把相邻图片静默复用后改写成错误的 variant，用户确认时可能提交不存在的任务身份。
+
+**解决方案**
+
+- 每个 variant 使用独立任务，三个任务可以并行，但单个失败不覆盖其他成功结果。
+- 将补位规则抽成 `fillIdealBodyResultSlots` 纯函数：失败卡片使用距离最近的成功结果，等距优先左侧；三张全部失败才进入整体失败状态。
+- 补位复用完整成功对象，不改写 `taskId` 和 `variant`。页面可以继续维持三卡布局，但确认接口始终收到真实成功任务身份。
+- 首卡、中卡、末卡、两卡失败和全部失败均加入自动化测试。
+
+**验证结果**
+
+前端失败矩阵测试通过；三卡生成和刷新恢复共用同一补位函数，不再存在两套不一致逻辑。
+
+### 18.4 理想图未选择却提前出现在主页和 Stage 6
+
+**遇到的问题**
+
+账户可能保存过历史 `idealBodyImage`。用户重新生成新一批图片但尚未选择时，主页和进化终点仍会显示旧图片，造成“当前照片或旧目标已经是新理想态”的错误语义。多标签页还会各自保留不同 React 状态。
+
+**解决方案**
+
+- 引入生成批次：`EvolutionImageProfile.activeBatchId / selectedBatchId` 和 `ImageGenTask.batchId`。
+- 新批次开始后，只有 `selectedBatchId === activeBatchId` 才允许主页和 Stage 6 展示理想图。
+- 选择接口只接受当前 JWT 用户、当前批次、completed 状态且 variant 一致的任务。
+- App 定时从 Backend 同步 Profile 和批次任务，不再以单个标签页的 `localStorage` 作为权威状态。
+- 顶部“理想身材已生成”只在已登录 APP 页面出现；进入选择页或完成选择后立即消失。
+
+**验证结果**
+
+真实浏览器验证：当前批次未选择时主页理想图数量为 0；完成后顶部提示出现；点击“去选择”后三张图片可见且提示消失。
+
+### 18.5 Stage 1 一直显示“待生成”
+
+**遇到的问题**
+
+该现象由多条独立故障叠加造成：选中参考图宽度达到 4160px，超过图片编辑接口 4096px 上限；生成任务成功后 `backend/uploads` 目录不存在，保存阶段图触发 `ENOENT`；Vite dev 支持 `/uploads` 但 preview 没有代理；已有 completed 任务时页面刷新又重复发起模型请求。
+
+**解决方案**
+
+- 所有 current/reference/result 图片在供应商调用、校验和保存前统一归一化为最长边不超过 2048px。
+- 保存文件前递归创建 uploads 目录。
+- Vite `server` 和 `preview` 共用 `/api`、`/uploads` 代理。
+- Stage 1 缺图时先查找最近 completed 阶段任务并写回 URL；存在 processing 任务时不重复创建。
+- 使用输入摘要记录最新真实照、理想参考图、阶段目标和策略版本；摘要相同且已有结果时直接复用。
+- 理想态确认后异步触发 Stage 1，图片失败不回滚体脂评估或阶段解锁。
+
+**验证结果**
+
+Stage 1 的 `/uploads/...` URL 可通过 Backend 和 Frontend 返回 `200 image/png`；真实浏览器中 Stage 1 显示 AI 预览，不再显示“待生成”。
+
+### 18.6 点击“去选择”后又重新生图并显示服务不可用
+
+**遇到的问题**
+
+选择页恢复逻辑曾只检查 `rightnow_image_generation_pending` 本地标记。刷新或跨标签页后该标记可能丢失，即使 Backend 已有完成任务，页面仍会错误开启新批次；新请求失败后便显示“图片生成服务暂时不可用”。
+
+**解决方案**
+
+- `EvolutionEngine` 每次进入先读取 Backend `image-profile` 和任务列表。
+- 仅按 `activeBatchId` 恢复当前批次的三个 variant，不依赖本地 pending 标记。
+- 当前批次所有任务结束后恢复成功结果并执行统一补位；只有没有可恢复批次时才开启新生成。
+- 轮询加入取消标记，防止旧请求在用户完成选择后重新打开顶部提示。
+
+**验证结果**
+
+浏览器实际点击“去选择”后，三张图片均恢复成功，页面不包含“待生成”或“图片生成服务暂时不可用”。
+
+### 18.7 Primary 503 时没有进入 Ark/Legacy 降级
+
+**遇到的问题**
+
+供应商同时返回 HTTP 503 和错误 JSON 时，旧异常只保留远端错误正文，丢失 HTTP 状态。`shouldTryFallback` 看不到 `503`，因此在 Primary 失败后提前终止，Ark 和 Legacy 根本没有被调用。
+
+**解决方案**
+
+- 内部供应商异常同时保留 HTTP status 和远端消息，供降级策略判断。
+- 日志和任务表不保存原始错误正文，只映射为 `IMAGE_PROVIDER_RATE_LIMITED / AUTH_FAILED / TIMEOUT / UNAVAILABLE / VALIDATION_REJECTED` 等固定错误码。
+- 使用受控 fetch mock 覆盖 Primary -> Ark、Primary -> Legacy 和三层全部失败。
+
+**验证结果**
+
+Ark/Legacy 成功路径会保存实际成功层的 provider/model；全部失败时任务为 failed、零 UploadAsset，且数据库和日志不包含远端请求标识。
+
+### 18.8 图片 Base64 占用 PostgreSQL，历史引用难以一致迁移
+
+**遇到的问题**
+
+旧实现将大型 Data URL 写入 `ImageGenTask`、User、Profile、Stage 和 EvolutionRecord。数据体积大，删除账户时磁盘文件也无法随数据库级联；若只迁移 Task，会遗漏资料照、起始照和阶段引用。
+
+**解决方案**
+
+- 新图片经过 MIME、像素、12 MiB 和最大 2048px 校验后，以 UUID 文件名写入受控 uploads；数据库只保存 `/uploads/...` URL。
+- `UploadAsset` 保存 SHA-256、MIME、字节数、provider、model 和 Prompt 版本。
+- 新增默认 dry-run 的迁移工具，扫描 Task result/source、User ideal/current/face、Profile selected/start、Stage preview/actual 和 EvolutionRecord。
+- 按 `(userId, SHA-256)` 去重，在单事务中一致替换同用户所有精确引用。
+- 每张图迁移前在 Git 忽略目录生成恢复条目；工具支持 `--user-id` 分批和 `--restore`，失败时删除新文件并保留原值。
+- 账户删除新增 Upload quarantine 原语，文件先隔离并可恢复，不能只依赖 UploadAsset 行级联。
+
+**验证结果**
+
+本地共迁移 60 个历史图片 Asset。迁移后所有目标字段 Data URL 数量为 0、缺失文件为 0、再次 dry-run 为 0；Backend 和 Frontend 静态读取均返回 200。迁移往返、真实 PostgreSQL A/B 隔离和文件 quarantine 回滚测试通过。
+
+**当前限制**
+
+- 上述结果是本地 `completed_local`，不代表生产数据库、对象存储或 Nginx 发布已经完成。
+- 生产仍需独立数据库/文件备份、migration dry-run、受控发布和恢复演练。
+- 账户删除 Upload quarantine 原语已完成，但完整 Worker、Provisioner 反注册串联、DB purge 和最终审计匿名化仍是正式开放门禁。
+
+## 19. 仍未解决或不应过度声明的事项
 
 以下项目不是已解决能力，测试和演示时必须明确说明：
 
@@ -314,7 +466,7 @@ Provisioner 反注册原语和账户冻结/Job 已完成设计与部分实现；
 - 本地 Web Demo 使用 direct model fallback，与生产 OpenClaw 完整链路不同。
 - 语义分类器在高并发下 P95 仍可能超过门禁，因此只开放受限只读能力，不开放语义写入。
 
-## 19. 当前推荐验证命令
+## 20. 当前推荐验证命令
 
 ```powershell
 npm run build:backend
