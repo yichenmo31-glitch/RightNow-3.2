@@ -21,6 +21,7 @@
     "test:upload-quarantine": "npm run build && node scripts/test-upload-quarantine.cjs",
     "test:account-deletion-worker": "npm run build && node scripts/test-account-deletion-worker.cjs",
     "test:account-deletion-worker-db": "npm run build && node --env-file=.env scripts/test-account-deletion-worker-db.cjs",
+    "test:account-deletion-e2e": "npm run build && node --env-file=.env scripts/test-account-deletion-e2e.cjs",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",

@@ -1102,3 +1102,10 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 自动化：OpenClaw provisioning 测试覆盖 Bearer DELETE、固定 body、非法 operation 和错误响应；Worker 内存测试覆盖严格顺序、外部失败不触发 uploads/DB、DB 失败重试且外部步骤只执行一次；真实 PostgreSQL 测试覆盖 User/UploadAsset/ImageGenTask 级联、WechatBindCode 清理、审计匿名化和 Job 持久完成。
 - 环境模板新增 `ACCOUNT_DELETION_WORKER_ENABLED=false` 与 `ACCOUNT_DELETION_WORKER_INTERVAL_MS=5000`。生产发布必须先部署并验证 Provisioner DELETE，保持 Worker 关闭；完成隔离测试用户 E2E 后才允许启用。
 - 下一步：使用新建隔离用户在生产候选环境执行真实 Provisioner + Upload quarantine + DB purge 演练，核对 B 用户、Personal workspace 和非目标 uploads 不变；随后定义 quarantine 保留期与离线 purge 运维命令。
+
+### 本地完整 E2E 补充
+
+- 新增 `test:account-deletion-e2e`，启动仅监听随机 loopback 端口的测试 Provisioner HTTP 服务，使用真实 Bearer DELETE 契约、真实 PostgreSQL、真实 uploads 文件和真实 Upload quarantine；不连接生产 OpenClaw。
+- 测试创建 A/B 两名随机 `.invalid` 用户、A/B 独立文件和一个不属于任何 UploadAsset 的非目标哨兵。Worker 完成后 A User/Asset 消失且 A 文件进入 operation quarantine，Job 为 COMPLETED，A 审计匿名化。
+- B User、B UploadAsset、B 文件及非目标哨兵内容全部保持不变；Provisioner 只收到一次目标 A Agent DELETE。测试结束清理 A/B、Job、匿名审计、文件和 quarantine 目录。
+- 结果：本地端到端顺序 `OpenClaw HTTP quarantine -> Upload rename quarantine -> DB purge -> audit anonymization -> COMPLETED` 通过。
