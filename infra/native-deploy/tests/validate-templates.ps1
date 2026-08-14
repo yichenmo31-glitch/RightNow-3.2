@@ -28,6 +28,8 @@ if ($provisionerEnv -notmatch '(?m)^OPENCLAW_QUARANTINE_ROOT=/root/\.openclaw-ri
 $nginx = Get-Content -Raw (Join-Path $root 'nginx/rightnow.locations.conf')
 if ($nginx -match 'location\s+/\s*\{') { throw 'Snippet must not replace Personal OpenClaw root location' }
 if ($nginx -notmatch 'location /rightnow/') { throw 'Missing RightNow frontend location' }
+if ($nginx -notmatch 'Cache-Control "no-cache, no-store, must-revalidate"') { throw 'SPA HTML must not be cached' }
+if ($nginx -notmatch 'Cache-Control "public, immutable"') { throw 'Hashed frontend assets must remain immutable' }
 if ($nginx -notmatch 'location /rightnow-api/') { throw 'Missing RightNow API location' }
 if ($nginx -notmatch 'proxy_pass http://127\.0\.0\.1:5000/api/;') { throw 'API is not proxied to loopback' }
 

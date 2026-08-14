@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const apiTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:5000';
-    const base = env.VITE_BASE_PATH || '/';
+    const base = env.VITE_BASE_PATH || (mode === 'production' ? '/rightnow/' : '/');
     const apiRoutePattern =
       '^/api/(auth|users|weight|diet|training|training-sessions|todos|checkins|evolution|evolution-stage|posts|comments|friendships|groups|chat|agent|upload|image-gen|fitness-plan|ai-coach|prompts|wechat)(?:/|$)';
     const proxy = {

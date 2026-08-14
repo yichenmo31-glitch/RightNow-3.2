@@ -13,7 +13,7 @@
     "db:push": "npm --prefix .. run db:push",
     "db:seed": "npm --prefix .. run db:seed",
     "db:init": "npm --prefix .. run db:init",
-    "build": "vite build",
+    "build": "vite build && node scripts/verify-production-build.mjs",
     "build:api": "npm --prefix .. run build:backend",
     "preview": "vite preview",
     "test:ideal-body-results": "node scripts/test-ideal-body-results.mjs"

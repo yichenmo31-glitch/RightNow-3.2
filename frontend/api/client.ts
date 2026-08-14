@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const DEFAULT_API_BASE_URL = import.meta.env.PROD ? '/rightnow-api' : '/api';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '');
 const TOKEN_KEY = 'rightnow_token';
 
 export function apiUrl(path: string): string {
