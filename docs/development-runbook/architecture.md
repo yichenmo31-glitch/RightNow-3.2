@@ -209,3 +209,12 @@ PostgreSQL 负责保存当前体重、饮食、训练、TODO、计划、已确�
 - `todo.today.list` 的 Agent tool 必须调用纯读 `TodosService.listExisting`。页面显式初始化可继续调用 `list/ensureDailyTodos`；任何标记为只读的 Agent 工具不得隐式创建、删除或重建 TODO。
 - `frontend/vite.config.ts`：本地浏览器到后端的代理边界。面向用户的应用运行在端口 5173；端口 5000 仅供 API 使用，有意不提供根 HTML 页面。
 - 本地 CORS 同时允许前端端口 5173/5174 上的 `localhost` 和 `127.0.0.1`。Vite 代理会保留浏览器 Origin，因此这两种回环地址写法是允许列表中的不同条目。
+- 前端生产构建默认部署在 `/rightnow/`，API 默认使用 `/rightnow-api`；本地 development mode 继续使用 `/` 和 `/api`。`VITE_BASE_PATH`、`VITE_API_BASE_URL` 只用于覆盖不同域名拓扑，不能依赖未被 Vite 自动加载的示例文件才能得到正确生产路径。
+- `frontend/scripts/verify-production-build.mjs` 是生产构建门禁：校验 `dist/index.html` 的全部 JS/CSS 均位于预期 base 下，并确认打包 JavaScript 包含预期 API 前缀。普通 `npm run build:frontend` 必须执行该门禁，禁止发布根 `/assets/` 指向 Personal OpenClaw server 的产物。
+- `scripts/start-local-demo.ps1`：Windows 本地演示编排入口；启动原生 PostgreSQL、生成 `/ + /api` 专用前端构建，并启动 5173 前端与 5001 Backend。5001 避开微信桌面端可能持有的 5000 Bound socket，不改变生产端口契约。
+- `scripts/smoke-local-demo.ps1`：本地演示端到端读取/聊天冒烟，API 基址必须与启动脚本的 5001 保持一致；真实图片请求仍需显式 `-IncludeImageEdit` 才执行。
+- `frontend/utils/ideal-body-results.mjs`：理想身材三槽位与持久批次状态的纯逻辑边界；按 `batchId + lean/athletic/strong` 区分 missing、processing、terminal，并保留可确认结果的真实 taskId/variant。
+- `frontend/views/EvolutionEngine.tsx`：理想身材生成和恢复状态机。已有 active batch 时不得立即创建新批次；处理中应轮询任务，终态从 PostgreSQL 结果恢复，超时只允许提示稍后刷新，避免让页面错误状态触发重复付费生成。
+- `frontend/scripts/test-ideal-body-results.mjs`：三槽位回填和批次恢复回归；覆盖未创建、处理中、部分失败与终态结果映射。
+- 云端 SPA 的 Nginx 根为 `/var/www`，RightNow 静态目录为 `/var/www/rightnow`，因此发布产物的 Vite base 必须为 `/rightnow/`。静态发布应先在同盘独立目录校验 `index.html`、入口 JS/CSS 和路径前缀，再通过目录 rename 原子切换并保留上一份目录回滚；禁止把本地 `/ + /api` Demo 产物直接复制到生产。
+- SPA 缓存策略必须区分入口与内容寻址资源：`/rightnow/` 及其 index fallback 使用 `no-cache, no-store, must-revalidate`，确保每次获得当前构建入口；`/rightnow/assets/` 仅存放带内容哈希的构建资源并使用一年 immutable。二者不能合并为同一缓存策略。

@@ -1148,3 +1148,50 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 修复 Demo 启动器环境加载：Backend 改为 `node --env-file=.env dist/main.js`，避免 preview 子进程只加载部分配置导致聊天 provider 被误判为未配置。
 - 修复完整图片冒烟输入：旧 64x64 蓝色方块会被身份一致性门禁正确拒绝；现改用仓库固定 Demo 人物素材 `frontend/public/assets/ori.png`，真实调用图片编辑 provider 且不降低身份/肤色校验。
 - 最终结果：Backend/Frontend production build 与 Chat 回归通过；`demo:start` readiness 为 Backend 401、Frontend 200；`demo:smoke:full` 的前端、小爪入口、登录、聊天、TODO、饮食、训练和真实图片编辑 8/8 通过。验收后再次 stop/reset，删除冒烟生成的 1 个文件并恢复干净基线，Demo 已重新启动。
+
+## 前端生产路径构建重构（2026-07-15）
+
+- 负责人：ROOT
+- 状态：completed_local
+- 修改文件：`frontend/vite.config.ts`、`frontend/api/client.ts`、`frontend/package.json`、`frontend/production.env.example`、`frontend/scripts/verify-production-build.mjs`。
+- 变更内容：production mode 默认 base 为 `/rightnow/`、API 为 `/rightnow-api`；development mode 保持 `/`、`/api`。构建脚本增加产物路径门禁，仍允许环境变量覆盖为独立子域名根路径部署。
+- 测试结果：`npm run build:frontend` 成功，门禁输出 `production frontend paths: OK (/rightnow/, /rightnow-api)`；`dist/index.html` 的 JS/CSS 均使用 `/rightnow/assets/`；临时 development mode 在 `127.0.0.1:5174/` 正常启动并已停止；`git diff --check` 通过。
+- 证据摘要：此前线上 HTML 使用根 `/assets/`，该路径落入 Personal OpenClaw server 并返回 404。此次将正确路径变成生产默认值，不再依赖人工设置变量或错误命名的示例 env 文件。
+- 阻塞项：尚未发布到云端；域名购买、ICP备案、DNS、Nginx server_name 与 HTTPS 仍需用户确定域名后执行。
+- 下一步：购买域名后优先采用 `app.<domain>` 独立子域名；确定最终是否保留 `/rightnow/`，再按对应 base 构建、发布和进行真实浏览器验收。
+## 本地网站启动恢复（2026-07-17）
+
+- 状态：completed_local。定位到微信桌面端 `Weixin.exe` 以 TCP `Bound` 状态占用 `0.0.0.0:5000`；该状态不会出现在仅筛选 `Listen` 的检查中，但会导致 Nest 启动时报 `EADDRINUSE`。
+- 未关闭或修改微信进程。本地 Demo 后端改用 `127.0.0.1:5001`，前端继续使用 `127.0.0.1:5173` 并通过 `/api` 代理到 5001。
+- `demo:start` 现在会先显式生成 `/ + /api` 的本地预览构建，避免误用云端 `/rightnow/ + /rightnow-api` 产物导致首页路径或 API 代理 404。
+- 验证：`npm run demo:start` 成功完成本地路径构建并启动两端；浏览器重载后正常渲染 RightNow 登录页且无应用控制台错误；`GET :5173/` 为 200，`GET :5173/api/auth/me` 经代理为预期 401，`GET :5001/api/auth/me` 直连也为预期 401；5173/5001 均只监听 loopback。未运行会向既有演示用户写入 ChatMessage 的完整 smoke。
+
+## 图片生成完成后前端误报恢复（2026-07-17）
+
+- 状态：completed_local。Provider 配置、密钥认证和 `step-image-edit-2` 模型均正常；本机到 `api.stepfun.com:443` 可达。故障窗口内 7 个任务全部完成，单张耗时约 14-35 秒，不是图片 Provider 停服。
+- 根因：前端请求中断时直接显示“图片生成服务暂时不可用”；页面恢复时若当前批次尚在处理，又会立即创建新批次，使旧请求的结果难以恢复并可能重复消费额度。
+- 修复：新增持久批次解析器；当前批次处理中时最长轮询 120 秒，完成后从 PostgreSQL 任务恢复三张结果；请求异常时优先回查当前批次；处理超时只提示稍后刷新，不自动开启新批次。
+- 验证：`test:ideal-body-results` 覆盖 missing/processing/terminal、部分失败及真实 taskId/variant 保留；本地 `/ + /api` 完整前端构建和路径门禁通过。未额外调用真实图片生成，避免重复计费。
+
+## 云端前端白屏恢复（2026-08-04）
+
+- 状态：completed_prod。云端 `/rightnow/index.html` 错误引用 `/assets/index-*.js` 和 `/assets/index-*.css`，两项均为 404，导致 React 未启动；Backend、RAG、Provisioner 和 Nginx 本身均为 active。
+- 使用当前工作副本执行 `npm run build:frontend`，生产路径门禁确认 `/rightnow/ + /rightnow-api`；构建产物先上传到独立暂存目录并校验入口、JS、CSS 后，原子替换 `/var/www/rightnow`。
+- 回滚备份：`/var/www/rightnow.backup-20260804-white-screen-v2`。本次只替换前端静态目录，未修改数据库、Backend release、OpenClaw、RAG 数据或 Nginx 配置。
+- 验证：公网 HTML 已引用 `/rightnow/assets/index-DZHioQu3.js` 与 `/rightnow/assets/index-BopDRGR_.css`；两项分别返回 200 `application/javascript` 和 200 `text/css`；未认证 API 为预期 401。两个已打开的云端浏览器页面刷新后均正常渲染登录页，控制台错误为 0。
+
+## 云端 SPA 缓存治理（2026-08-06）
+
+- 状态：completed_prod。服务端与静态资源始终正常，但已打开标签页可能继续使用旧 HTML；原 Nginx 响应只有 ETag/Last-Modified，没有明确的 HTML 禁缓存策略。
+- `location /rightnow/` 新增 `expires -1` 和 `Cache-Control: no-cache, no-store, must-revalidate`；更具体的 `/rightnow/assets/` 继续使用一年 `public, immutable`，避免降低哈希资源缓存效率。
+- 模板测试新增双门禁：SPA HTML 必须禁缓存，哈希静态资源必须保持 immutable。`validate-templates.ps1`、`nginx -t` 和 `git diff --check` 均通过。
+- 生产配置备份：`/etc/nginx/rightnow.locations.conf.backup-20260806`。Nginx 平滑 reload 后 active；HTML=200 且 no-store，入口 JS=200 且一年 immutable；两个云端标签页均正常渲染登录页，控制台错误为 0。
+
+## 换机前代码提交验收（2026-08-14）
+
+- 负责人：ROOT
+- 状态：completed_local。
+- 提交范围：理想身材图片批次恢复、生产 `/rightnow/` 与 `/rightnow-api` 路径门禁、SPA HTML/哈希资源分级缓存、本地 Demo Backend 端口 5001，以及对应架构和共享记忆文档。
+- 安全检查：待提交列表不包含 `.env`、数据库导出、Chroma 数据、用户 workspace、证书或私钥；差异关键字检查只命中前端固定的本地存储键名 `rightnow_token`，未发现真实 Token 值。
+- 测试结果：`npm run build:frontend` 通过，并输出 `production frontend paths: OK (/rightnow/, /rightnow-api)`；`npm run build:backend` 通过；`npm --workspace frontend run test:ideal-body-results` 通过；原生部署模板检查输出 `native deployment templates: OK`；`git diff --check` 通过。
+- 交接说明：提交完成后将 `local-integration` 推送到 GitHub；新电脑应从该分支恢复源码，真实 `.env` 与 SSH 身份继续通过 Git 之外的安全渠道迁移。
