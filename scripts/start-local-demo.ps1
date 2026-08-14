@@ -9,6 +9,7 @@ $runtimeDir = Join-Path $repoRoot '.work\local-demo'
 $statePath = Join-Path $runtimeDir 'processes.json'
 $backendDir = Join-Path $repoRoot 'backend'
 $frontendDir = Join-Path $repoRoot 'frontend'
+$backendPort = 5001
 
 New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 
@@ -63,12 +64,16 @@ if (-not $SkipDatabaseStart) {
 if (-not (Test-Path (Join-Path $backendDir 'dist\main.js'))) {
   throw 'backend/dist is missing. Run npm run build:backend first.'
 }
-if (-not (Test-Path (Join-Path $frontendDir 'dist\index.html'))) {
-  throw 'frontend/dist is missing. Run npm run build:frontend first.'
-}
-
-Stop-RepoPortProcess 5000
+Stop-RepoPortProcess $backendPort
 Stop-RepoPortProcess 5173
+
+# Demo preview needs a local-path build; the default production build targets
+# the cloud subpaths /rightnow/ and /rightnow-api.
+$env:VITE_BASE_PATH = '/'
+$env:VITE_API_BASE_URL = '/api'
+$env:VITE_API_PROXY_TARGET = "http://127.0.0.1:$backendPort"
+& npm.cmd --workspace frontend run build
+if ($LASTEXITCODE -ne 0) { throw 'Unable to build the local Demo frontend.' }
 
 $backendOut = Join-Path $runtimeDir 'backend.out.log'
 $backendErr = Join-Path $runtimeDir 'backend.err.log'
@@ -76,6 +81,8 @@ $frontendOut = Join-Path $runtimeDir 'frontend.out.log'
 $frontendErr = Join-Path $runtimeDir 'frontend.err.log'
 Remove-Item -LiteralPath $backendOut, $backendErr, $frontendOut, $frontendErr -Force -ErrorAction SilentlyContinue
 
+$env:PORT = [string]$backendPort
+$env:HOST = '127.0.0.1'
 $backend = Start-Process -FilePath 'node.exe' -ArgumentList '--env-file=.env', 'dist/main.js' `
   -WorkingDirectory $backendDir -RedirectStandardOutput $backendOut `
   -RedirectStandardError $backendErr -WindowStyle Hidden -PassThru
@@ -93,7 +100,7 @@ $startedAt = Get-Date
 } | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
 
 try {
-  Wait-Http 'http://127.0.0.1:5000/api/auth/me' @(401)
+  Wait-Http "http://127.0.0.1:$backendPort/api/auth/me" @(401)
   Wait-Http 'http://127.0.0.1:5173/' @(200)
 } catch {
   & (Join-Path $PSScriptRoot 'stop-local-demo.ps1')
@@ -102,5 +109,5 @@ try {
 
 Write-Host 'RightNow local Demo is ready:'
 Write-Host '  Frontend: http://127.0.0.1:5173/'
-Write-Host '  Backend:  http://127.0.0.1:5000/api'
+Write-Host "  Backend:  http://127.0.0.1:$backendPort/api"
 Write-Host "  Logs:     $runtimeDir"

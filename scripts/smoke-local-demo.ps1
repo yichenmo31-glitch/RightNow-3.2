@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$apiBase = 'http://127.0.0.1:5000/api'
+$apiBase = 'http://127.0.0.1:5001/api'
 $results = [System.Collections.Generic.List[string]]::new()
 
 function Pass([string]$Name) {
