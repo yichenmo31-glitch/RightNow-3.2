@@ -1194,4 +1194,4 @@ Track A 与 Track B 可以并行开发；最终构建 artifact、生产切换和
 - 提交范围：理想身材图片批次恢复、生产 `/rightnow/` 与 `/rightnow-api` 路径门禁、SPA HTML/哈希资源分级缓存、本地 Demo Backend 端口 5001，以及对应架构和共享记忆文档。
 - 安全检查：待提交列表不包含 `.env`、数据库导出、Chroma 数据、用户 workspace、证书或私钥；差异关键字检查只命中前端固定的本地存储键名 `rightnow_token`，未发现真实 Token 值。
 - 测试结果：`npm run build:frontend` 通过，并输出 `production frontend paths: OK (/rightnow/, /rightnow-api)`；`npm run build:backend` 通过；`npm --workspace frontend run test:ideal-body-results` 通过；原生部署模板检查输出 `native deployment templates: OK`；`git diff --check` 通过。
-- 交接说明：提交完成后将 `local-integration` 推送到 GitHub；新电脑应从该分支恢复源码，真实 `.env` 与 SSH 身份继续通过 Git 之外的安全渠道迁移。
+- 交接说明：`local-integration` 已推送到 GitHub，远端已包含截至 `5b95e6f` 的全部代码和文档提交；新电脑应从该分支恢复源码，真实 `.env` 与 SSH 身份继续通过 Git 之外的安全渠道迁移。
