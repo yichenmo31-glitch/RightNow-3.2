@@ -5,7 +5,7 @@ import type { IdealBodyVariantResult } from '../services/gemini';
 import { evolutionStageApi } from '../api/evolution-stage';
 import type { AuthUser } from '../api';
 import { imageGenApi } from '../api';
-import { fillIdealBodyResultSlots } from '../utils/ideal-body-results.mjs';
+import { fillIdealBodyResultSlots, resolveIdealBodyBatch } from '../utils/ideal-body-results.mjs';
 
 interface Props {
   userImage?: string | null;
@@ -34,6 +34,39 @@ const EvolutionEngine: React.FC<Props> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
 
+  const restoreActiveBatch = async (waitForCompletion: boolean): Promise<boolean> => {
+    const deadline = Date.now() + (waitForCompletion ? 120_000 : 0);
+    let profile = await evolutionStageApi.imageProfile();
+    if (!profile?.activeBatchId || profile.hasCurrentSelection) return false;
+
+    while (true) {
+      const tasks = await imageGenApi.list();
+      const batch = resolveIdealBodyBatch(tasks, profile.activeBatchId);
+      if (batch.status === 'terminal') {
+        const restored = fillIdealBodyResultSlots(batch.results) as Array<IdealBodyVariantResult | null>;
+        setImages(restored);
+        setIsGenerating(false);
+        localStorage.removeItem('rightnow_image_generation_pending');
+        if (!restored.some(Boolean)) {
+          setErrorMessage('图片生成服务暂时不可用。');
+          setErrorDetail('当前批次没有生成可用图片，请稍后重新生成。');
+        }
+        return true;
+      }
+      if (batch.status === 'missing') return false;
+      if (!waitForCompletion || Date.now() >= deadline) {
+        setIsGenerating(false);
+        setErrorMessage('图片仍在生成中。');
+        setErrorDetail('生成结果会保存在当前批次中，请稍后刷新页面查看。');
+        return true;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      profile = await evolutionStageApi.imageProfile();
+      if (!profile?.activeBatchId || profile.hasCurrentSelection) return false;
+    }
+  };
+
   const generate = async () => {
     setIsGenerating(true);
     setImages([null, null, null]);
@@ -49,6 +82,9 @@ const EvolutionEngine: React.FC<Props> = ({
       });
       setImages(fillIdealBodyResultSlots(results));
     } catch (error: any) {
+      try {
+        if (await restoreActiveBatch(false)) return;
+      } catch { /* surface the original generation error below */ }
       const status = Number(error?.status || 0);
       const message = String(error?.message || '');
       setImages([null, null, null]);
@@ -69,20 +105,7 @@ const EvolutionEngine: React.FC<Props> = ({
   useEffect(() => {
     const resumeOrGenerate = async () => {
       try {
-        const [profile, tasks] = await Promise.all([evolutionStageApi.imageProfile(), imageGenApi.list()]);
-        if (profile?.activeBatchId && !profile.hasCurrentSelection) {
-          const variants = ['lean', 'athletic', 'strong'] as const;
-          const latest = variants.map((variant) => tasks.find((task) => task.variant === variant && task.batchId === profile?.activeBatchId));
-          if (latest.every((task) => task && (task.status === 'completed' || task.status === 'failed'))) {
-            const restored = latest.map((task, index) => task?.status === 'completed' && task.resultImageUrl
-              ? { image: task.resultImageUrl, taskId: task.id, variant: variants[index] }
-              : null);
-            setImages(fillIdealBodyResultSlots(restored));
-            setIsGenerating(false);
-            localStorage.removeItem('rightnow_image_generation_pending');
-            return;
-          }
-        }
+        if (await restoreActiveBatch(true)) return;
       } catch { /* start a fresh batch below */ }
       await generate();
     };

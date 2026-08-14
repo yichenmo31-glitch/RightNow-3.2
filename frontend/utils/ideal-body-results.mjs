@@ -20,3 +20,33 @@ export function fillIdealBodyResultSlots(results) {
     return null;
   });
 }
+
+const IDEAL_VARIANTS = ['lean', 'athletic', 'strong'];
+
+/**
+ * Resolve the persisted state of one generation batch without starting a new
+ * provider request. Missing variants remain processing until the caller's
+ * polling deadline so an in-flight batch is never invalidated prematurely.
+ * @param {Array<{ batchId?: string | null, variant?: string | null, status?: string, resultImageUrl?: string | null, id: string }>} tasks
+ * @param {string | undefined} batchId
+ */
+export function resolveIdealBodyBatch(tasks, batchId) {
+  if (!batchId) return { status: 'missing', results: [null, null, null] };
+
+  const matches = IDEAL_VARIANTS.map((variant) =>
+    tasks.find((task) => task.batchId === batchId && task.variant === variant),
+  );
+  if (!matches.some(Boolean)) return { status: 'missing', results: [null, null, null] };
+
+  const isTerminal = matches.every((task) =>
+    task && (task.status === 'completed' || task.status === 'failed'),
+  );
+  if (!isTerminal) return { status: 'processing', results: [null, null, null] };
+
+  return {
+    status: 'terminal',
+    results: matches.map((task, index) => task?.status === 'completed' && task.resultImageUrl
+      ? { image: task.resultImageUrl, taskId: task.id, variant: IDEAL_VARIANTS[index] }
+      : null),
+  };
+}

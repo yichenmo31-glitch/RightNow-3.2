@@ -455,3 +455,17 @@
 - Verification:
   - backend build passes: `npm --workspace backend run build`.
   - full frontend build remains blocked by pre-existing syntax issue in `frontend/views/EvolutionProgress.tsx` (unrelated); the updated training history page itself compiles via `esbuild` bundle check.
+
+## 41. Production Base-Path Build Contract (2026-07-15)
+
+- Production defaults are `/rightnow/` for Vite assets and `/rightnow-api` for Backend requests; development remains `/` plus `/api`.
+- `VITE_BASE_PATH` and `VITE_API_BASE_URL` can override these defaults for a dedicated domain deployment.
+- `npm run build` now runs `scripts/verify-production-build.mjs`; publishing must stop if assets escape the expected base or the API prefix is missing.
+- Verified with `npm run build:frontend`: production paths passed and development mode still starts at the root URL.
+
+## 42. Ideal-Body Batch Recovery (2026-07-17)
+
+- Image generation UI must treat PostgreSQL `ImageGenTask` rows as the recovery source after a client timeout or navigation.
+- An active batch in `processing` state is polled instead of being replaced by a new paid generation batch.
+- Terminal batches restore real task IDs and variants; a polling timeout asks the user to refresh and does not automatically regenerate.
+- `test:ideal-body-results` covers missing, processing, terminal, and partial-failure batch states.
